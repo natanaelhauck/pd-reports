@@ -103,7 +103,7 @@ const boolSelectValue = (valor) => (valor === true ? 'sim' : valor === false ? '
 const boolFromSelect = (valor) => (valor === 'sim' ? true : valor === 'nao' ? false : null);
 const DIAS_MONITORIA = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira'];
 const QTD_FILHOS = ['1', '2', '3', '4', '5', '6+'];
-const TURNOS = ['ManhÃ£', 'Tarde', 'Noite', 'Integral', 'VariÃ¡vel'];
+const TURNOS = ['Manhã', 'Tarde', 'Noite', 'Integral', 'Variável', 'EAD'];
 const PSICOLOGOS = ['Isabela'];
 
 const parseFilhos = (valor) => {
@@ -143,16 +143,30 @@ const filhosResumo = (valor) => {
   return textoLivre ? [textoLivre] : ['Não informado'];
 };
 
+const formatarUsuario = (usuario) => {
+  if (!usuario) return '';
+  const nome = String(usuario.nome || usuario.email || '').trim();
+  if (usuario.role !== 'admin') return nome;
+  return nome.toLowerCase() === 'admin' ? 'Admin' : `Admin · ${nome}`;
+};
+
+const formatarUsuarioHistorico = (item) => {
+  if (!item?.usuario_nome && !item?.usuario_email) return 'Usuário não registrado';
+  return `Alterado por ${formatarUsuario({ nome: item.usuario_nome || item.usuario_email, role: item.usuario_role })}`;
+};
+
 const styles = {
-  container: { maxWidth: '1020px', margin: '22px auto 36px', padding: '0 20px', fontFamily: '"Inter", sans-serif' },
-  header: { textAlign: 'center', marginBottom: '16px' },
-  logo: { width: 'min(230px, 66vw)', maxHeight: '70px', objectFit: 'contain', display: 'block', margin: '0 auto 6px' },
+  container: { width: '100%', maxWidth: '1180px', margin: '0 auto 36px', padding: '18px 24px 36px', fontFamily: '"Inter", sans-serif', boxSizing: 'border-box' },
+  header: { marginBottom: '14px' },
+  logo: { width: 'min(210px, 58vw)', maxHeight: '64px', objectFit: 'contain', display: 'block', margin: '0 auto 4px' },
   title: { fontSize: '30px', fontWeight: '850', color: '#243447', margin: 0, lineHeight: 1.05 },
   subtitle: { color: '#64748b', fontSize: '15px', marginTop: '4px' },
   hero: { textAlign: 'center', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '18px 22px', boxShadow: '0 8px 24px rgba(15,23,42,0.05)', marginBottom: '14px' },
-  searchBox: { display: 'flex', alignItems: 'center', gap: '10px', background: '#fff', padding: '8px 8px 8px 14px', borderRadius: '14px', boxShadow: '0 4px 15px rgba(15,23,42,0.06)', border: '1px solid #e2e8f0', marginBottom: '16px' },
+  searchBox: { display: 'flex', alignItems: 'center', gap: '10px', background: '#fff', padding: '8px 8px 8px 14px', borderRadius: '14px', boxShadow: '0 4px 15px rgba(15,23,42,0.06)', border: '1px solid #e2e8f0', marginBottom: '18px' },
   searchInput: { flex: 1, minWidth: 0, border: 'none', padding: '11px 8px', fontSize: '16px', outline: 'none', color: '#1a1a1a', backgroundColor: '#fff', colorScheme: 'light' },
   primaryBtn: { background: '#2563eb', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '10px', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' },
+  neutralBtn: { background: '#fff', color: '#1e293b', border: '1px solid #cbd5e1', padding: '10px 14px', borderRadius: '10px', cursor: 'pointer', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' },
+  iconBtn: { width: '38px', height: '38px', padding: 0, borderRadius: '10px', background: '#fff', color: '#334155', border: '1px solid #cbd5e1', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' },
   secondaryBtn: { background: '#fff', color: '#1e293b', border: '1px solid #cbd5e1', padding: '10px 14px', borderRadius: '10px', cursor: 'pointer', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' },
   message: { marginBottom: '18px', padding: '12px 14px', borderRadius: '10px', fontSize: '14px', fontWeight: '700', textAlign: 'left' },
   results: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '10px', marginBottom: '18px' },
@@ -350,6 +364,27 @@ export default function App() {
     setBuscaRealizada(false);
   };
 
+  const fecharAlunoSelecionado = () => {
+    setAluno(null);
+    setEditMode(false);
+    setEditPerfil(false);
+    setActiveTab('Dados principais');
+    setHistorico([]);
+  };
+
+  const abrirNovoAluno = () => {
+    fecharAlunoSelecionado();
+    setMostrarUsuarios(false);
+    setMostrarNovoAluno(true);
+    setMensagem(null);
+  };
+
+  const abrirUsuarios = async () => {
+    fecharAlunoSelecionado();
+    setMostrarNovoAluno(false);
+    await carregarUsuarios();
+  };
+
   const carregarUsuarios = async () => {
     if (!isAdmin) return;
     setMensagem(null);
@@ -416,6 +451,8 @@ export default function App() {
   };
 
   const selecionarAluno = (selecionado) => {
+    setMostrarNovoAluno(false);
+    setMostrarUsuarios(false);
     setAluno(selecionado);
     setTemp(criarTempSeguro(selecionado));
     setPerfil(PERFIL_INICIAL(selecionado.matricula));
@@ -474,23 +511,28 @@ export default function App() {
 
   return (
     <div className={temaEscuro ? 'theme-dark app-shell' : 'theme-light app-shell'} style={styles.container}>
-      <header style={styles.header}>
-        <img src={pdLogo} alt="PD Reports" className="pd-logo" style={styles.logo} />
-        <h1 style={styles.title}>PD Reports</h1>
-        <p style={styles.subtitle}>Gestão de Alunos</p>
-        <div className="top-actions">
-          <span className="user-chip">{usuario?.nome} · {usuario?.role}</span>
-          <button className="ui-button" type="button" onClick={alternarTema} style={styles.secondaryBtn}>{temaEscuro ? <Sun size={17} /> : <Moon size={17} />} {temaEscuro ? 'Claro' : 'Escuro'}</button>
-          {isAdmin && <button className="ui-button" type="button" onClick={() => setMostrarNovoAluno(true)} style={styles.primaryBtn}><Plus size={17} /> Novo aluno</button>}
-          {isAdmin && <button className="ui-button" type="button" onClick={carregarUsuarios} style={styles.secondaryBtn}><UserPlus size={17} /> Usuários</button>}
-          <button className="ui-button" type="button" onClick={sair} style={styles.secondaryBtn}>Sair</button>
+      <header className="app-header" style={styles.header}>
+        <div className="header-user">
+          <span className="user-chip">{formatarUsuario(usuario)}</span>
+        </div>
+        <div className="brand-block">
+          <img src={pdLogo} alt="PD Reports" className="pd-logo" style={styles.logo} />
+          <h1 style={styles.title}>PD Reports</h1>
+          <p style={styles.subtitle}>Gestão de Alunos</p>
+        </div>
+        <div className="header-controls">
+          <button className="ui-button icon-button" type="button" title="Alternar tema" aria-label="Alternar tema" onClick={alternarTema} style={styles.iconBtn}>
+            {temaEscuro ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
+          <button className="ui-button logout-button" type="button" onClick={sair} style={styles.neutralBtn}>Sair</button>
         </div>
       </header>
 
-      {!buscaRealizada && !aluno && (
-        <section style={styles.hero}>
-          <p style={{ color: '#64748b', margin: 0, fontSize: '16px', fontWeight: 650 }}>Busque um aluno por nome, matrícula, e-mail ou telefone.</p>
-        </section>
+      {isAdmin && (
+        <div className="main-actions">
+          <button className="ui-button" type="button" onClick={abrirNovoAluno} style={styles.neutralBtn}><Plus size={17} /> Novo aluno</button>
+          <button className="ui-button" type="button" onClick={abrirUsuarios} style={styles.neutralBtn}><UserPlus size={17} /> Usuários</button>
+        </div>
       )}
 
       <form className="search-form" onSubmit={buscar} style={styles.searchBox}>
@@ -547,6 +589,7 @@ export default function App() {
 
       {aluno && (
         <div ref={cardRef} className="student-card" style={{ ...styles.card, borderLeft: `8px solid ${corStatus}`, marginBottom: '18px' }}>
+          <button className="ui-button card-close" type="button" onClick={fecharAlunoSelecionado} aria-label="Fechar aluno selecionado" style={styles.iconBtn}><X size={17} /></button>
           <div className="student-card-header" style={styles.cardHeader}>
             <div style={{ ...styles.avatar, backgroundColor: `${corStatus}18` }}>
               <User size={30} color={corStatus} />
@@ -835,7 +878,7 @@ function Historico({ historico, carregandoHistorico }) {
             <span>→</span>
             <span>{item.valor_novo || 'vazio'}</span>
           </div>
-          {(item.usuario_nome || item.usuario_email) && <div className="history-user">{item.usuario_nome || item.usuario_email} · {item.usuario_role || 'usuário'}</div>}
+          <div className="history-user">{formatarUsuarioHistorico(item)}</div>
           <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>{formatarData(item.data)}</div>
         </div>
       ))}

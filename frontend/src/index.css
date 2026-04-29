@@ -33,7 +33,7 @@
 body {
   margin: 0;
   color: var(--text);
-  background: var(--bg);
+  background: #f6f8fb;
   color-scheme: light;
 }
 
@@ -113,18 +113,56 @@ button:disabled {
 }
 
 .search-form {
-  width: min(100%, 920px);
+  width: min(100%, 860px);
   margin-left: auto !important;
   margin-right: auto !important;
 }
 
-.top-actions {
+.app-header {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(240px, auto) minmax(180px, 1fr);
+  align-items: start;
+  gap: 18px;
+  padding: 4px 0 10px;
+}
+
+.brand-block {
+  text-align: center;
+}
+
+.header-user,
+.header-controls,
+.main-actions {
   display: flex;
-  justify-content: center;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-  margin-top: 12px;
+}
+
+.header-user {
+  justify-content: flex-start;
+  padding-top: 8px;
+}
+
+.header-controls {
+  justify-content: flex-end;
+  padding-top: 8px;
+}
+
+.main-actions {
+  justify-content: center;
+  margin: 4px 0 14px;
+}
+
+.icon-button {
+  flex: 0 0 auto;
+}
+
+.card-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 2;
 }
 
 .user-chip {
@@ -142,7 +180,8 @@ button:disabled {
 }
 
 .admin-panel {
-  margin-bottom: 18px;
+  margin: 10px auto 18px;
+  max-width: 920px;
 }
 
 .panel-title-row {
@@ -362,26 +401,38 @@ body:has(.theme-dark) {
   color: #dbe4ef;
 }
 
-.theme-dark header,
+.theme-dark.app-shell {
+  background: #0f172a;
+}
+
 .theme-dark .student-card,
 .theme-dark .login-box,
 .theme-dark .admin-panel,
-.theme-dark section,
-.theme-dark form.search-form,
-.theme-dark .result-button {
+.theme-dark form.search-form {
   background: #111827 !important;
   border-color: #334155 !important;
   color: #dbe4ef !important;
   box-shadow: 0 10px 26px rgba(0, 0, 0, 0.25) !important;
 }
 
+.theme-dark .result-button,
+.theme-dark section,
+.theme-dark [style*='background: rgb(248, 250, 252)'],
+.theme-dark [style*='background: #f8fafc'] {
+  background: #172033 !important;
+  border-color: #334155 !important;
+  color: #dbe4ef !important;
+}
+
 .theme-dark h1,
 .theme-dark h2,
-.theme-dark h3,
-.theme-dark strong,
-.theme-dark span,
-.theme-dark p {
+.theme-dark h3 {
   color: #e5edf7 !important;
+}
+
+.theme-dark p,
+.theme-dark strong {
+  color: #dbe4ef;
 }
 
 .theme-dark input,
@@ -424,12 +475,52 @@ body:has(.theme-dark) {
   color: #cbd5e1 !important;
 }
 
+.theme-dark .search-form svg {
+  color: #94a3b8;
+}
+
+.theme-dark .pd-logo {
+  background: rgba(255, 255, 255, 0.86);
+  border-radius: 10px;
+  padding: 5px 8px;
+}
+
+.theme-dark .user-chip {
+  color: #e5edf7 !important;
+}
+
+.theme-dark .icon-button,
+.theme-dark .logout-button,
+.theme-dark .main-actions .ui-button,
+.theme-dark .panel-title-row .ui-button,
+.theme-dark .card-close {
+  background: #1f2937 !important;
+  color: #e5edf7 !important;
+  border-color: #475569 !important;
+}
+
+.theme-dark .ui-button:hover:not(:disabled),
+.theme-dark .result-button:hover {
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.28);
+  border-color: #64748b !important;
+  background-color: #22304a !important;
+}
+
+.theme-dark [style*='background: transparent'] {
+  color: #cbd5e1 !important;
+}
+
+.theme-dark [style*='background: rgb(255, 255, 255)'],
+.theme-dark [style*='background: #fff'] {
+  background: #1f2937 !important;
+}
+
 #root {
-  width: 1126px;
+  width: 100%;
   max-width: 100%;
   margin: 0 auto;
   text-align: center;
-  border-inline: 1px solid var(--border);
+  border-inline: 0;
   min-height: 100svh;
   display: flex;
   flex-direction: column;
@@ -492,6 +583,17 @@ code {
     justify-content: center;
   }
 
+  .app-header {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .header-user,
+  .header-controls,
+  .main-actions {
+    justify-content: center;
+  }
+
   .student-card {
     padding: 22px !important;
   }
@@ -506,15 +608,6 @@ code {
 
   .admin-grid {
     grid-template-columns: 1fr;
-  }
-
-  .top-actions {
-    align-items: stretch;
-  }
-
-  .top-actions > * {
-    width: 100%;
-    justify-content: center;
   }
 
   .profile-grid section {
