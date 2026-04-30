@@ -4,6 +4,7 @@ import os
 import re
 import unicodedata
 from datetime import datetime
+from pathlib import Path
 
 import pandas as pd
 import psycopg2
@@ -11,7 +12,10 @@ from psycopg2.extras import RealDictCursor
 from werkzeug.security import check_password_hash, generate_password_hash
 from dotenv import load_dotenv
 
-load_dotenv()
+BASE_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = BASE_DIR.parent
+
+load_dotenv(dotenv_path=Path(__file__).parent / ".env")
 
 app = Flask(__name__)
 CORS(app)
@@ -19,7 +23,7 @@ CORS(app)
 DATABASE_URL = os.getenv('DATABASE_URL')
 ADMIN_EMAIL = os.getenv('ADMIN_EMAIL')
 ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD')
-CAMINHO_PLANILHA = 'dados/alunos.xlsx'
+CAMINHO_PLANILHA = PROJECT_ROOT / 'dados' / 'alunos.xlsx'
 
 if not DATABASE_URL:
     raise RuntimeError('DATABASE_URL não configurada. Crie um arquivo .env ou configure a variável de ambiente.')
