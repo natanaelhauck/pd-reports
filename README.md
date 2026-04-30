@@ -1,6 +1,6 @@
 # PD Reports
 
-Sistema interno para gestao e consulta de alunos, com backend Flask/PostgreSQL e frontend React.
+Sistema interno para gestão e consulta de alunos, com backend Flask/PostgreSQL e frontend React.
 
 ## Estrutura
 
@@ -18,7 +18,7 @@ sistema_alunos/
 `-- README.md
 ```
 
-`backend/alunos.db` fica apenas como backup local. A aplicacao usa o banco configurado em `backend/.env`.
+`backend/alunos.db` fica apenas como backup local. A aplicação usa o banco configurado em `backend/.env`.
 
 ## Backend
 
@@ -48,7 +48,11 @@ npm run dev
 
 O frontend acessa o backend em `http://127.0.0.1:5000/api`.
 
-## Validacao
+## Relatórios Monitoria
+
+A aba **Relatórios Monitoria** futuramente deve consumir a aba "Relatórios Monitoria" da planilha Google via Google Sheets API. O Neon deve guardar os dados estáveis dos alunos; relatórios recorrentes de formulários devem ser consultados ou sincronizados da planilha para evitar duplicação pesada.
+
+## Validação
 
 ```bash
 cd backend

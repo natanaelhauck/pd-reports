@@ -32,7 +32,7 @@ if not ADMIN_PASSWORD:
     raise RuntimeError('ADMIN_PASSWORD não configurada. Crie um arquivo .env ou configure a variável de ambiente.')
 
 if not ADMIN_EMAIL:
-    raise RuntimeError('ADMIN_EMAIL nao configurado. Crie um arquivo .env ou configure a variavel de ambiente.')
+    raise RuntimeError('ADMIN_EMAIL não configurado. Crie um arquivo .env ou configure a variável de ambiente.')
 
 MONITORES_VALIDOS = {
     'alex': 'Alex',
@@ -467,7 +467,7 @@ def login():
                 }
             })
 
-        return jsonify({"erro": "E-mail ou senha invalidos."}), 401
+        return jsonify({"erro": "E-mail ou senha inválidos."}), 401
     except psycopg2.Error as exc:
         return erro_banco(exc)
     finally:
@@ -718,7 +718,7 @@ def update_aluno():
 
 @app.route('/api/alunos/create', methods=['POST'])
 def criar_aluno():
-    # Autenticacao simples para uso interno/local. Em producao, substituir por JWT ou sessao segura.
+    # Autenticação simples para uso interno/local. Em produção, substituir por JWT ou sessão segura.
     dados = request.get_json(silent=True) or {}
     if not usuario_is_admin(dados):
         return jsonify({"erro": "Apenas administradores podem cadastrar alunos."}), 403
@@ -729,7 +729,7 @@ def criar_aluno():
     status = normalizar_status(dados.get('status'))
 
     if not nome or not matricula or not status:
-        return jsonify({"erro": "Nome, matricula e status sao obrigatorios."}), 400
+        return jsonify({"erro": "Nome, matrícula e status são obrigatórios."}), 400
 
     novo = {
         'nome': nome,
@@ -747,7 +747,7 @@ def criar_aluno():
         cursor = cursor_db(conn)
         cursor.execute('SELECT 1 FROM alunos WHERE matricula=%s', (matricula,))
         if cursor.fetchone():
-            return jsonify({"erro": "Ja existe aluno com essa matricula."}), 409
+            return jsonify({"erro": "Já existe aluno com essa matrícula."}), 409
 
         cursor.execute('''
             INSERT INTO alunos (nome, telefone, email, matricula, nascimento, monitor, status)
@@ -772,14 +772,14 @@ def criar_aluno():
 
 @app.route('/api/usuarios', methods=['GET'])
 def listar_usuarios():
-    # Autenticacao simples para uso interno/local. Em producao, substituir por JWT ou sessao segura.
+    # Autenticação simples para uso interno/local. Em produção, substituir por JWT ou sessão segura.
     dados = {
         'usuario_nome': request.args.get('usuario_nome'),
         'usuario_email': request.args.get('usuario_email'),
         'usuario_role': request.args.get('usuario_role'),
     }
     if not usuario_is_admin(dados):
-        return jsonify({"erro": "Apenas administradores podem listar usuarios."}), 403
+        return jsonify({"erro": "Apenas administradores podem listar usuários."}), 403
 
     conn = None
     try:
@@ -799,10 +799,10 @@ def listar_usuarios():
 
 @app.route('/api/usuarios/create', methods=['POST'])
 def criar_usuario():
-    # Autenticacao simples para uso interno/local. Em producao, substituir por JWT ou sessao segura.
+    # Autenticação simples para uso interno/local. Em produção, substituir por JWT ou sessão segura.
     dados = request.get_json(silent=True) or {}
     if not usuario_is_admin(dados):
-        return jsonify({"erro": "Apenas administradores podem cadastrar usuarios."}), 403
+        return jsonify({"erro": "Apenas administradores podem cadastrar usuários."}), 403
 
     nome = str(dados.get('nome') or '').strip()
     email = str(dados.get('email') or '').strip().lower()
@@ -812,7 +812,7 @@ def criar_usuario():
     if role not in {'admin', 'monitor'}:
         return jsonify({"erro": "Role invalida."}), 400
     if not nome or not email or not senha:
-        return jsonify({"erro": "Nome, e-mail e senha sao obrigatorios."}), 400
+        return jsonify({"erro": "Nome, e-mail e senha são obrigatórios."}), 400
 
     conn = None
     try:
@@ -825,11 +825,11 @@ def criar_usuario():
         ''', (nome, email, generate_password_hash(senha), role))
         usuario = row_to_dict(cursor.fetchone())
         conn.commit()
-        return jsonify({"mensagem": "Usuario cadastrado com sucesso.", "usuario": usuario}), 201
+        return jsonify({"mensagem": "Usuário cadastrado com sucesso.", "usuario": usuario}), 201
     except psycopg2.errors.UniqueViolation:
         if conn:
             conn.rollback()
-        return jsonify({"erro": "Ja existe usuario com esse e-mail."}), 409
+        return jsonify({"erro": "Já existe usuário com esse e-mail."}), 409
     except psycopg2.Error as exc:
         if conn:
             conn.rollback()

@@ -1,12 +1,12 @@
 import { useMemo, useRef, useState } from 'react';
 import axios from 'axios';
-import { Search, User, Mail, Hash, Calendar, ShieldCheck, Phone, Edit2, Save, X, LogIn, Briefcase, GraduationCap, Users, CheckCircle2, Moon, Sun, Plus, UserPlus } from 'lucide-react';
+import { Search, User, Mail, Hash, Calendar, ShieldCheck, Phone, Edit2, Save, X, LogIn, Briefcase, GraduationCap, Users, CheckCircle2, Moon, Sun, Plus, UserPlus, ClipboardList } from 'lucide-react';
 import pdLogo from './assets/pd-logo.svg';
 
 const API_BASE = 'http://127.0.0.1:5000/api';
 const MONITORES = ['Alex', 'André', 'Douglas', 'Gabriel', 'Kellen', 'Natanael'];
 const STATUS_OPTIONS = ['MANTER', 'EM ANÁLISE', 'REMOVIDO', 'DESLIGADO'];
-const TABS = ['Dados principais', 'Perfil do aluno', 'Histórico'];
+const TABS = ['Dados principais', 'Perfil do aluno', 'Histórico', 'Relatórios Monitoria'];
 
 const PERFIL_INICIAL = (matricula = '') => ({
   matricula,
@@ -44,6 +44,33 @@ const STATUS_COLORS = {
 
 const ENG_COLORS = { baixo: '#b91c1c', médio: '#d97706', medio: '#d97706', alto: '#15803d' };
 const PROG_COLORS = { básico: '#0284c7', basico: '#0284c7', intermediário: '#4f46e5', intermediario: '#4f46e5', avançado: '#166534', avancado: '#166534' };
+const CAMPO_LABELS = {
+  nome: 'Nome',
+  telefone: 'Telefone',
+  email: 'E-mail',
+  nascimento: 'Nascimento',
+  monitor: 'Monitor responsável',
+  status: 'Status',
+  'sistema.cadastro': 'Cadastro do aluno',
+  'perfil.analise_perfil': 'Perfil · Análise de perfil',
+  'perfil.trabalha': 'Perfil · Trabalha?',
+  'perfil.trabalho_descricao': 'Perfil · Descrição do trabalho',
+  'perfil.turno_trabalho': 'Perfil · Turno de trabalho',
+  'perfil.estuda': 'Perfil · Estuda?',
+  'perfil.estudo_instituicao': 'Perfil · Instituição de estudo',
+  'perfil.estudo_curso': 'Perfil · Curso',
+  'perfil.turno_estudo': 'Perfil · Turno de estudo',
+  'perfil.tem_filhos': 'Perfil · Tem filhos?',
+  'perfil.filhos_descricao': 'Perfil · Filhos',
+  'perfil.nivel_engajamento': 'Perfil · Nível de Engajamento',
+  'perfil.nivel_programacao': 'Perfil · Nível de Conhecimento em Programação',
+  'perfil.previsao_formacao_ano': 'Perfil · Ano de previsão de formação',
+  'perfil.previsao_formacao_semestre': 'Perfil · Semestre de previsão de formação',
+  'perfil.dia_monitoria': 'Perfil · Dia da monitoria',
+  'perfil.horario_monitoria': 'Perfil · Horário da monitoria',
+  'perfil.acompanhamento_psicologico': 'Perfil · Faz acompanhamento?',
+  'perfil.psicologo': 'Perfil · Psicólogo',
+};
 
 const semAcentos = (valor) => String(valor || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
@@ -147,7 +174,7 @@ const formatarUsuario = (usuario) => {
   if (!usuario) return '';
   const nome = String(usuario.nome || usuario.email || '').trim();
   if (usuario.role !== 'admin') return nome;
-  return nome.toLowerCase() === 'admin' ? 'Admin' : `Admin · ${nome}`;
+  return `Admin · ${nome || 'Usuário'}`;
 };
 
 const formatarUsuarioHistorico = (item) => {
@@ -155,41 +182,45 @@ const formatarUsuarioHistorico = (item) => {
   return `Alterado por ${formatarUsuario({ nome: item.usuario_nome || item.usuario_email, role: item.usuario_role })}`;
 };
 
+const rotuloCampoHistorico = (campo) => CAMPO_LABELS[campo] || String(campo || '')
+  .replace('perfil.', 'Perfil · ')
+  .replaceAll('_', ' ');
+
 const styles = {
   container: { width: '100%', maxWidth: '1180px', margin: '0 auto 36px', padding: '18px 24px 36px', fontFamily: '"Inter", sans-serif', boxSizing: 'border-box' },
   header: { marginBottom: '14px' },
   logo: { width: 'min(210px, 58vw)', maxHeight: '64px', objectFit: 'contain', display: 'block', margin: '0 auto 4px' },
-  title: { fontSize: '30px', fontWeight: '850', color: '#243447', margin: 0, lineHeight: 1.05 },
-  subtitle: { color: '#64748b', fontSize: '15px', marginTop: '4px' },
+  title: { fontSize: '30px', fontWeight: '850', color: 'var(--pd-title)', margin: 0, lineHeight: 1.05 },
+  subtitle: { color: 'var(--pd-muted)', fontSize: '15px', marginTop: '4px' },
   hero: { textAlign: 'center', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '18px 22px', boxShadow: '0 8px 24px rgba(15,23,42,0.05)', marginBottom: '14px' },
-  searchBox: { display: 'flex', alignItems: 'center', gap: '10px', background: '#fff', padding: '8px 8px 8px 14px', borderRadius: '14px', boxShadow: '0 4px 15px rgba(15,23,42,0.06)', border: '1px solid #e2e8f0', marginBottom: '18px' },
-  searchInput: { flex: 1, minWidth: 0, border: 'none', padding: '11px 8px', fontSize: '16px', outline: 'none', color: '#1a1a1a', backgroundColor: '#fff', colorScheme: 'light' },
+  searchBox: { display: 'flex', alignItems: 'center', gap: '10px', background: 'var(--pd-surface)', padding: '8px 8px 8px 14px', borderRadius: '14px', boxShadow: 'var(--pd-shadow)', border: '1px solid var(--pd-border)', marginBottom: '18px' },
+  searchInput: { flex: 1, minWidth: 0, border: 'none', padding: '11px 8px', fontSize: '16px', outline: 'none', color: 'var(--pd-text)', backgroundColor: 'transparent', colorScheme: 'var(--pd-color-scheme)' },
   primaryBtn: { background: '#2563eb', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '10px', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' },
-  neutralBtn: { background: '#fff', color: '#1e293b', border: '1px solid #cbd5e1', padding: '10px 14px', borderRadius: '10px', cursor: 'pointer', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' },
-  iconBtn: { width: '38px', height: '38px', padding: 0, borderRadius: '10px', background: '#fff', color: '#334155', border: '1px solid #cbd5e1', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' },
-  secondaryBtn: { background: '#fff', color: '#1e293b', border: '1px solid #cbd5e1', padding: '10px 14px', borderRadius: '10px', cursor: 'pointer', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' },
+  neutralBtn: { background: 'var(--pd-button-bg)', color: 'var(--pd-button-text)', border: '1px solid var(--pd-button-border)', padding: '10px 14px', borderRadius: '10px', cursor: 'pointer', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center', minHeight: '40px' },
+  iconBtn: { width: '40px', height: '40px', padding: 0, borderRadius: '10px', background: 'var(--pd-button-bg)', color: 'var(--pd-button-text)', border: '1px solid var(--pd-button-border)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' },
+  secondaryBtn: { background: 'var(--pd-button-bg)', color: 'var(--pd-button-text)', border: '1px solid var(--pd-button-border)', padding: '10px 14px', borderRadius: '10px', cursor: 'pointer', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center', minHeight: '40px' },
   message: { marginBottom: '18px', padding: '12px 14px', borderRadius: '10px', fontSize: '14px', fontWeight: '700', textAlign: 'left' },
   results: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '10px', marginBottom: '18px' },
-  resultBtn: { background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '12px', textAlign: 'left', cursor: 'pointer', color: '#334155' },
-  card: { background: '#fff', borderRadius: '16px', padding: '22px', boxShadow: '0 10px 28px rgba(15,23,42,0.08)', position: 'relative' },
-  cardHeader: { display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '14px', paddingBottom: '14px', borderBottom: '1px solid #e2e8f0' },
+  resultBtn: { background: 'var(--pd-surface)', border: '1px solid var(--pd-border)', borderRadius: '12px', padding: '12px', textAlign: 'left', cursor: 'pointer', color: 'var(--pd-text)' },
+  card: { background: 'var(--pd-surface)', borderRadius: '16px', padding: '22px', boxShadow: 'var(--pd-card-shadow)', position: 'relative' },
+  cardHeader: { display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '14px', paddingBottom: '14px', borderBottom: '1px solid var(--pd-border)' },
   avatar: { width: '50px', height: '50px', borderRadius: '13px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   headerInfo: { flex: 1, minWidth: 0, textAlign: 'left' },
-  nome: { fontSize: '23px', fontWeight: '850', color: '#0f172a', margin: 0, overflowWrap: 'anywhere', lineHeight: 1.14 },
+  nome: { fontSize: '23px', fontWeight: '850', color: 'var(--pd-title)', margin: 0, overflowWrap: 'anywhere', lineHeight: 1.14 },
   badge: { marginTop: '6px', padding: '5px 10px', borderRadius: '999px', fontSize: '10px', fontWeight: '850', display: 'inline-flex', alignItems: 'center', textTransform: 'uppercase' },
   actions: { display: 'flex', gap: '10px', marginLeft: 'auto', alignItems: 'center', flexShrink: 0, flexWrap: 'wrap' },
-  tabs: { display: 'flex', gap: '6px', overflowX: 'auto', padding: '3px', marginBottom: '14px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px' },
-  tab: { border: 'none', background: 'transparent', color: '#475569', padding: '9px 12px', borderRadius: '9px', fontWeight: 850, cursor: 'pointer', whiteSpace: 'nowrap' },
+  tabs: { display: 'flex', gap: '6px', overflowX: 'auto', padding: '3px', marginBottom: '14px', background: 'var(--pd-subtle)', border: '1px solid var(--pd-border)', borderRadius: '12px' },
+  tab: { border: 'none', background: 'transparent', color: 'var(--pd-muted)', padding: '9px 12px', borderRadius: '9px', fontWeight: 850, cursor: 'pointer', whiteSpace: 'nowrap' },
   grid: { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '12px' },
   profileGrid: { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '12px' },
-  section: { background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '14px', textAlign: 'left' },
-  infoItem: { background: '#f8fafc', padding: '15px', borderRadius: '12px', display: 'flex', gap: '12px', border: '1px solid #e2e8f0', textAlign: 'left', minWidth: 0 },
-  label: { fontSize: '10px', textTransform: 'uppercase', color: '#64748b', fontWeight: '800', display: 'block', marginBottom: '6px' },
-  val: { fontSize: '15px', fontWeight: '650', color: '#334155', overflowWrap: 'anywhere' },
-  fieldInput: { width: '100%', boxSizing: 'border-box', minHeight: '42px', padding: '10px 12px', borderRadius: '9px', border: '1px solid #cbd5e1', backgroundColor: '#fff', color: '#1a1a1a', fontSize: '14px', outline: 'none', colorScheme: 'light' },
-  textarea: { width: '100%', boxSizing: 'border-box', minHeight: '120px', padding: '10px 12px', borderRadius: '9px', border: '1px solid #cbd5e1', backgroundColor: '#fff', color: '#1a1a1a', fontSize: '14px', outline: 'none', resize: 'vertical' },
-  editInputName: { fontSize: '22px', fontWeight: '800', border: '1px solid #cbd5e1', borderRadius: '10px', padding: '9px 11px', width: '100%', boxSizing: 'border-box', color: '#0f172a', backgroundColor: '#fff', colorScheme: 'light' },
-  loginBox: { maxWidth: '420px', margin: '90px auto', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '18px', padding: '28px', boxShadow: '0 10px 30px rgba(15,23,42,0.08)' },
+  section: { background: 'var(--pd-subtle)', border: '1px solid var(--pd-border)', borderRadius: '12px', padding: '14px', textAlign: 'left' },
+  infoItem: { background: 'var(--pd-subtle)', padding: '15px', borderRadius: '12px', display: 'flex', gap: '12px', border: '1px solid var(--pd-border)', textAlign: 'left', minWidth: 0 },
+  label: { fontSize: '10px', textTransform: 'uppercase', color: 'var(--pd-label)', fontWeight: '850', display: 'block', marginBottom: '6px' },
+  val: { fontSize: '15px', fontWeight: '650', color: 'var(--pd-text)', overflowWrap: 'anywhere' },
+  fieldInput: { width: '100%', boxSizing: 'border-box', minHeight: '42px', padding: '10px 12px', borderRadius: '9px', border: '1px solid var(--pd-input-border)', backgroundColor: 'var(--pd-input-bg)', color: 'var(--pd-text)', fontSize: '14px', outline: 'none', colorScheme: 'var(--pd-color-scheme)' },
+  textarea: { width: '100%', boxSizing: 'border-box', minHeight: '120px', padding: '10px 12px', borderRadius: '9px', border: '1px solid var(--pd-input-border)', backgroundColor: 'var(--pd-input-bg)', color: 'var(--pd-text)', fontSize: '14px', outline: 'none', resize: 'vertical', colorScheme: 'var(--pd-color-scheme)' },
+  editInputName: { fontSize: '22px', fontWeight: '800', border: '1px solid var(--pd-input-border)', borderRadius: '10px', padding: '9px 11px', width: '100%', boxSizing: 'border-box', color: 'var(--pd-title)', backgroundColor: 'var(--pd-input-bg)', colorScheme: 'var(--pd-color-scheme)' },
+  loginBox: { maxWidth: '420px', margin: '90px auto', background: 'var(--pd-surface)', border: '1px solid var(--pd-border)', borderRadius: '18px', padding: '28px', boxShadow: 'var(--pd-card-shadow)' },
 };
 
 export default function App() {
@@ -264,6 +295,26 @@ export default function App() {
     setPerfil(dados);
     setPerfilTemp(dados);
     return dados;
+  };
+
+  const limparEstadoAplicacao = () => {
+    setAlunos([]);
+    setBusca('');
+    setAluno(null);
+    setEditMode(false);
+    setTemp(criarTempSeguro());
+    setActiveTab('Dados principais');
+    setPerfil(PERFIL_INICIAL());
+    setPerfilTemp(PERFIL_INICIAL());
+    setEditPerfil(false);
+    setMensagem(null);
+    setHistorico([]);
+    setBuscaRealizada(false);
+    setMostrarNovoAluno(false);
+    setMostrarUsuarios(false);
+    setUsuarios([]);
+    setNovoAluno({ nome: '', matricula: '', telefone: '', email: '', nascimento: '', monitor: '', status: 'MANTER' });
+    setNovoUsuario({ nome: '', email: '', senha: '', role: 'monitor' });
   };
 
   const salvarPerfilAluno = async () => {
@@ -341,6 +392,7 @@ export default function App() {
       const res = await axios.post(`${API_BASE}/login`, { email: loginEmail, senha }, { timeout: 12000 });
       localStorage.setItem('pd_user', JSON.stringify(res.data.usuario));
       localStorage.removeItem('pd_auth');
+      limparEstadoAplicacao();
       setUsuario(res.data.usuario);
       setLoginEmail('');
       setSenha('');
@@ -358,10 +410,13 @@ export default function App() {
   const sair = () => {
     localStorage.removeItem('pd_user');
     localStorage.removeItem('pd_auth');
+    Object.keys(localStorage).forEach((key) => {
+      if (key.startsWith('pd_') && key !== 'pd_theme') localStorage.removeItem(key);
+    });
     setUsuario(null);
-    setAluno(null);
-    setAlunos([]);
-    setBuscaRealizada(false);
+    limparEstadoAplicacao();
+    setLoginEmail('');
+    setSenha('');
   };
 
   const fecharAlunoSelecionado = () => {
@@ -382,6 +437,7 @@ export default function App() {
   const abrirUsuarios = async () => {
     fecharAlunoSelecionado();
     setMostrarNovoAluno(false);
+    setNovoUsuario({ nome: '', email: '', senha: '', role: 'monitor' });
     await carregarUsuarios();
   };
 
@@ -490,15 +546,17 @@ export default function App() {
   if (!autenticado) {
     return (
       <div className={temaEscuro ? 'theme-dark app-shell' : 'theme-light app-shell'} style={styles.container}>
-        <form className="login-box" onSubmit={login} style={styles.loginBox}>
-          <img src={pdLogo} alt="PD Reports" className="pd-logo" style={styles.logo} />
+        <form className="login-box" onSubmit={login} style={styles.loginBox} autoComplete="off">
+          <div className="login-logo-wrap">
+            <img src={pdLogo} alt="PD Reports" className="pd-logo" style={styles.logo} />
+          </div>
           <h1 style={{ ...styles.title, textAlign: 'left' }}>PD Reports</h1>
           <p style={{ ...styles.subtitle, textAlign: 'left', marginBottom: '18px' }}>Gestão de Alunos</p>
-          <input type="email" style={{ ...styles.fieldInput, marginBottom: '12px' }} placeholder="E-mail" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} />
-          <input type="password" style={{ ...styles.fieldInput, marginBottom: '12px' }} placeholder="Senha" value={senha} onChange={(e) => setSenha(e.target.value)} />
+          <input type="email" style={{ ...styles.fieldInput, marginBottom: '12px' }} placeholder="E-mail" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} autoComplete="username" />
+          <input type="password" style={{ ...styles.fieldInput, marginBottom: '12px' }} placeholder="Senha" value={senha} onChange={(e) => setSenha(e.target.value)} autoComplete="current-password" />
           <button className="ui-button" type="submit" style={{ ...styles.primaryBtn, width: '100%' }}><LogIn size={18} /> Entrar</button>
-          <button className="ui-button theme-toggle-login" type="button" onClick={alternarTema} style={{ ...styles.secondaryBtn, width: '100%', marginTop: '10px' }}>
-            {temaEscuro ? <Sun size={17} /> : <Moon size={17} />} {temaEscuro ? 'Tema claro' : 'Tema escuro'}
+          <button className="ui-button icon-button theme-toggle-login" type="button" title="Alternar tema" aria-label="Alternar tema" onClick={alternarTema} style={{ ...styles.iconBtn, marginTop: '10px' }}>
+            {temaEscuro ? <Sun size={18} /> : <Moon size={18} />}
           </button>
           {mensagem && <div style={{ ...styles.message, ...estiloMensagem, marginTop: '14px', marginBottom: 0 }}>{mensagem.texto}</div>}
         </form>
@@ -536,8 +594,8 @@ export default function App() {
       )}
 
       <form className="search-form" onSubmit={buscar} style={styles.searchBox}>
-        <Search size={20} color="#64748b" />
-        <input style={styles.searchInput} placeholder="Buscar por nome, matrícula, e-mail ou telefone..." value={busca} onChange={(e) => setBusca(e.target.value)} />
+        <Search className="search-icon" size={20} color="#64748b" />
+        <input style={styles.searchInput} placeholder="Buscar por nome, matrícula, e-mail ou telefone..." value={busca} onChange={(e) => setBusca(e.target.value)} autoComplete="off" />
         <button className="ui-button" type="submit" disabled={buscando} style={{ ...styles.primaryBtn, opacity: buscando ? 0.75 : 1 }}>
           {buscando ? 'Buscando...' : 'Buscar'}
         </button>
@@ -572,17 +630,35 @@ export default function App() {
             <h2>Usuários</h2>
             <button className="ui-button" type="button" onClick={() => setMostrarUsuarios(false)} style={styles.secondaryBtn}><X size={17} /></button>
           </div>
-          <form onSubmit={cadastrarUsuario} className="admin-grid">
+          <form onSubmit={cadastrarUsuario} className="admin-grid" autoComplete="off">
             <ProfileField label="Nome" value={novoUsuario.nome} onChange={(v) => setNovoUsuario({ ...novoUsuario, nome: v })} />
-            <ProfileField label="E-mail" type="email" value={novoUsuario.email} onChange={(v) => setNovoUsuario({ ...novoUsuario, email: v })} />
-            <ProfileField label="Senha" type="password" value={novoUsuario.senha} onChange={(v) => setNovoUsuario({ ...novoUsuario, senha: v })} />
+            <ProfileField label="E-mail" type="email" value={novoUsuario.email} onChange={(v) => setNovoUsuario({ ...novoUsuario, email: v })} autoComplete="new-email" />
+            <ProfileField label="Senha" type="password" value={novoUsuario.senha} onChange={(v) => setNovoUsuario({ ...novoUsuario, senha: v })} autoComplete="new-password" />
             <ProfileSelect label="Perfil" value={novoUsuario.role} onChange={(v) => setNovoUsuario({ ...novoUsuario, role: v })} options={[['monitor', 'Monitor'], ['admin', 'Admin']]} />
             <button className="ui-button" type="submit" disabled={salvandoUsuario} style={styles.primaryBtn}>
               <Save size={17} /> {salvandoUsuario ? 'Salvando...' : 'Cadastrar usuário'}
             </button>
           </form>
-          <div className="users-list">
-            {usuarios.map((u) => <span key={u.id || u.email}>{u.nome} · {u.email} · {u.role}</span>)}
+          <div className="users-table-wrap">
+            <h3>Usuários cadastrados</h3>
+            <table className="users-table">
+              <thead>
+                <tr>
+                  <th>Nome</th>
+                  <th>E-mail</th>
+                  <th>Perfil</th>
+                </tr>
+              </thead>
+              <tbody>
+                {usuarios.map((u) => (
+                  <tr key={u.id || u.email}>
+                    <td>{formatarUsuario(u)}</td>
+                    <td>{u.email}</td>
+                    <td>{u.role}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </section>
       )}
@@ -602,7 +678,7 @@ export default function App() {
 
           <div style={styles.tabs}>
             {TABS.map((tab) => (
-              <button key={tab} className="ui-button" type="button" onClick={() => selecionarTab(tab)} style={{ ...styles.tab, background: activeTab === tab ? '#fff' : 'transparent', color: activeTab === tab ? '#0f172a' : '#64748b', boxShadow: activeTab === tab ? '0 1px 4px rgba(15,23,42,0.08)' : 'none' }}>{tab}</button>
+              <button key={tab} className="ui-button" type="button" onClick={() => selecionarTab(tab)} style={{ ...styles.tab, background: activeTab === tab ? 'var(--pd-surface)' : 'transparent', color: activeTab === tab ? 'var(--pd-title)' : 'var(--pd-muted)', boxShadow: activeTab === tab ? 'var(--pd-tab-shadow)' : 'none' }}>{tab}</button>
             ))}
           </div>
 
@@ -635,27 +711,31 @@ export default function App() {
           {activeTab === 'Histórico' && (
             <Historico historico={historico} carregandoHistorico={carregandoHistorico} />
           )}
+
+          {activeTab === 'Relatórios Monitoria' && (
+            <RelatoriosMonitoria />
+          )}
         </div>
       )}
 
       {buscaRealizada && resultadosVisiveis.length > 0 && (
         <>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-            <h2 style={{ fontSize: '18px', fontWeight: 800, color: '#334155', margin: 0 }}>Resultados</h2>
-            <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 700 }}>{alunosOrdenados.length} aluno(s)</span>
+            <h2 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--pd-title)', margin: 0 }}>Resultados</h2>
+            <span style={{ fontSize: '13px', color: 'var(--pd-muted)', fontWeight: 700 }}>{alunosOrdenados.length} aluno(s)</span>
           </div>
           <div style={styles.results}>
             {resultadosVisiveis.map((item) => {
               const selecionado = aluno?.matricula === item.matricula;
               const itemColor = getStatusColor(item.status);
               return (
-                <button className={`result-button${selecionado ? ' selected' : ''}`} type="button" key={item.matricula || item.id} style={{ ...styles.resultBtn, borderColor: selecionado ? itemColor : '#e2e8f0', backgroundColor: selecionado ? `${itemColor}0d` : '#fff' }} onClick={() => selecionarAluno(item)}>
+                <button className={`result-button${selecionado ? ' selected' : ''}`} type="button" key={item.matricula || item.id} style={{ ...styles.resultBtn, borderColor: selecionado ? itemColor : 'var(--pd-border)', backgroundColor: selecionado ? `${itemColor}0d` : 'var(--pd-surface)' }} onClick={() => selecionarAluno(item)}>
                   <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '10px' }}>
-                    <strong style={{ color: '#0f172a', lineHeight: 1.25 }}>{item.nome}</strong>
+                    <strong style={{ color: 'var(--pd-title)', lineHeight: 1.25 }}>{item.nome}</strong>
                     <span style={{ flexShrink: 0, color: itemColor, background: `${itemColor}14`, border: `1px solid ${itemColor}35`, borderRadius: '999px', padding: '3px 8px', fontSize: '10px', fontWeight: 900 }}>{statusDisplay(item.status)}</span>
                   </div>
-                  <div style={{ fontSize: '13px', marginTop: '8px', color: '#475569' }}>{item.matricula}</div>
-                  <div style={{ fontSize: '13px', marginTop: '3px', color: '#64748b' }}>Monitor: {monitorDisplay(item.monitor)}</div>
+                  <div style={{ fontSize: '13px', marginTop: '8px', color: 'var(--pd-text)' }}>{item.matricula}</div>
+                  <div style={{ fontSize: '13px', marginTop: '3px', color: 'var(--pd-muted)' }}>Monitor: {monitorDisplay(item.monitor)}</div>
                 </button>
               );
             })}
@@ -724,22 +804,28 @@ function PerfilAluno({ perfil, perfilTemp, setPerfilTemp, editPerfil, setEditPer
           <section style={styles.section}>
             <h3><Briefcase size={18} /> Trabalho e Estudos</h3>
             <DisplayItem label="Trabalha?" value={p.trabalha === true ? 'Sim' : p.trabalha === false ? 'Não' : 'Não informado'} />
-            <DisplayItem label="Com o que trabalha?" value={p.trabalho_descricao} />
-            {p.trabalha === true && <DisplayItem label="Turno de trabalho" value={p.turno_trabalho} />}
+            {p.trabalha === true && (
+              <>
+                <DisplayItem label="Com o que trabalha?" value={p.trabalho_descricao} />
+                <DisplayItem label="Turno de trabalho" value={p.turno_trabalho} />
+              </>
+            )}
             <DisplayItem label="Estuda?" value={p.estuda === true ? 'Sim' : p.estuda === false ? 'Não' : 'Não informado'} />
-            <DisplayItem label="Onde estuda?" value={p.estudo_instituicao} />
-            <DisplayItem label="Qual curso?" value={p.estudo_curso} />
-            {p.estuda === true && <DisplayItem label="Turno de estudo" value={p.turno_estudo} />}
+            {p.estuda === true && (
+              <>
+                <DisplayItem label="Onde estuda?" value={p.estudo_instituicao} />
+                <DisplayItem label="Qual curso?" value={p.estudo_curso} />
+                <DisplayItem label="Turno de estudo" value={p.turno_estudo} />
+              </>
+            )}
           </section>
           <section style={styles.section}>
             <h3><Users size={18} /> Família</h3>
             <DisplayItem label="Tem filhos?" value={p.tem_filhos === true ? 'Sim' : p.tem_filhos === false ? 'Não' : 'Não informado'} />
-            {p.tem_filhos === true ? (
+            {p.tem_filhos === true && (
               <div className="children-list">
                 {filhosResumo(p.filhos_descricao).map((linha) => <strong key={linha}>{linha}</strong>)}
               </div>
-            ) : (
-              <DisplayItem label="Filhos" value="Não informado" />
             )}
           </section>
           <section style={styles.section}>
@@ -751,10 +837,10 @@ function PerfilAluno({ perfil, perfilTemp, setPerfilTemp, editPerfil, setEditPer
             <DisplayItem label="Previsão de formação" value={[p.previsao_formacao_ano, p.previsao_formacao_semestre].filter(Boolean).join(' - ')} />
           </section>
           <section style={styles.section}>
-            <h3><Calendar size={18} /> Monitorias</h3>
+            <h3><Calendar size={18} /> Monitoria</h3>
             <div className="mini-card-row">
-              <DisplayItem label="Dia" value={p.dia_monitoria} compact />
-              <DisplayItem label="Horário" value={p.horario_monitoria} compact />
+              <DisplayItem label="Dia da monitoria" value={p.dia_monitoria} compact />
+              <DisplayItem label="Horário da monitoria" value={p.horario_monitoria} compact />
             </div>
           </section>
           <section style={styles.section}>
@@ -845,7 +931,7 @@ function PerfilAluno({ perfil, perfilTemp, setPerfilTemp, editPerfil, setEditPer
           <ProfileSelect label="Semestre de previsão" value={p.previsao_formacao_semestre || ''} disabled={!editPerfil} onChange={(v) => setCampo('previsao_formacao_semestre', v)} options={[['', 'Não informado'], ['1º semestre', '1º semestre'], ['2º semestre', '2º semestre']]} />
         </section>
         <section style={styles.section}>
-          <h3><Calendar size={18} /> Monitorias</h3>
+          <h3><Calendar size={18} /> Monitoria</h3>
           <ProfileSelect label="Dia da monitoria" value={p.dia_monitoria || ''} disabled={!editPerfil} onChange={(v) => setCampo('dia_monitoria', v)} options={[['', 'Não informado'], ...DIAS_MONITORIA.map((dia) => [dia, dia])]} />
           <ProfileField label="Horário da monitoria" type="time" value={p.horario_monitoria} disabled={!editPerfil} onChange={(v) => setCampo('horario_monitoria', v)} />
         </section>
@@ -872,17 +958,47 @@ function Historico({ historico, carregandoHistorico }) {
       {!carregandoHistorico && historico.length === 0 && <p style={{ marginTop: '10px' }}>Nenhuma alteração registrada.</p>}
       {!carregandoHistorico && historico.map((item) => (
         <div key={item.id} className="history-card">
-          <strong>{String(item.campo || '').replace('perfil.', 'Perfil · ').replaceAll('_', ' ')}</strong>
+          <strong>{rotuloCampoHistorico(item.campo)}</strong>
           <div className="history-values">
             <span>{item.valor_antigo || 'vazio'}</span>
-            <span>→</span>
+            <span aria-hidden="true">→</span>
             <span>{item.valor_novo || 'vazio'}</span>
           </div>
           <div className="history-user">{formatarUsuarioHistorico(item)}</div>
-          <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>{formatarData(item.data)}</div>
+          <div className="history-date">{formatarData(item.data)}</div>
         </div>
       ))}
     </div>
+  );
+}
+
+function RelatoriosMonitoria() {
+  const placeholders = [
+    'Presenças',
+    'Faltas',
+    'Última monitoria',
+    'Observações',
+  ];
+
+  return (
+    <section className="monitoring-reports" style={styles.section}>
+      {/* Futuramente, esta aba deve consumir a aba "Relatórios Monitoria" da planilha Google via Google Sheets API. O Neon guarda dados estáveis dos alunos; relatórios recorrentes de formulários devem ser consultados ou sincronizados da planilha para evitar duplicação pesada. */}
+      <div className="monitoring-empty-head">
+        <ClipboardList size={22} />
+        <div>
+          <h3>Relatórios de Monitoria</h3>
+          <p>Em breve, esta área exibirá presenças, faltas e informações registradas nas monitorias.</p>
+        </div>
+      </div>
+      <div className="monitoring-placeholder-grid">
+        {placeholders.map((titulo) => (
+          <div key={titulo} className="monitoring-placeholder-card">
+            <span>{titulo}</span>
+            <strong>Em breve</strong>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -904,11 +1020,11 @@ function ProfileBadge({ label, value, color }) {
   );
 }
 
-function ProfileField({ label, value, onChange, disabled, type = 'text' }) {
+function ProfileField({ label, value, onChange, disabled, type = 'text', autoComplete }) {
   return (
     <label style={{ display: 'block', marginTop: '10px' }}>
       <span style={styles.label}>{label}</span>
-      <input type={type} style={styles.fieldInput} value={value || ''} disabled={disabled} onChange={(e) => onChange(e.target.value)} />
+      <input type={type} style={styles.fieldInput} value={value || ''} disabled={disabled} onChange={(e) => onChange(e.target.value)} autoComplete={autoComplete} />
     </label>
   );
 }
@@ -917,7 +1033,7 @@ function ProfileSelect({ label, value, onChange, disabled, options, color }) {
   return (
     <label style={{ display: 'block', marginTop: '10px' }}>
       <span style={styles.label}>{label}</span>
-      <select style={{ ...styles.fieldInput, color: color || '#1a1a1a', fontWeight: color ? 800 : 500 }} value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)}>
+      <select style={{ ...styles.fieldInput, color: color || 'var(--pd-text)', fontWeight: color ? 800 : 500 }} value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)}>
         {options.map(([optionValue, optionLabel]) => <option key={optionValue} value={optionValue}>{optionLabel}</option>)}
       </select>
     </label>
