@@ -56,7 +56,7 @@ COLUNAS_MONITOR = [
 ]
 
 COLUNAS_STATUS = ['decisao', 'decisão', 'status', 'situacao', 'situação']
-CAMPOS_EDITAVEIS = ['nome', 'telefone', 'email', 'nascimento', 'monitor', 'status']
+CAMPOS_EDITAVEIS = ['nome', 'telefone', 'email', 'nascimento', 'monitor', 'status', 'patrimonio']
 CAMPOS_PERFIL = [
     'analise_perfil',
     'trabalha',
@@ -109,6 +109,18 @@ def parse_bool(valor):
         return None
     return str(valor).strip().lower() in {'true', '1', 'sim', 's', 'yes'}
 
+def normalizar_bool(valor):
+    if valor is None or pd.isna(valor):
+        return None
+    texto = sem_acentos(corrigir_mojibake(valor)).strip().lower()
+    if not texto:
+        return None
+    if texto in {'sim', 's', 'yes', 'true', '1'}:
+        return True
+    if texto in {'nao', 'n', 'no', 'false', '0'}:
+        return False
+    return None
+
 def parse_int(valor):
     if valor is None or valor == '':
         return None
@@ -116,6 +128,56 @@ def parse_int(valor):
         return int(valor)
     except (TypeError, ValueError):
         return None
+
+def normalizar_patrimonio(valor):
+    if valor is None or pd.isna(valor):
+        return ''
+    texto = corrigir_mojibake(valor).strip()
+    if valor_vazio(texto):
+        return ''
+    if re.fullmatch(r'\d+\.0+', texto):
+        texto = texto.split('.', 1)[0]
+    return re.sub(r'\s+', '', texto)
+
+def normalizar_turno(valor):
+    if valor is None or pd.isna(valor):
+        return ''
+    chave = sem_acentos(corrigir_mojibake(valor)).strip().lower()
+    if not chave or chave in {'-', 'nan', 'none', 'null', 'nao informado'}:
+        return ''
+    if 'manha' in chave:
+        return 'Manhã'
+    if 'tarde' in chave:
+        return 'Tarde'
+    if 'noite' in chave:
+        return 'Noite'
+    if 'integral' in chave:
+        return 'Integral'
+    if 'variavel' in chave:
+        return 'Variável'
+    if 'ead' in chave or 'online' in chave or 'remoto' in chave:
+        return 'EAD'
+    return ''
+
+def normalizar_nivel_engajamento(valor):
+    chave = sem_acentos(corrigir_mojibake(valor or '')).strip().lower()
+    if 'baixo' in chave:
+        return 'baixo'
+    if 'medio' in chave:
+        return 'médio'
+    if 'alto' in chave:
+        return 'alto'
+    return ''
+
+def normalizar_nivel_programacao(valor):
+    chave = sem_acentos(corrigir_mojibake(valor or '')).strip().lower()
+    if 'basico' in chave:
+        return 'básico'
+    if 'intermediario' in chave:
+        return 'intermediário'
+    if 'avancado' in chave:
+        return 'avançado'
+    return ''
 
 def normalizar_valor_perfil(campo, valor):
     if campo in CAMPOS_BOOLEANOS_PERFIL:
@@ -196,6 +258,33 @@ def chave_coluna(valor):
 def valor_vazio(valor):
     texto = corrigir_mojibake(valor or '').strip()
     return not texto or texto.lower() in {'-', 'nan', 'none', 'null', 'não informado', 'nao informado'}
+
+def termo_nome_regex(termo):
+    partes = [re.escape(sem_acentos(parte).lower()) for parte in re.split(r'\s+', termo.strip()) if parte]
+    if not partes:
+        return ''
+    return r'(^|\s)' + r'\s+'.join(partes)
+
+def palavras_normalizadas(valor):
+    texto = sem_acentos(valor).lower()
+    return [parte for parte in re.split(r'[^a-z0-9]+', texto) if parte]
+
+def nome_corresponde(nome, termo):
+    palavras_nome = palavras_normalizadas(nome)
+    palavras_termo = palavras_normalizadas(termo)
+    if not palavras_nome or not palavras_termo:
+        return False
+
+    if len(palavras_termo) == 1:
+        return palavras_nome[0] == palavras_termo[0]
+
+    if len(palavras_nome) < len(palavras_termo):
+        return False
+
+    for indice, palavra_termo in enumerate(palavras_termo):
+        if not palavras_nome[indice].startswith(palavra_termo):
+            return False
+    return True
 
 def detectar_coluna_por_nomes(colunas, nomes):
     normalizadas = {chave_coluna(coluna): coluna for coluna in colunas}
@@ -290,6 +379,7 @@ def calcular_idade(data_nasc):
         return "-"
 
 def formatar_aluno(aluno):
+    aluno.setdefault('patrimonio', '')
     aluno['monitor'] = normalizar_monitor(aluno.get('monitor'))
     aluno['status'] = normalizar_status(aluno.get('status'))
 
@@ -335,7 +425,8 @@ def criar_tabelas():
             matricula TEXT UNIQUE,
             nascimento TEXT,
             monitor TEXT,
-            status TEXT
+            status TEXT,
+            patrimonio TEXT
         )
     ''')
     cursor.execute('''
@@ -388,6 +479,11 @@ def criar_tabelas():
             criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+
+    for coluna, tipo in {
+        'patrimonio': 'TEXT',
+    }.items():
+        garantir_coluna(cursor, 'alunos', coluna, tipo)
 
     for coluna, tipo in {
         'turno_trabalho': 'TEXT',
@@ -486,20 +582,63 @@ def get_alunos():
 
         if termo:
             filtro = f'%{termo}%'
-            cursor.execute('''
-                SELECT * FROM alunos
-                WHERE nome ILIKE %s
-                   OR matricula ILIKE %s
-                   OR email ILIKE %s
-                   OR telefone ILIKE %s
-                ORDER BY nome
-                LIMIT 50
-            ''', (filtro, filtro, filtro, filtro))
+            if '@' in termo:
+                tipo_busca = 'email'
+            elif re.search(r'\d', termo):
+                tipo_busca = 'identificador'
+            else:
+                tipo_busca = 'nome'
+
+            try:
+                if tipo_busca == 'email':
+                    cursor.execute('''
+                        SELECT * FROM alunos
+                        WHERE email ILIKE %s
+                        ORDER BY nome
+                        LIMIT 50
+                    ''', (filtro,))
+                    alunos = [formatar_aluno(row_to_dict(row)) for row in cursor.fetchall()]
+                    return jsonify(alunos)
+
+                if tipo_busca == 'identificador':
+                    cursor.execute('''
+                        SELECT * FROM alunos
+                        WHERE matricula ILIKE %s
+                           OR telefone ILIKE %s
+                           OR patrimonio ILIKE %s
+                        ORDER BY nome
+                        LIMIT 50
+                    ''', (filtro, filtro, filtro))
+                    alunos = [formatar_aluno(row_to_dict(row)) for row in cursor.fetchall()]
+                    return jsonify(alunos)
+
+                cursor.execute('''
+                    SELECT * FROM alunos
+                    ORDER BY nome
+                    LIMIT 2000
+                ''')
+            except psycopg2.Error:
+                if conn:
+                    conn.rollback()
+                cursor = cursor_db(conn)
+                if tipo_busca == 'nome':
+                    cursor.execute('SELECT * FROM alunos ORDER BY nome LIMIT 2000')
+                else:
+                    raise
+
+            alunos_filtrados = []
+            matriculas_adicionadas = set()
+            for row in cursor.fetchall():
+                aluno = row_to_dict(row)
+                matricula = aluno.get('matricula')
+                if nome_corresponde(aluno.get('nome') or '', termo) and matricula not in matriculas_adicionadas:
+                    alunos_filtrados.append(formatar_aluno(aluno))
+                    matriculas_adicionadas.add(matricula)
+                if len(alunos_filtrados) >= 50:
+                    break
+            return jsonify(alunos_filtrados)
         else:
             return jsonify([])
-
-        alunos = [formatar_aluno(row_to_dict(row)) for row in cursor.fetchall()]
-        return jsonify(alunos)
     except psycopg2.Error as exc:
         return erro_banco(exc)
     finally:
@@ -678,6 +817,7 @@ def update_aluno():
             'nascimento': dados.get('nascimento', atual.get('nascimento')) or '',
             'monitor': normalizar_monitor(dados.get('monitor', atual.get('monitor'))),
             'status': normalizar_status(dados.get('status', atual.get('status'))),
+            'patrimonio': normalizar_patrimonio(dados.get('patrimonio', atual.get('patrimonio'))),
         }
 
         for campo in CAMPOS_EDITAVEIS:
@@ -688,7 +828,7 @@ def update_aluno():
 
         cursor.execute('''
             UPDATE alunos
-            SET nome=%s, telefone=%s, email=%s, nascimento=%s, monitor=%s, status=%s
+            SET nome=%s, telefone=%s, email=%s, nascimento=%s, monitor=%s, status=%s, patrimonio=%s
             WHERE matricula=%s
             RETURNING *
         ''', (
@@ -698,6 +838,7 @@ def update_aluno():
             novo['nascimento'],
             novo['monitor'],
             novo['status'],
+            novo['patrimonio'],
             matricula
         ))
         aluno_atualizado = formatar_aluno(row_to_dict(cursor.fetchone()))
@@ -739,6 +880,7 @@ def criar_aluno():
         'nascimento': str(dados.get('nascimento') or '').strip(),
         'monitor': normalizar_monitor(dados.get('monitor')),
         'status': status,
+        'patrimonio': normalizar_patrimonio(dados.get('patrimonio')),
     }
 
     conn = None
@@ -750,12 +892,12 @@ def criar_aluno():
             return jsonify({"erro": "Já existe aluno com essa matrícula."}), 409
 
         cursor.execute('''
-            INSERT INTO alunos (nome, telefone, email, matricula, nascimento, monitor, status)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO alunos (nome, telefone, email, matricula, nascimento, monitor, status, patrimonio)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING *
         ''', (
             novo['nome'], novo['telefone'], novo['email'], novo['matricula'],
-            novo['nascimento'], novo['monitor'], novo['status']
+            novo['nascimento'], novo['monitor'], novo['status'], novo['patrimonio']
         ))
         aluno = formatar_aluno(row_to_dict(cursor.fetchone()))
         cursor.execute('INSERT INTO perfil_alunos (matricula) VALUES (%s) ON CONFLICT (matricula) DO NOTHING', (matricula,))

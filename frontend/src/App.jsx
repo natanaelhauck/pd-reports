@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import axios from 'axios';
-import { Search, User, Mail, Hash, Calendar, ShieldCheck, Phone, Edit2, Save, X, LogIn, Briefcase, GraduationCap, Users, CheckCircle2, Moon, Sun, Plus, UserPlus, ClipboardList } from 'lucide-react';
+import { Search, User, Mail, Hash, Calendar, ShieldCheck, Phone, Edit2, Save, X, LogIn, Briefcase, GraduationCap, Users, CheckCircle2, Moon, Sun, Plus, UserPlus, ClipboardList, Laptop } from 'lucide-react';
 import pdLogo from './assets/pd-logo.svg';
 
 const API_BASE = 'http://127.0.0.1:5000/api';
@@ -49,6 +49,7 @@ const CAMPO_LABELS = {
   telefone: 'Telefone',
   email: 'E-mail',
   nascimento: 'Nascimento',
+  patrimonio: 'Patrimônio',
   monitor: 'Monitor responsável',
   status: 'Status',
   'sistema.cadastro': 'Cadastro do aluno',
@@ -110,6 +111,7 @@ const criarTempSeguro = (aluno = {}) => ({
   email: aluno.email ?? '',
   matricula: aluno.matricula ?? '',
   nascimento: aluno.nascimento ?? '',
+  patrimonio: aluno.patrimonio ?? '',
   monitor: normalizarMonitor(aluno.monitor),
   status: normalizarStatus(aluno.status),
 });
@@ -173,8 +175,7 @@ const filhosResumo = (valor) => {
 const formatarUsuario = (usuario) => {
   if (!usuario) return '';
   const nome = String(usuario.nome || usuario.email || '').trim();
-  if (usuario.role !== 'admin') return nome;
-  return `Admin · ${nome || 'Usuário'}`;
+  return nome || 'Usuário';
 };
 
 const formatarUsuarioHistorico = (item) => {
@@ -253,7 +254,7 @@ export default function App() {
   const [mostrarNovoAluno, setMostrarNovoAluno] = useState(false);
   const [mostrarUsuarios, setMostrarUsuarios] = useState(false);
   const [usuarios, setUsuarios] = useState([]);
-  const [novoAluno, setNovoAluno] = useState({ nome: '', matricula: '', telefone: '', email: '', nascimento: '', monitor: '', status: 'MANTER' });
+  const [novoAluno, setNovoAluno] = useState({ nome: '', matricula: '', telefone: '', email: '', nascimento: '', patrimonio: '', monitor: '', status: 'MANTER' });
   const [novoUsuario, setNovoUsuario] = useState({ nome: '', email: '', senha: '', role: 'monitor' });
   const [salvandoNovoAluno, setSalvandoNovoAluno] = useState(false);
   const [salvandoUsuario, setSalvandoUsuario] = useState(false);
@@ -313,7 +314,7 @@ export default function App() {
     setMostrarNovoAluno(false);
     setMostrarUsuarios(false);
     setUsuarios([]);
-    setNovoAluno({ nome: '', matricula: '', telefone: '', email: '', nascimento: '', monitor: '', status: 'MANTER' });
+    setNovoAluno({ nome: '', matricula: '', telefone: '', email: '', nascimento: '', patrimonio: '', monitor: '', status: 'MANTER' });
     setNovoUsuario({ nome: '', email: '', senha: '', role: 'monitor' });
   };
 
@@ -489,7 +490,7 @@ export default function App() {
       setTemp(criarTempSeguro(criado));
       setBuscaRealizada(true);
       setMostrarNovoAluno(false);
-      setNovoAluno({ nome: '', matricula: '', telefone: '', email: '', nascimento: '', monitor: '', status: 'MANTER' });
+      setNovoAluno({ nome: '', matricula: '', telefone: '', email: '', nascimento: '', patrimonio: '', monitor: '', status: 'MANTER' });
       setMensagem({ tipo: 'sucesso', texto: res.data.mensagem || 'Aluno cadastrado com sucesso.' });
     } catch (err) {
       setMensagem({ tipo: 'erro', texto: mensagemErroApi(err, 'Erro ao cadastrar aluno.') });
@@ -615,6 +616,7 @@ export default function App() {
             <ProfileField label="Telefone" value={novoAluno.telefone} onChange={(v) => setNovoAluno({ ...novoAluno, telefone: v })} />
             <ProfileField label="E-mail" type="email" value={novoAluno.email} onChange={(v) => setNovoAluno({ ...novoAluno, email: v })} />
             <ProfileField label="Nascimento" type="date" value={novoAluno.nascimento} onChange={(v) => setNovoAluno({ ...novoAluno, nascimento: v })} />
+            <ProfileField label="Patrimônio" value={novoAluno.patrimonio} onChange={(v) => setNovoAluno({ ...novoAluno, patrimonio: v })} />
             <ProfileSelect label="Monitor" value={novoAluno.monitor} onChange={(v) => setNovoAluno({ ...novoAluno, monitor: v })} options={[['', 'Selecione...'], ...MONITORES.map((m) => [m, m])]} />
             <ProfileSelect label="Status *" value={novoAluno.status} onChange={(v) => setNovoAluno({ ...novoAluno, status: v })} options={STATUS_OPTIONS.map((s) => [s, s])} />
           </div>
@@ -764,6 +766,7 @@ function DadosPrincipais({ aluno, temp, setTemp, editMode, setEditMode, salvar, 
         <FieldItem icon={<Phone size={18} color={corStatus} />} label="Telefone" editMode={editMode} value={temp.telefone} display={aluno.telefone} onChange={(v) => setTemp({ ...temp, telefone: v })} />
         <FieldItem full icon={<Mail size={18} color={corStatus} />} label="E-mail" editMode={editMode} value={temp.email} display={aluno.email} onChange={(v) => setTemp({ ...temp, email: v })} />
         <FieldItem icon={<Calendar size={18} color={corStatus} />} label="Nascimento e Idade" type="date" editMode={editMode} value={temp.nascimento} display={`${aluno.nascimento_formatado} ${aluno.idade !== '-' ? `(${aluno.idade} anos)` : ''}`} onChange={(v) => setTemp({ ...temp, nascimento: v })} />
+        <FieldItem icon={<Laptop size={18} color={corStatus} />} label="Patrimônio" editMode={editMode} value={temp.patrimonio} display={aluno.patrimonio || 'Não informado'} onChange={(v) => setTemp({ ...temp, patrimonio: v })} />
         <div style={styles.infoItem}>
           <ShieldCheck size={18} color={corStatus} />
           <div style={{ width: '100%', minWidth: 0 }}>
