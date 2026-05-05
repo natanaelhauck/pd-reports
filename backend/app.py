@@ -61,6 +61,7 @@ CAMPOS_PERFIL = [
     'analise_perfil',
     'trabalha',
     'trabalho_descricao',
+    'area_profissional_interesse',
     'turno_trabalho',
     'estuda',
     'estudo_instituicao',
@@ -446,6 +447,7 @@ def criar_tabelas():
             analise_perfil TEXT,
             trabalha BOOLEAN,
             trabalho_descricao TEXT,
+            area_profissional_interesse TEXT,
             turno_trabalho TEXT,
             estuda BOOLEAN,
             estudo_instituicao TEXT,
@@ -487,6 +489,7 @@ def criar_tabelas():
 
     for coluna, tipo in {
         'turno_trabalho': 'TEXT',
+        'area_profissional_interesse': 'TEXT',
         'turno_estudo': 'TEXT',
         'acompanhamento_psicologico': 'BOOLEAN',
         'psicologo': 'TEXT',
@@ -707,10 +710,11 @@ def update_perfil_aluno():
             antigo = atual.get(campo)
             novo_valor = novo.get(campo)
             if valor_historico(antigo) != valor_historico(novo_valor):
+                campo_historico = 'Área profissional de interesse' if campo == 'area_profissional_interesse' else f'perfil.{campo}'
                 registrar_historico(
                     cursor,
                     matricula,
-                    f'perfil.{campo}',
+                    campo_historico,
                     valor_historico(antigo),
                     valor_historico(novo_valor),
                     usuario
@@ -718,7 +722,7 @@ def update_perfil_aluno():
 
         cursor.execute('''
             INSERT INTO perfil_alunos (
-                matricula, analise_perfil, trabalha, trabalho_descricao, turno_trabalho,
+                matricula, analise_perfil, trabalha, trabalho_descricao, area_profissional_interesse, turno_trabalho,
                 estuda, estudo_instituicao, estudo_curso, turno_estudo, tem_filhos, filhos_descricao,
                 nivel_engajamento, nivel_programacao, previsao_formacao_ano,
                 previsao_formacao_semestre, monitoria_1, monitoria_2, monitoria_3,
@@ -727,13 +731,14 @@ def update_perfil_aluno():
             )
             VALUES (
                 %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                %s, %s, %s, %s,
+                %s, %s, %s, %s, %s,
                 CURRENT_TIMESTAMP
             )
             ON CONFLICT (matricula) DO UPDATE SET
                 analise_perfil=EXCLUDED.analise_perfil,
                 trabalha=EXCLUDED.trabalha,
                 trabalho_descricao=EXCLUDED.trabalho_descricao,
+                area_profissional_interesse=EXCLUDED.area_profissional_interesse,
                 turno_trabalho=EXCLUDED.turno_trabalho,
                 estuda=EXCLUDED.estuda,
                 estudo_instituicao=EXCLUDED.estudo_instituicao,
@@ -760,6 +765,7 @@ def update_perfil_aluno():
             novo['analise_perfil'],
             novo['trabalha'],
             novo['trabalho_descricao'],
+            novo['area_profissional_interesse'],
             novo['turno_trabalho'],
             novo['estuda'],
             novo['estudo_instituicao'],

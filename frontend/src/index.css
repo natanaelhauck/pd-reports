@@ -321,6 +321,7 @@ button:disabled {
   border-top: 1px solid #e2e8f0;
   padding-top: 9px;
   margin-top: 9px;
+  min-height: 58px;
 }
 
 .display-item:first-of-type {
@@ -330,6 +331,7 @@ button:disabled {
 .display-item strong {
   display: block;
   color: #1e293b;
+  min-height: 20px;
   font-size: 14px;
   margin-top: 2px;
 }
@@ -391,6 +393,17 @@ button:disabled {
 
 .profile-badge {
   min-width: 150px;
+}
+
+.profile-grid label > span,
+.profile-grid .display-item > span,
+.profile-grid .profile-badge > span {
+  color: #334155 !important;
+  font-size: 0.79rem !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.01em !important;
+  line-height: 1.25 !important;
+  text-transform: none !important;
 }
 
 .profile-badge strong {
@@ -620,6 +633,12 @@ body:has(.theme-dark) {
 .theme-dark .history-user,
 .theme-dark .history-date {
   color: #cbd5e1 !important;
+}
+
+.theme-dark .profile-grid label > span,
+.theme-dark .profile-grid .display-item > span,
+.theme-dark .profile-grid .profile-badge > span {
+  color: #dbe4ef !important;
 }
 
 .theme-dark .search-form svg {

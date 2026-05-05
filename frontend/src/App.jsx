@@ -13,6 +13,7 @@ const PERFIL_INICIAL = (matricula = '') => ({
   analise_perfil: '',
   trabalha: null,
   trabalho_descricao: '',
+  area_profissional_interesse: '',
   turno_trabalho: '',
   estuda: null,
   estudo_instituicao: '',
@@ -56,6 +57,8 @@ const CAMPO_LABELS = {
   'perfil.analise_perfil': 'Perfil · Análise de perfil',
   'perfil.trabalha': 'Perfil · Trabalha?',
   'perfil.trabalho_descricao': 'Perfil · Descrição do trabalho',
+  'Área profissional de interesse': 'Área profissional de interesse',
+  'perfil.area_profissional_interesse': 'Área profissional de interesse',
   'perfil.turno_trabalho': 'Perfil · Turno de trabalho',
   'perfil.estuda': 'Perfil · Estuda?',
   'perfil.estudo_instituicao': 'Perfil · Instituição de estudo',
@@ -813,6 +816,7 @@ function PerfilAluno({ perfil, perfilTemp, setPerfilTemp, editPerfil, setEditPer
                 <DisplayItem label="Turno de trabalho" value={p.turno_trabalho} />
               </>
             )}
+            <DisplayItem label="Em qual área profissional pretende trabalhar futuramente?" value={p.area_profissional_interesse} />
             <DisplayItem label="Estuda?" value={p.estuda === true ? 'Sim' : p.estuda === false ? 'Não' : 'Não informado'} />
             {p.estuda === true && (
               <>
@@ -882,6 +886,7 @@ function PerfilAluno({ perfil, perfilTemp, setPerfilTemp, editPerfil, setEditPer
               <ProfileSelect label="Turno de trabalho" value={p.turno_trabalho || ''} disabled={!editPerfil} onChange={(v) => setCampo('turno_trabalho', v)} options={[['', 'Não informado'], ...TURNOS.map((turno) => [turno, turno])]} />
             </>
           )}
+          <ProfileField label="Em qual área profissional pretende trabalhar futuramente?" value={p.area_profissional_interesse} disabled={!editPerfil} onChange={(v) => setCampo('area_profissional_interesse', v)} />
           <ProfileSelect label="Estuda?" value={boolSelectValue(p.estuda)} disabled={!editPerfil} onChange={(v) => setCampo('estuda', boolFromSelect(v))} options={[['', 'Não informado'], ['sim', 'Sim'], ['nao', 'Não']]} />
           {p.estuda === true && (
             <>

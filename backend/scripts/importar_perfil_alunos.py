@@ -18,6 +18,40 @@ USUARIO_IMPORTACAO = {
     'role': 'sistema',
 }
 COLUNAS_MATRICULA = ['Matrícula', 'Matricula', 'RA', 'PDID', 'PDITA']
+NOMES_FEMININOS_PROGRAMADORA = {
+    'aline',
+    'alexia',
+    'alicia',
+    'amanda',
+    'ana',
+    'beatriz',
+    'bianca',
+    'camila',
+    'caroline',
+    'carolina',
+    'clara',
+    'daniela',
+    'daniele',
+    'danielle',
+    'danely',
+    'eduarda',
+    'elizabeth',
+    'gabriela',
+    'giovanna',
+    'isabela',
+    'julia',
+    'juliana',
+    'kellen',
+    'larissa',
+    'laura',
+    'leticia',
+    'luana',
+    'maria',
+    'mariana',
+    'natalia',
+    'rafaela',
+    'vitoria',
+}
 
 
 load_dotenv(BASE_DIR / '.env')
@@ -59,26 +93,20 @@ def normalizar_matricula(valor):
     return re.sub(r'\s+', '', str(valor)).upper()
 
 
-def normalizar_patrimonio(valor):
-    if not valor_preenchido(valor):
-        return ''
-    texto = str(valor).strip()
-    if re.fullmatch(r'\d+\.0+', texto):
-        texto = texto.split('.', 1)[0]
-    return re.sub(r'\s+', '', texto)
-
-
-def normalizar_trabalho(valor):
+def normalizar_area_profissional(valor):
     if not valor_preenchido(valor):
         return ''
     texto = re.sub(r'\s+', ' ', str(valor).strip())
     return texto[:1].upper() + texto[1:] if texto else ''
 
 
-def eh_so_estuda(valor):
-    if not valor_preenchido(valor):
-        return False
-    return sem_acentos(str(valor)).strip().lower() == 'so estuda'
+def ajustar_area_profissional_por_genero(nome_aluno, area):
+    if sem_acentos(area).strip().lower() != 'programador':
+        return area
+    primeiro_nome = sem_acentos(str(nome_aluno or '').strip().split(' ')[0]).lower()
+    if primeiro_nome in NOMES_FEMININOS_PROGRAMADORA:
+        return 'Programadora'
+    return area
 
 
 def valor_historico(valor):
@@ -115,8 +143,8 @@ def carregar_planilha():
         raise FileNotFoundError(f'Planilha não encontrada: {PLANILHA}')
     df = pd.read_excel(PLANILHA, sheet_name=0, dtype=object)
     df.columns = [str(coluna).strip() for coluna in df.columns]
-    if len(df.columns) < 11:
-        raise ValueError('A planilha precisa ter ao menos 11 colunas para usar D, F, J e K.')
+    if len(df.columns) < 12:
+        raise ValueError('A planilha precisa ter ao menos 12 colunas para usar D e L.')
     coluna_d = df.columns[3]
     if chave_coluna(coluna_d) not in {chave_coluna(nome) for nome in COLUNAS_MATRICULA}:
         raise ValueError(
@@ -131,11 +159,11 @@ def garantir_colunas(cursor):
         '''
         SELECT 1
         FROM information_schema.columns
-        WHERE table_schema='public' AND table_name='alunos' AND column_name='patrimonio'
+        WHERE table_schema='public' AND table_name='perfil_alunos' AND column_name='area_profissional_interesse'
         '''
     )
     if not cursor.fetchone():
-        cursor.execute('ALTER TABLE alunos ADD COLUMN patrimonio TEXT')
+        cursor.execute('ALTER TABLE perfil_alunos ADD COLUMN area_profissional_interesse TEXT')
 
     for coluna in ['usuario_nome', 'usuario_email', 'usuario_role']:
         cursor.execute(
@@ -150,120 +178,85 @@ def garantir_colunas(cursor):
             cursor.execute(f'ALTER TABLE historico_alunos ADD COLUMN {coluna} TEXT')
 
 
-def corrigir_so_estuda_importado(cursor, alunos_atualizados):
-    cursor.execute(
-        '''
-        SELECT matricula, trabalha, trabalho_descricao
-        FROM perfil_alunos
-        WHERE lower(coalesce(trabalho_descricao, '')) IN ('só estuda', 'so estuda')
-        '''
-    )
-    corrigidos = 0
-    for perfil in cursor.fetchall():
-        cursor.execute(
-            '''
-            UPDATE perfil_alunos
-            SET trabalha=FALSE, trabalho_descricao='', atualizado_em=CURRENT_TIMESTAMP
-            WHERE matricula=%s
-            ''',
-            (perfil['matricula'],),
-        )
-        registrar_historico(cursor, perfil['matricula'], 'Trabalha?', perfil.get('trabalha'), False)
-        registrar_historico(cursor, perfil['matricula'], 'Descrição do trabalho', perfil.get('trabalho_descricao'), '')
-        alunos_atualizados.add(perfil['matricula'])
-        corrigidos += 1
-    return corrigidos
+def buscar_aluno_por_nome_exato(cursor, nome_planilha):
+    nome_normalizado = sem_acentos(nome_planilha).strip().lower()
+    if not nome_normalizado:
+        return None
+
+    cursor.execute('SELECT matricula, nome FROM alunos')
+    encontrados = [
+        aluno for aluno in cursor.fetchall()
+        if sem_acentos(aluno.get('nome')).strip().lower() == nome_normalizado
+    ]
+    return encontrados[0] if len(encontrados) == 1 else None
 
 
 def importar():
     resumo = {
+        'linhas_processadas': 0,
         'alunos_encontrados': 0,
-        'alunos_atualizados': 0,
-        'patrimonios_atualizados': 0,
-        'trabalhos_atualizados': 0,
-        'descricoes_trabalho_atualizadas': 0,
-        'so_estuda_corrigidos': 0,
-        'descricoes_formatadas': 0,
+        'areas_profissionais_atualizadas': 0,
+        'exemplos_area_profissional': [],
         'matriculas_nao_encontradas': [],
         'erros': [],
     }
     df = carregar_planilha()
-    alunos_atualizados = set()
 
     conn = conectar_db()
     try:
         cursor = cursor_db(conn)
         garantir_colunas(cursor)
-        resumo['so_estuda_corrigidos'] += corrigir_so_estuda_importado(cursor, alunos_atualizados)
 
         for indice, row in df.iterrows():
             try:
                 matricula = normalizar_matricula(row.iloc[3])
                 if not matricula:
                     continue
+                resumo['linhas_processadas'] += 1
 
-                print(f"Processando matrícula: {matricula}")
-                cursor.execute('SELECT * FROM alunos WHERE matricula=%s', (matricula,))
+                area_profissional = normalizar_area_profissional(row.iloc[11])
+                if not area_profissional:
+                    continue
+
+                cursor.execute('SELECT matricula, nome FROM alunos WHERE matricula=%s', (matricula,))
                 aluno = cursor.fetchone()
                 if not aluno:
-                    resumo['matriculas_nao_encontradas'].append({'linha': int(indice) + 2, 'matricula': matricula})
-                    continue
+                    aluno = buscar_aluno_por_nome_exato(cursor, row.iloc[0])
+                    if not aluno:
+                        resumo['matriculas_nao_encontradas'].append({'linha': int(indice) + 2, 'matricula': matricula})
+                        continue
 
                 matricula_banco = aluno['matricula']
                 resumo['alunos_encontrados'] += 1
-
-                patrimonio = normalizar_patrimonio(row.iloc[5])
-                if patrimonio and patrimonio != (aluno.get('patrimonio') or ''):
-                    cursor.execute('UPDATE alunos SET patrimonio=%s WHERE matricula=%s', (patrimonio, matricula_banco))
-                    registrar_historico(cursor, matricula_banco, 'Patrimônio', aluno.get('patrimonio'), patrimonio)
-                    print(f"Atualizado patrimônio para {matricula}: {patrimonio}")
-                    resumo['patrimonios_atualizados'] += 1
-                    alunos_atualizados.add(matricula_banco)
+                area_profissional = ajustar_area_profissional_por_genero(aluno.get('nome'), area_profissional)
 
                 cursor.execute('INSERT INTO perfil_alunos (matricula) VALUES (%s) ON CONFLICT (matricula) DO NOTHING', (matricula_banco,))
-                cursor.execute('SELECT trabalha, trabalho_descricao FROM perfil_alunos WHERE matricula=%s', (matricula_banco,))
-                perfil = cursor.fetchone() or {'trabalha': None, 'trabalho_descricao': ''}
+                cursor.execute('SELECT area_profissional_interesse FROM perfil_alunos WHERE matricula=%s', (matricula_banco,))
+                perfil = cursor.fetchone() or {'area_profissional_interesse': ''}
+                area_atual = perfil.get('area_profissional_interesse')
 
-                if eh_so_estuda(row.iloc[9]):
-                    if perfil.get('trabalha') is not False or valor_preenchido(perfil.get('trabalho_descricao')):
-                        cursor.execute(
-                            '''
-                            UPDATE perfil_alunos
-                            SET trabalha=FALSE, trabalho_descricao='', atualizado_em=CURRENT_TIMESTAMP
-                            WHERE matricula=%s
-                            ''',
-                            (matricula_banco,),
-                        )
-                        registrar_historico(cursor, matricula_banco, 'Trabalha?', perfil.get('trabalha'), False)
-                        registrar_historico(cursor, matricula_banco, 'Descrição do trabalho', perfil.get('trabalho_descricao'), '')
-                        print(f"Corrigido SÓ ESTUDA para {matricula}: Não trabalha")
-                        resumo['so_estuda_corrigidos'] += 1
-                        alunos_atualizados.add(matricula_banco)
+                if area_profissional == (area_atual or ''):
                     continue
 
-                if valor_preenchido(row.iloc[9]) and perfil.get('trabalha') is not True:
-                    cursor.execute('UPDATE perfil_alunos SET trabalha=TRUE, atualizado_em=CURRENT_TIMESTAMP WHERE matricula=%s', (matricula_banco,))
-                    registrar_historico(cursor, matricula_banco, 'Trabalha?', perfil.get('trabalha'), True)
-                    print(f"Atualizado trabalha para {matricula}: Sim")
-                    resumo['trabalhos_atualizados'] += 1
-                    alunos_atualizados.add(matricula_banco)
-
-                trabalho_descricao = normalizar_trabalho(row.iloc[10])
-                if trabalho_descricao and trabalho_descricao != (perfil.get('trabalho_descricao') or ''):
-                    if valor_preenchido(perfil.get('trabalho_descricao')) and trabalho_descricao == normalizar_trabalho(perfil.get('trabalho_descricao')):
-                        resumo['descricoes_formatadas'] += 1
-                    cursor.execute(
-                        'UPDATE perfil_alunos SET trabalho_descricao=%s, atualizado_em=CURRENT_TIMESTAMP WHERE matricula=%s',
-                        (trabalho_descricao, matricula_banco),
-                    )
-                    registrar_historico(cursor, matricula_banco, 'Descrição do trabalho', perfil.get('trabalho_descricao'), trabalho_descricao)
-                    print(f"Atualizada descrição do trabalho para {matricula}: {trabalho_descricao}")
-                    resumo['descricoes_trabalho_atualizadas'] += 1
-                    alunos_atualizados.add(matricula_banco)
+                cursor.execute(
+                    '''
+                    UPDATE perfil_alunos
+                    SET area_profissional_interesse=%s, atualizado_em=CURRENT_TIMESTAMP
+                    WHERE matricula=%s
+                    ''',
+                    (area_profissional, matricula_banco),
+                )
+                registrar_historico(cursor, matricula_banco, 'Área profissional de interesse', area_atual, area_profissional)
+                resumo['areas_profissionais_atualizadas'] += 1
+                if len(resumo['exemplos_area_profissional']) < 5:
+                    resumo['exemplos_area_profissional'].append({
+                        'matricula': matricula_banco,
+                        'nome': aluno.get('nome') or '',
+                        'area': area_profissional,
+                    })
             except Exception as exc:
                 resumo['erros'].append({'linha': int(indice) + 2, 'erro': str(exc)})
 
-        resumo['alunos_atualizados'] = len(alunos_atualizados)
         conn.commit()
     except Exception:
         conn.rollback()
@@ -277,13 +270,13 @@ def importar():
 def main():
     resumo = importar()
     print('Resumo da importação')
+    print(f"Linhas processadas: {resumo['linhas_processadas']}")
     print(f"Alunos encontrados: {resumo['alunos_encontrados']}")
-    print(f"Alunos atualizados: {resumo['alunos_atualizados']}")
-    print(f"Patrimônios atualizados: {resumo['patrimonios_atualizados']}")
-    print(f"Trabalhos atualizados: {resumo['trabalhos_atualizados']}")
-    print(f"Descrições de trabalho atualizadas: {resumo['descricoes_trabalho_atualizadas']}")
-    print(f"SÓ ESTUDA corrigidos: {resumo['so_estuda_corrigidos']}")
-    print(f"Descrições formatadas com inicial maiúscula: {resumo['descricoes_formatadas']}")
+    print(f"Áreas profissionais atualizadas: {resumo['areas_profissionais_atualizadas']}")
+    if resumo['exemplos_area_profissional']:
+        print('Exemplos de áreas profissionais importadas:')
+        for exemplo in resumo['exemplos_area_profissional']:
+            print(f"  {exemplo['matricula']} - {exemplo['nome']}: {exemplo['area']}")
     print(f"Matrículas não encontradas: {len(resumo['matriculas_nao_encontradas'])}")
     if resumo['matriculas_nao_encontradas']:
         for item in resumo['matriculas_nao_encontradas'][:20]:
