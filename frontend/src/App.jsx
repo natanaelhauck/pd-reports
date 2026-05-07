@@ -3,7 +3,7 @@ import axios from 'axios';
 import { Search, User, Mail, Hash, Calendar, ShieldCheck, Phone, Edit2, Save, X, LogIn, Briefcase, GraduationCap, Users, CheckCircle2, Moon, Sun, Plus, UserPlus, ClipboardList, Laptop } from 'lucide-react';
 import pdLogo from './assets/pd-logo.svg';
 
-const API_BASE = 'http://127.0.0.1:5000/api';
+const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 const MONITORES = ['Alex', 'André', 'Douglas', 'Gabriel', 'Kellen', 'Natanael'];
 const MONITORES_DASHBOARD = ['Alex', 'André', 'Douglas', 'Gabriel', 'Kellen', 'Natanael'];
 const STATUS_OPTIONS = ['MANTER', 'EM ANÁLISE', 'REMOVIDO', 'DESLIGADO'];
@@ -137,7 +137,7 @@ const criarTempSeguro = (aluno = {}) => ({
 const normalizarPerfil = (perfil = {}) => ({ ...PERFIL_INICIAL(perfil.matricula), ...perfil });
 
 const mensagemErroApi = (err, fallback) => {
-  if (!err.response) return 'Não foi possível conectar ao backend. Verifique se o Flask está rodando em http://127.0.0.1:5000.';
+  if (!err.response) return `Não foi possível conectar ao backend. Verifique se o backend está rodando em ${API_BASE_URL}.`;
   return err.response?.data?.erro || fallback;
 };
 
@@ -367,7 +367,7 @@ export default function App() {
     : { background: '#fef2f2', color: '#991b1b', border: '1px solid #fecaca' };
 
   const buscarPerfilAluno = async (matricula) => {
-    const res = await axios.get(`${API_BASE}/alunos/perfil/${encodeURIComponent(matricula)}`, { timeout: 12000 });
+    const res = await axios.get(`${API_BASE_URL}/api/alunos/perfil/${encodeURIComponent(matricula)}`, { timeout: 12000 });
     const dados = normalizarPerfil(res.data);
     setPerfil(dados);
     setPerfilTemp(dados);
@@ -403,7 +403,7 @@ export default function App() {
     setMensagem(null);
     try {
       const payload = { ...perfilTemp, matricula: aluno.matricula, ...usuarioPayload };
-      const res = await axios.post(`${API_BASE}/alunos/perfil/update`, payload, { timeout: 12000 });
+      const res = await axios.post(`${API_BASE_URL}/api/alunos/perfil/update`, payload, { timeout: 12000 });
       const atualizado = normalizarPerfil(res.data.perfil);
       setPerfil(atualizado);
       setPerfilTemp(atualizado);
@@ -422,7 +422,7 @@ export default function App() {
     setCarregandoHistorico(true);
     setMensagem(null);
     try {
-      const res = await axios.get(`${API_BASE}/alunos/historico/${encodeURIComponent(matricula)}`, { timeout: 12000 });
+      const res = await axios.get(`${API_BASE_URL}/api/alunos/historico/${encodeURIComponent(matricula)}`, { timeout: 12000 });
       setHistorico(res.data);
     } catch (err) {
       setMensagem({ tipo: 'erro', texto: mensagemErroApi(err, 'Não foi possível carregar o histórico.') });
@@ -452,7 +452,7 @@ export default function App() {
     setBuscando(true);
     setMensagem(null);
     try {
-      const res = await axios.get(`${API_BASE}/alunos`, { params: { q: termo }, timeout: 12000 });
+      const res = await axios.get(`${API_BASE_URL}/api/alunos`, { params: { q: termo }, timeout: 12000 });
       setAlunos(res.data);
       if (res.data.length === 0) {
         setAluno(null);
@@ -469,7 +469,7 @@ export default function App() {
     e.preventDefault();
     setMensagem(null);
     try {
-      const res = await axios.post(`${API_BASE}/login`, { email: loginEmail, senha }, { timeout: 12000 });
+      const res = await axios.post(`${API_BASE_URL}/api/login`, { email: loginEmail, senha }, { timeout: 12000 });
       localStorage.setItem('pd_user', JSON.stringify(res.data.usuario));
       localStorage.removeItem('pd_auth');
       limparEstadoAplicacao();
@@ -535,7 +535,7 @@ export default function App() {
     if (!isAdmin) return;
     setMensagem(null);
     try {
-      const res = await axios.get(`${API_BASE}/usuarios`, { params: usuarioPayload, timeout: 12000 });
+      const res = await axios.get(`${API_BASE_URL}/api/usuarios`, { params: usuarioPayload, timeout: 12000 });
       setUsuarios(res.data);
       setMostrarUsuarios(true);
     } catch (err) {
@@ -549,7 +549,7 @@ export default function App() {
     setSalvandoUsuario(true);
     setMensagem(null);
     try {
-      const res = await axios.post(`${API_BASE}/usuarios/create`, { ...novoUsuario, ...usuarioPayload }, { timeout: 12000 });
+      const res = await axios.post(`${API_BASE_URL}/api/usuarios/create`, { ...novoUsuario, ...usuarioPayload }, { timeout: 12000 });
       setUsuarios((atuais) => [...atuais, res.data.usuario].sort((a, b) => String(a.nome).localeCompare(String(b.nome), 'pt-BR')));
       setNovoUsuario({ nome: '', email: '', senha: '', role: 'monitor' });
       setMensagem({ tipo: 'sucesso', texto: res.data.mensagem || 'Usuário cadastrado com sucesso.' });
@@ -565,7 +565,7 @@ export default function App() {
     setSalvandoSenhaUsuario(true);
     setMensagem(null);
     try {
-      const res = await axios.post(`${API_BASE}/usuarios/update-password`, {
+      const res = await axios.post(`${API_BASE_URL}/api/usuarios/update-password`, {
         admin_user: usuarioPayload,
         usuario_id: usuarioAlvo.id,
         nova_senha: novaSenhaUsuario,
@@ -592,7 +592,7 @@ export default function App() {
         status: normalizarStatus(novoAluno.status),
         ...usuarioPayload,
       };
-      const res = await axios.post(`${API_BASE}/alunos/create`, payload, { timeout: 12000 });
+      const res = await axios.post(`${API_BASE_URL}/api/alunos/create`, payload, { timeout: 12000 });
       const criado = res.data.aluno;
       setAlunos((atuais) => [...atuais.filter((a) => a.matricula !== criado.matricula), criado]);
       setAluno(criado);
@@ -639,7 +639,7 @@ export default function App() {
     setMensagem(null);
     try {
       const payload = { ...temp, monitor: normalizarMonitor(temp.monitor), status: normalizarStatus(temp.status), ...usuarioPayload };
-      const res = await axios.post(`${API_BASE}/alunos/update`, payload, { timeout: 12000 });
+      const res = await axios.post(`${API_BASE_URL}/api/alunos/update`, payload, { timeout: 12000 });
       atualizarAlunoLocal(res.data.aluno || payload);
       setEditMode(false);
       setMensagem({ tipo: 'sucesso', texto: res.data.mensagem || 'Aluno atualizado com sucesso.' });
@@ -1146,7 +1146,7 @@ function MonitoresDashboard({ usuario, usuarioPayload }) {
       setErro('');
       setMensagemAtualizacao('');
       try {
-        const res = await axios.get(`${API_BASE}/relatorios-monitoria/resumo-monitores`, {
+        const res = await axios.get(`${API_BASE_URL}/api/relatorios-monitoria/resumo-monitores`, {
           params: { mes, monitor: monitorEfetivo || 'Todos', status: statusFiltro || 'Todos', ...usuarioPayload },
           timeout: 20000,
         });
@@ -1170,8 +1170,8 @@ function MonitoresDashboard({ usuario, usuarioPayload }) {
     setErro('');
     setMensagemAtualizacao('');
     try {
-      await axios.post(`${API_BASE}/relatorios-monitoria/refresh`, {}, { timeout: 12000 });
-      const res = await axios.get(`${API_BASE}/relatorios-monitoria/resumo-monitores`, {
+      await axios.post(`${API_BASE_URL}/api/relatorios-monitoria/refresh`, {}, { timeout: 12000 });
+      const res = await axios.get(`${API_BASE_URL}/api/relatorios-monitoria/resumo-monitores`, {
         params: { mes, monitor: monitorEfetivo || 'Todos', status: statusFiltro || 'Todos', ...usuarioPayload },
         timeout: 20000,
       });
@@ -1385,7 +1385,7 @@ function RelatoriosMonitoria({ aluno }) {
       setErro('');
       setMensagemAtualizacao('');
       try {
-        const res = await axios.get(`${API_BASE}/alunos/${encodeURIComponent(aluno.matricula)}/relatorios-monitoria`, { timeout: 20000 });
+        const res = await axios.get(`${API_BASE_URL}/api/alunos/${encodeURIComponent(aluno.matricula)}/relatorios-monitoria`, { timeout: 20000 });
         if (!cancelado) setDados(res.data);
       } catch (err) {
         if (!cancelado) setErro(mensagemErroApi(err, 'Nao foi possivel carregar os relatorios de monitoria.'));
@@ -1407,8 +1407,8 @@ function RelatoriosMonitoria({ aluno }) {
     setErro('');
     setMensagemAtualizacao('');
     try {
-      await axios.post(`${API_BASE}/relatorios-monitoria/refresh`, {}, { timeout: 12000 });
-      const res = await axios.get(`${API_BASE}/alunos/${encodeURIComponent(aluno.matricula)}/relatorios-monitoria`, { timeout: 20000 });
+      await axios.post(`${API_BASE_URL}/api/relatorios-monitoria/refresh`, {}, { timeout: 12000 });
+      const res = await axios.get(`${API_BASE_URL}/api/alunos/${encodeURIComponent(aluno.matricula)}/relatorios-monitoria`, { timeout: 20000 });
       setDados(res.data);
       setMensagemAtualizacao('Relatórios atualizados com sucesso.');
     } catch (err) {

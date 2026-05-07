@@ -1,3 +1,4 @@
+import json
 import os
 import re
 import time
@@ -22,13 +23,18 @@ load_dotenv(dotenv_path=Path(__file__).parent / ".env")
 
 app = Flask(__name__)
 app.json.sort_keys = False
-CORS(app)
 
 DATABASE_URL = os.getenv('DATABASE_URL')
-ADMIN_EMAIL = os.getenv('ADMIN_EMAIL')
+ADMIN_EMAIL = os.getenv('ADMIN_EMAIL', 'admin@pdreports.local')
 ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD')
 GOOGLE_SHEETS_ID = os.getenv('GOOGLE_SHEETS_ID')
+GOOGLE_SERVICE_ACCOUNT_JSON = os.getenv('GOOGLE_SERVICE_ACCOUNT_JSON')
 GOOGLE_SERVICE_ACCOUNT_FILE = os.getenv('GOOGLE_SERVICE_ACCOUNT_FILE', 'google-service-account.json')
+FRONTEND_URL = os.getenv('FRONTEND_URL')
+allowed_origins = ['http://localhost:5173']
+if FRONTEND_URL:
+    allowed_origins.insert(0, FRONTEND_URL.rstrip('/'))
+CORS(app, resources={r"/api/*": {"origins": allowed_origins}})
 CAMINHO_PLANILHA = PROJECT_ROOT / 'dados' / 'alunos.xlsx'
 GOOGLE_SHEETS_SCOPE = 'https://www.googleapis.com/auth/spreadsheets.readonly'
 RELATORIOS_MONITORIA_ABA = 'Relatórios Monitoria'
@@ -101,9 +107,6 @@ if not DATABASE_URL:
 
 if not ADMIN_PASSWORD:
     raise RuntimeError('ADMIN_PASSWORD não configurada. Crie um arquivo .env ou configure a variável de ambiente.')
-
-if not ADMIN_EMAIL:
-    raise RuntimeError('ADMIN_EMAIL não configurado. Crie um arquivo .env ou configure a variável de ambiente.')
 
 MONITORES_VALIDOS = {
     'alex': 'Alex',
@@ -444,12 +447,27 @@ def serializar_cabecalhos_reconhecidos(reconhecidos):
     return {campo: sorted(valores) for campo, valores in reconhecidos.items()}
     return ''
 
-def get_google_sheets_service():
-    service_account_path = Path(__file__).parent / GOOGLE_SERVICE_ACCOUNT_FILE
-    credentials = service_account.Credentials.from_service_account_file(
+def get_google_sheets_credentials():
+    if GOOGLE_SERVICE_ACCOUNT_JSON:
+        try:
+            service_account_info = json.loads(GOOGLE_SERVICE_ACCOUNT_JSON)
+        except json.JSONDecodeError as exc:
+            raise RuntimeError('GOOGLE_SERVICE_ACCOUNT_JSON invalido.') from exc
+        return service_account.Credentials.from_service_account_info(
+            service_account_info,
+            scopes=[GOOGLE_SHEETS_SCOPE],
+        )
+
+    service_account_path = Path(GOOGLE_SERVICE_ACCOUNT_FILE)
+    if not service_account_path.is_absolute():
+        service_account_path = BASE_DIR / service_account_path
+    return service_account.Credentials.from_service_account_file(
         service_account_path,
         scopes=[GOOGLE_SHEETS_SCOPE],
     )
+
+def get_google_sheets_service():
+    credentials = get_google_sheets_credentials()
     return build('sheets', 'v4', credentials=credentials, cache_discovery=False)
 
 def limpar_cache_relatorios():
@@ -969,6 +987,13 @@ def importar_planilha_para_neon():
     conn.close()
     print(f'Importação manual concluída: {inseridos} alunos inseridos.')
     return inseridos
+
+@app.route('/api/health', methods=['GET'])
+def healthcheck():
+    return jsonify({
+        "status": "ok",
+        "service": "pd-reports-api",
+    })
 
 @app.route('/api/login', methods=['POST'])
 def login():
@@ -1580,4 +1605,4 @@ def update_usuario_password():
 
 if __name__ == '__main__':
     criar_tabelas()
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=int(os.getenv('PORT', 5000)))

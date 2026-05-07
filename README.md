@@ -1,6 +1,6 @@
 # PD Reports
 
-Sistema interno para gestão e consulta de alunos, com backend Flask/PostgreSQL e frontend React.
+Sistema interno para gestao e consulta de alunos, com backend Flask/PostgreSQL e frontend React/Vite.
 
 ## Estrutura
 
@@ -10,36 +10,36 @@ sistema_alunos/
 |   |-- app.py
 |   |-- requirements.txt
 |   |-- .env
-|   |-- scripts/
-|   |-- venv/
-|   `-- alunos.db
+|   `-- scripts/
 |-- frontend/
+|-- dados/
 |-- docs/
 |-- .gitignore
 `-- README.md
 ```
 
-`backend/alunos.db` fica apenas como backup local. A aplicação usa o banco configurado em `backend/.env`.
-
-## Backend
+## Backend local
 
 ```bash
 cd backend
-
-# criar venv
 python -m venv venv
-
-# ativar no Windows
 venv\Scripts\activate
-
-# instalar dependencias
 pip install -r requirements.txt
-
-# rodar
 python app.py
 ```
 
-## Frontend
+O backend local usa a porta `5000` por padrao. Configure `backend/.env` com:
+
+```bash
+DATABASE_URL=postgresql://...
+ADMIN_PASSWORD=...
+GOOGLE_SHEETS_ID=...
+GOOGLE_SERVICE_ACCOUNT_FILE=google-service-account.json
+```
+
+O arquivo `backend/google-service-account.json` e apenas local e nao deve ser commitado.
+
+## Frontend local
 
 ```bash
 cd frontend
@@ -47,7 +47,63 @@ npm install
 npm run dev
 ```
 
-O frontend acessa o backend em `http://127.0.0.1:5000/api`.
+Sem variavel adicional, o frontend usa `http://localhost:5000` como backend. Para apontar para outro backend:
+
+```bash
+VITE_API_URL=http://localhost:5000
+```
+
+## Google Sheets API
+
+A aba **Relatorios Monitoria** e lida pela Google Sheets API com service account.
+
+Localmente, use:
+
+```bash
+GOOGLE_SERVICE_ACCOUNT_FILE=google-service-account.json
+```
+
+Em producao, use `GOOGLE_SERVICE_ACCOUNT_JSON` com o conteudo completo do JSON da service account em uma variavel de ambiente. Compartilhe a planilha com o e-mail da service account como leitor.
+
+## Deploy
+
+### Backend Render
+
+- Root Directory: `backend`
+- Build Command: `pip install -r requirements.txt`
+- Start Command: `gunicorn app:app`
+- Healthcheck: `GET /api/health`
+
+Environment Variables:
+
+```bash
+DATABASE_URL=postgresql://...
+ADMIN_PASSWORD=...
+GOOGLE_SHEETS_ID=...
+GOOGLE_SERVICE_ACCOUNT_JSON={...}
+FRONTEND_URL=https://URL_DO_FRONTEND_NETLIFY
+```
+
+Use `GOOGLE_SERVICE_ACCOUNT_JSON` no Render. Nao envie `google-service-account.json` para o repositorio.
+
+### Frontend Netlify
+
+- Base directory: `frontend`
+- Build command: `npm run build`
+- Publish directory: `dist`
+
+Environment Variable:
+
+```bash
+VITE_API_URL=https://URL_DO_BACKEND_RENDER
+```
+
+Se o Base directory nao for configurado como `frontend`, use:
+
+- Build command: `cd frontend && npm run build`
+- Publish directory: `frontend/dist`
+
+Depois que o Netlify gerar a URL do frontend, volte no Render, preencha `FRONTEND_URL` com a URL do Netlify e faca redeploy do backend.
 
 ## Scripts de manutencao
 
@@ -62,33 +118,11 @@ python scripts/corrigir_telefones.py
 python scripts/importar_perfil_alunos.py
 ```
 
-## Google Sheets API
-
-A aba **Relatorios Monitoria** e lida pela Google Sheets API com service account.
-
-Configure no `backend/.env`:
-
-```bash
-GOOGLE_SHEETS_ID=14vx2ko2l4nQlO8Ii2Gi0fDHPfQFFGp1vYxo68g2qPAE
-GOOGLE_SERVICE_ACCOUNT_FILE=google-service-account.json
-```
-
-O arquivo da service account deve ficar em `backend/google-service-account.json`.
-Compartilhe a planilha com o e-mail da service account como leitor.
-Os relatórios usam cache em memória por 5 minutos; alterações feitas na planilha podem demorar até 5 minutos para aparecer no sistema.
-
-## Relatórios Monitoria
-
-A aba **Relatórios Monitoria** consome a aba "Relatórios Monitoria" da planilha Google via Google Sheets API. O backend aplica cache em memoria por 5 minutos para evitar consultas repetidas a cada clique.
-
-## Validação
+## Validacao
 
 ```bash
 cd backend
 python -m py_compile app.py
-python -m py_compile scripts/corrigir_nomes.py
-python -m py_compile scripts/corrigir_telefones.py
-python -m py_compile scripts/importar_perfil_alunos.py
 
 cd ../frontend
 npm run build
