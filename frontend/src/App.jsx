@@ -1,12 +1,27 @@
-import { useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import { Search, User, Mail, Hash, Calendar, ShieldCheck, Phone, Edit2, Save, X, LogIn, Briefcase, GraduationCap, Users, CheckCircle2, Moon, Sun, Plus, UserPlus, ClipboardList, Laptop } from 'lucide-react';
 import pdLogo from './assets/pd-logo.svg';
 
 const API_BASE = 'http://127.0.0.1:5000/api';
 const MONITORES = ['Alex', 'André', 'Douglas', 'Gabriel', 'Kellen', 'Natanael'];
+const MONITORES_DASHBOARD = ['Alex', 'André', 'Douglas', 'Gabriel', 'Kellen', 'Natanael'];
 const STATUS_OPTIONS = ['MANTER', 'EM ANÁLISE', 'REMOVIDO', 'DESLIGADO'];
-const TABS = ['Dados principais', 'Perfil do aluno', 'Histórico', 'Relatórios Monitoria'];
+const TABS = ['Dados principais', 'Perfil do aluno', 'Relatórios Monitoria', 'Histórico'];
+const MONITORIA_COLUNAS = [
+  ['presente', 'Presente'],
+  ['falta', 'Falta'],
+  ['aluno_nao_agendado', 'Não agendado'],
+  ['aluno_finalizou', 'Finalizou'],
+  ['total', 'Total'],
+];
+const STATUS_MONITORIA_FILTROS = [
+  ['', 'Todos'],
+  ['Presente', 'Presente'],
+  ['Falta', 'Falta'],
+  ['Não agendado', 'Não agendado'],
+  ['Finalizou', 'Finalizou'],
+];
 
 const PERFIL_INICIAL = (matricula = '') => ({
   matricula,
@@ -131,6 +146,53 @@ const formatarData = (valor) => {
   return new Date(valor).toLocaleString('pt-BR');
 };
 
+const formatarDataIso = (valor) => {
+  if (!valor) return 'Sem data';
+  const [ano, mes, dia] = String(valor).split('-');
+  if (!ano || !mes || !dia) return valor;
+  return `${dia}/${mes}/${ano}`;
+};
+
+const mesAtualInput = () => {
+  const hoje = new Date();
+  return `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
+};
+
+const statusMonitoriaClass = (status) => {
+  const chave = semAcentos(status).toLowerCase();
+  if (chave.includes('presente')) return 'present';
+  if (chave.includes('falta')) return 'absent';
+  if (chave.includes('nao agendado')) return 'unscheduled';
+  if (chave.includes('finalizou')) return 'finished';
+  return 'neutral';
+};
+
+const statusMonitoriaLabel = (status) => {
+  const classe = statusMonitoriaClass(status);
+  if (classe === 'finished') return 'Aluno Finalizou';
+  if (classe === 'unscheduled') return 'Não agendado';
+  return status || 'Sem status';
+};
+
+const resumoCurto = (texto, limite = 180) => {
+  const valor = String(texto || '').trim();
+  if (valor.length <= limite) return valor;
+  return `${valor.slice(0, limite).trim()}...`;
+};
+
+const resumoMonitoriaVazio = () => ({ aluno_finalizou: 0, aluno_nao_agendado: 0, falta: 0, presente: 0, total: 0 });
+const monitorDoUsuario = (usuario) => {
+  const porEmail = {
+    'alex.fonseca@projetodesenvolve.com.br': 'Alex',
+    'andre.costa@projetodesenvolve.com.br': 'André',
+    'douglas.freitas@projetodesenvolve.com.br': 'Douglas',
+    'gabriel.lopes@projetodesenvolve.com.br': 'Gabriel',
+    'kellen.cruz@projetodesenvolve.com.br': 'Kellen',
+    'natanaelhauck@projetodesenvolve.com.br': 'Natanael',
+  };
+  return porEmail[String(usuario?.email || '').toLowerCase()] || normalizarMonitor(usuario?.nome);
+};
+
 const boolSelectValue = (valor) => (valor === true ? 'sim' : valor === false ? 'nao' : '');
 const boolFromSelect = (valor) => (valor === 'sim' ? true : valor === 'nao' ? false : null);
 const DIAS_MONITORIA = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira'];
@@ -177,8 +239,15 @@ const filhosResumo = (valor) => {
 
 const formatarUsuario = (usuario) => {
   if (!usuario) return '';
-  const nome = String(usuario.nome || usuario.email || '').trim();
-  return nome || 'Usuário';
+  const perfil = String(usuario.role || '').trim().toLowerCase();
+  const email = String(usuario.email || '').trim().toLowerCase();
+  let nome = String(usuario.nome || usuario.email || '').trim();
+  if (perfil === 'admin' && nome.toLowerCase() === 'admin') nome = 'Natanael';
+  if (!nome && email === 'natanaelhauck@projetodesenvolve.com.br') nome = 'Natanael';
+  const perfilLabel = perfil === 'monitor' && nome.toLowerCase().startsWith('kellen')
+    ? 'Monitora'
+    : perfil ? perfil.charAt(0).toUpperCase() + perfil.slice(1) : '';
+  return [nome || 'Usuário', perfilLabel].filter(Boolean).join(' - ');
 };
 
 const formatarUsuarioHistorico = (item) => {
@@ -256,19 +325,23 @@ export default function App() {
   const [buscaRealizada, setBuscaRealizada] = useState(false);
   const [mostrarNovoAluno, setMostrarNovoAluno] = useState(false);
   const [mostrarUsuarios, setMostrarUsuarios] = useState(false);
+  const [mostrarMonitores, setMostrarMonitores] = useState(false);
   const [usuarios, setUsuarios] = useState([]);
   const [novoAluno, setNovoAluno] = useState({ nome: '', matricula: '', telefone: '', email: '', nascimento: '', patrimonio: '', monitor: '', status: 'MANTER' });
   const [novoUsuario, setNovoUsuario] = useState({ nome: '', email: '', senha: '', role: 'monitor' });
+  const [senhaUsuarioEditando, setSenhaUsuarioEditando] = useState(null);
+  const [novaSenhaUsuario, setNovaSenhaUsuario] = useState('');
+  const [salvandoSenhaUsuario, setSalvandoSenhaUsuario] = useState(false);
   const [salvandoNovoAluno, setSalvandoNovoAluno] = useState(false);
   const [salvandoUsuario, setSalvandoUsuario] = useState(false);
   const cardRef = useRef(null);
   const autenticado = Boolean(usuario);
   const isAdmin = usuario?.role === 'admin';
-  const usuarioPayload = usuario ? {
+  const usuarioPayload = useMemo(() => usuario ? {
     usuario_nome: usuario.nome,
     usuario_email: usuario.email,
     usuario_role: usuario.role,
-  } : {};
+  } : {}, [usuario]);
   const temaEscuro = tema === 'dark';
 
   const alunosOrdenados = useMemo(() => {
@@ -316,9 +389,12 @@ export default function App() {
     setBuscaRealizada(false);
     setMostrarNovoAluno(false);
     setMostrarUsuarios(false);
+    setMostrarMonitores(false);
     setUsuarios([]);
     setNovoAluno({ nome: '', matricula: '', telefone: '', email: '', nascimento: '', patrimonio: '', monitor: '', status: 'MANTER' });
     setNovoUsuario({ nome: '', email: '', senha: '', role: 'monitor' });
+    setSenhaUsuarioEditando(null);
+    setNovaSenhaUsuario('');
   };
 
   const salvarPerfilAluno = async () => {
@@ -433,6 +509,7 @@ export default function App() {
 
   const abrirNovoAluno = () => {
     fecharAlunoSelecionado();
+    setMostrarMonitores(false);
     setMostrarUsuarios(false);
     setMostrarNovoAluno(true);
     setMensagem(null);
@@ -440,9 +517,18 @@ export default function App() {
 
   const abrirUsuarios = async () => {
     fecharAlunoSelecionado();
+    setMostrarMonitores(false);
     setMostrarNovoAluno(false);
     setNovoUsuario({ nome: '', email: '', senha: '', role: 'monitor' });
     await carregarUsuarios();
+  };
+
+  const abrirMonitores = () => {
+    fecharAlunoSelecionado();
+    setMostrarNovoAluno(false);
+    setMostrarUsuarios(false);
+    setMostrarMonitores(true);
+    setMensagem(null);
   };
 
   const carregarUsuarios = async () => {
@@ -471,6 +557,26 @@ export default function App() {
       setMensagem({ tipo: 'erro', texto: mensagemErroApi(err, 'Erro ao cadastrar usuário.') });
     } finally {
       setSalvandoUsuario(false);
+    }
+  };
+
+  const salvarSenhaUsuario = async (usuarioAlvo) => {
+    if (!isAdmin || salvandoSenhaUsuario) return;
+    setSalvandoSenhaUsuario(true);
+    setMensagem(null);
+    try {
+      const res = await axios.post(`${API_BASE}/usuarios/update-password`, {
+        admin_user: usuarioPayload,
+        usuario_id: usuarioAlvo.id,
+        nova_senha: novaSenhaUsuario,
+      }, { timeout: 12000 });
+      setSenhaUsuarioEditando(null);
+      setNovaSenhaUsuario('');
+      setMensagem({ tipo: 'sucesso', texto: res.data.mensagem || 'Senha alterada com sucesso.' });
+    } catch (err) {
+      setMensagem({ tipo: 'erro', texto: mensagemErroApi(err, 'Erro ao alterar senha.') });
+    } finally {
+      setSalvandoSenhaUsuario(false);
     }
   };
 
@@ -504,6 +610,7 @@ export default function App() {
 
   const buscar = async (e) => {
     e.preventDefault();
+    setMostrarMonitores(false);
     setBuscaRealizada(true);
     await carregarAlunos(busca.trim());
     setEditMode(false);
@@ -513,6 +620,7 @@ export default function App() {
   const selecionarAluno = (selecionado) => {
     setMostrarNovoAluno(false);
     setMostrarUsuarios(false);
+    setMostrarMonitores(false);
     setAluno(selecionado);
     setTemp(criarTempSeguro(selecionado));
     setPerfil(PERFIL_INICIAL(selecionado.matricula));
@@ -572,7 +680,7 @@ export default function App() {
   const corStatus = getStatusColor(statusAtual);
 
   return (
-    <div className={temaEscuro ? 'theme-dark app-shell' : 'theme-light app-shell'} style={styles.container}>
+    <div className={temaEscuro ? 'theme-dark app-shell' : 'theme-light app-shell'} style={mostrarMonitores ? { ...styles.container, maxWidth: '1500px' } : styles.container}>
       <header className="app-header" style={styles.header}>
         <div className="header-user">
           <span className="user-chip">{formatarUsuario(usuario)}</span>
@@ -590,12 +698,15 @@ export default function App() {
         </div>
       </header>
 
-      {isAdmin && (
-        <div className="main-actions">
-          <button className="ui-button" type="button" onClick={abrirNovoAluno} style={styles.neutralBtn}><Plus size={17} /> Novo aluno</button>
-          <button className="ui-button" type="button" onClick={abrirUsuarios} style={styles.neutralBtn}><UserPlus size={17} /> Usuários</button>
-        </div>
-      )}
+      <div className="main-actions">
+        <button className="ui-button" type="button" onClick={abrirMonitores} style={styles.neutralBtn}><Users size={17} /> Monitores</button>
+        {isAdmin && (
+          <>
+            <button className="ui-button" type="button" onClick={abrirNovoAluno} style={styles.neutralBtn}><Plus size={17} /> Novo aluno</button>
+            <button className="ui-button" type="button" onClick={abrirUsuarios} style={styles.neutralBtn}><UserPlus size={17} /> Usuários</button>
+          </>
+        )}
+      </div>
 
       <form className="search-form" onSubmit={buscar} style={styles.searchBox}>
         <Search className="search-icon" size={20} color="#64748b" />
@@ -606,6 +717,10 @@ export default function App() {
       </form>
 
       {mensagem && <div style={{ ...styles.message, ...estiloMensagem }}>{mensagem.texto}</div>}
+
+      {mostrarMonitores && (
+        <MonitoresDashboard usuario={usuario} usuarioPayload={usuarioPayload} />
+      )}
 
       {isAdmin && mostrarNovoAluno && (
         <form className="admin-panel" onSubmit={cadastrarAluno} style={styles.section}>
@@ -652,15 +767,44 @@ export default function App() {
                   <th>Nome</th>
                   <th>E-mail</th>
                   <th>Perfil</th>
+                  <th>Ações</th>
                 </tr>
               </thead>
               <tbody>
                 {usuarios.map((u) => (
-                  <tr key={u.id || u.email}>
-                    <td>{formatarUsuario(u)}</td>
-                    <td>{u.email}</td>
-                    <td>{u.role}</td>
-                  </tr>
+                  <Fragment key={u.id || u.email}>
+                    <tr>
+                      <td>{formatarUsuario(u)}</td>
+                      <td>{u.email}</td>
+                      <td>{u.role}</td>
+                      <td>
+                        <button className="ui-button" type="button" style={styles.secondaryBtn} onClick={() => {
+                          setSenhaUsuarioEditando(u.id);
+                          setNovaSenhaUsuario('');
+                        }}>
+                          Alterar senha
+                        </button>
+                      </td>
+                    </tr>
+                    {senhaUsuarioEditando === u.id && (
+                      <tr className="password-row">
+                        <td colSpan="4">
+                          <div className="password-inline-form">
+                            <ProfileField label="Nova senha" type="password" value={novaSenhaUsuario} onChange={setNovaSenhaUsuario} autoComplete="new-password" />
+                            <button className="ui-button" type="button" disabled={salvandoSenhaUsuario} style={styles.primaryBtn} onClick={() => salvarSenhaUsuario(u)}>
+                              {salvandoSenhaUsuario ? 'Salvando...' : 'Salvar senha'}
+                            </button>
+                            <button className="ui-button" type="button" style={styles.secondaryBtn} onClick={() => {
+                              setSenhaUsuarioEditando(null);
+                              setNovaSenhaUsuario('');
+                            }}>
+                              Cancelar
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>
@@ -718,12 +862,12 @@ export default function App() {
           )}
 
           {activeTab === 'Relatórios Monitoria' && (
-            <RelatoriosMonitoria />
+            <RelatoriosMonitoria aluno={aluno} />
           )}
         </div>
       )}
 
-      {buscaRealizada && resultadosVisiveis.length > 0 && (
+      {!mostrarMonitores && buscaRealizada && resultadosVisiveis.length > 0 && (
         <>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
             <h2 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--pd-title)', margin: 0 }}>Resultados</h2>
@@ -980,7 +1124,433 @@ function Historico({ historico, carregandoHistorico }) {
   );
 }
 
-function RelatoriosMonitoria() {
+function MonitoresDashboard({ usuario, usuarioPayload }) {
+  const [mes, setMes] = useState(mesAtualInput());
+  const [monitorFiltro, setMonitorFiltro] = useState('');
+  const [statusFiltro, setStatusFiltro] = useState('');
+  const [mostrarDetalhes, setMostrarDetalhes] = useState(false);
+  const [semanasAbertas, setSemanasAbertas] = useState({});
+  const [dados, setDados] = useState(null);
+  const [carregando, setCarregando] = useState(false);
+  const [erro, setErro] = useState('');
+  const [mensagemAtualizacao, setMensagemAtualizacao] = useState('');
+
+  const isAdmin = usuario?.role === 'admin';
+  const monitorUsuario = monitorDoUsuario(usuario);
+  const monitorEfetivo = isAdmin ? monitorFiltro : monitorUsuario;
+
+  useEffect(() => {
+    let cancelado = false;
+    const carregar = async () => {
+      setCarregando(true);
+      setErro('');
+      setMensagemAtualizacao('');
+      try {
+        const res = await axios.get(`${API_BASE}/relatorios-monitoria/resumo-monitores`, {
+          params: { mes, monitor: monitorEfetivo || 'Todos', status: statusFiltro || 'Todos', ...usuarioPayload },
+          timeout: 20000,
+        });
+        if (!cancelado) setDados(res.data);
+      } catch (err) {
+        if (!cancelado) setErro(mensagemErroApi(err, 'Nao foi possivel carregar o resumo dos monitores.'));
+      } finally {
+        if (!cancelado) setCarregando(false);
+      }
+    };
+    const timer = setTimeout(carregar, 0);
+    return () => {
+      cancelado = true;
+      clearTimeout(timer);
+    };
+  }, [mes, monitorEfetivo, statusFiltro, usuarioPayload]);
+
+  const atualizarAgora = async () => {
+    if (carregando) return;
+    setCarregando(true);
+    setErro('');
+    setMensagemAtualizacao('');
+    try {
+      await axios.post(`${API_BASE}/relatorios-monitoria/refresh`, {}, { timeout: 12000 });
+      const res = await axios.get(`${API_BASE}/relatorios-monitoria/resumo-monitores`, {
+        params: { mes, monitor: monitorEfetivo || 'Todos', status: statusFiltro || 'Todos', ...usuarioPayload },
+        timeout: 20000,
+      });
+      setDados(res.data);
+      setMensagemAtualizacao('Dados atualizados.');
+    } catch (err) {
+      setErro(mensagemErroApi(err, 'Nao foi possivel atualizar o resumo dos monitores.'));
+    } finally {
+      setCarregando(false);
+    }
+  };
+
+  const resumoMonitorMes = dados?.resumo_por_monitor || [];
+  const resumo = dados ? (dados.resumo_geral || resumoMonitoriaVazio()) : resumoMonitoriaVazio();
+  const semanasFiltradas = dados?.semanas || [];
+  const detalhes = dados?.relatorios_detalhados || [];
+  const semDados = !carregando && !erro && dados && resumo.total === 0;
+  const alternarSemana = (semana) => {
+    setSemanasAbertas((atuais) => ({ ...atuais, [semana]: !atuais[semana] }));
+  };
+
+  return (
+    <section className="monitors-panel" style={styles.section}>
+      <div className="monitors-header">
+        <div>
+          <h2>Monitores</h2>
+          <p>Resumo mensal das monitorias registradas</p>
+        </div>
+        <div className="monitors-actions">
+          <ProfileField label="Mês" type="month" value={mes} onChange={setMes} />
+          {isAdmin ? (
+            <ProfileSelect label="Monitor" value={monitorFiltro} onChange={setMonitorFiltro} options={[['', 'Todos'], ...MONITORES_DASHBOARD.map((monitor) => [monitor, monitor])]} />
+          ) : (
+            <ProfileField label="Monitor" value={monitorUsuario || 'Monitor'} disabled onChange={() => {}} />
+          )}
+          <ProfileSelect label="Status" value={statusFiltro} onChange={setStatusFiltro} options={STATUS_MONITORIA_FILTROS} />
+          <button className="ui-button monitoring-refresh-button" type="button" onClick={atualizarAgora} disabled={carregando}>
+            {carregando && <span className="button-spinner" aria-hidden="true" />}
+            {carregando ? 'Atualizando...' : 'Atualizar'}
+          </button>
+        </div>
+      </div>
+
+      {carregando && <p className="monitoring-state">Carregando resumo dos monitores...</p>}
+      {erro && <p className="monitoring-state error">{erro}</p>}
+      {mensagemAtualizacao && !erro && <p className="monitoring-state success">{mensagemAtualizacao}</p>}
+      {semDados && <p className="monitoring-state">Nenhum relatório de monitoria encontrado para este mês.</p>}
+
+      {!carregando && !erro && dados && (
+        <>
+          <div className="monitoring-summary-grid">
+            <MetricCard label="Presentes" value={resumo.presente} tone="present" active={statusFiltro === 'Presente'} onClick={() => setStatusFiltro('Presente')} />
+            <MetricCard label="Faltas" value={resumo.falta} tone="absent" active={statusFiltro === 'Falta'} onClick={() => setStatusFiltro('Falta')} />
+            <MetricCard label="Não agendado" value={resumo.aluno_nao_agendado} tone="unscheduled" active={statusFiltro === 'Não agendado'} onClick={() => setStatusFiltro('Não agendado')} />
+            <MetricCard label="Finalizou" value={resumo.aluno_finalizou} tone="finished" active={statusFiltro === 'Finalizou'} onClick={() => setStatusFiltro('Finalizou')} />
+            <MetricCard label="Total" value={resumo.total} tone="total" active={!statusFiltro} onClick={() => setStatusFiltro('')} />
+          </div>
+          <div className="monitors-legend" aria-label="Legenda dos status">
+            <span className="legend-dot metric-present" /> Presente
+            <span className="legend-dot metric-absent" /> Falta
+            <span className="legend-dot metric-unscheduled" /> Não agendado
+            <span className="legend-dot metric-finished" /> Finalizou
+          </div>
+
+          {!semDados && (
+            <>
+              <div className="monitors-section">
+                <h3>Resumo por monitor no mês</h3>
+                <MonitoresTabela linhas={resumoMonitorMes} />
+              </div>
+
+              {dados.aviso_semanas ? (
+                <p className="monitors-historical-note">{dados.aviso_semanas}</p>
+              ) : (
+                <div className="monitors-weeks">
+                  {semanasFiltradas.map((semana) => (
+                    <div className="week-panel" key={semana.semana}>
+                      <div className="week-panel-head">
+                        <div>
+                          <h3>Semana {semana.semana} — {semana.periodo}</h3>
+                          <span>Total: {semana.total_semana?.total || 0}</span>
+                        </div>
+                        <button className="ui-button week-toggle-button" type="button" onClick={() => alternarSemana(semana.semana)}>
+                          {semanasAbertas[semana.semana] ? 'Ocultar semana' : 'Ver semana'}
+                        </button>
+                      </div>
+                      {semanasAbertas[semana.semana] && <MonitoresTabela linhas={semana.monitores || []} total={semana.total_semana} />}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="monitors-section">
+                <div className="monitors-detail-head">
+                  <h3>Monitorias do período</h3>
+                  <button className="ui-button monitoring-refresh-button" type="button" onClick={() => setMostrarDetalhes((atual) => !atual)}>
+                    {mostrarDetalhes ? 'Ocultar monitorias' : 'Ver monitorias'}
+                  </button>
+                </div>
+                <p className="monitoring-state">{detalhes.length} monitorias encontradas</p>
+                {dados.aviso_detalhes && <p className="monitors-historical-note">{dados.aviso_detalhes}</p>}
+                {mostrarDetalhes && !dados.aviso_detalhes && <MonitoriasDetalhadasTabela linhas={detalhes} />}
+              </div>
+            </>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
+function MonitoresTabela({ linhas, total }) {
+  return (
+    <div className="monitors-table-wrap">
+      <table className="monitors-table">
+        <thead>
+          <tr>
+            <th>Monitor</th>
+            {MONITORIA_COLUNAS.map(([, label]) => <th key={label}>{label}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {(linhas || []).map((linha) => (
+            <tr key={linha.agente}>
+              <td>{linha.agente}</td>
+              {MONITORIA_COLUNAS.map(([campo]) => <td key={campo}>{linha[campo] || 0}</td>)}
+            </tr>
+          ))}
+          {total && (
+            <tr className="monitors-total-row">
+              <td>Total da semana</td>
+              {MONITORIA_COLUNAS.map(([campo]) => <td key={campo}>{total[campo] || 0}</td>)}
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function MonitoriasDetalhadasTabela({ linhas }) {
+  const valorDetalhe = (valor) => String(valor || '').trim() || '—';
+  return (
+    <div className="monitorias-detail-scroll">
+      <table className="monitorias-detail-table">
+        <colgroup>
+          <col className="col-data" />
+          <col className="col-monitor" />
+          <col className="col-aluno" />
+          <col className="col-matricula" />
+          <col className="col-status" />
+          <col className="col-modulo" />
+          <col className="col-curso" />
+          <col className="col-motivo" />
+          <col className="col-read" />
+        </colgroup>
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>Monitor</th>
+            <th>Aluno</th>
+            <th>Matrícula</th>
+            <th>Status</th>
+            <th>Módulo</th>
+            <th>Curso</th>
+            <th>Motivo da falta</th>
+            <th>READ IA</th>
+          </tr>
+        </thead>
+        <tbody>
+          {(linhas || []).map((linha, index) => {
+            const statusClass = statusMonitoriaClass(linha.status);
+            const ehPresente = statusClass === 'present';
+            const ehFalta = statusClass === 'absent';
+            return (
+              <tr className={`detail-status-${statusClass}`} key={`${linha.data}-${linha.matricula}-${index}`}>
+                <td>{formatarDataIso(linha.data)}</td>
+                <td>{valorDetalhe(linha.monitor)}</td>
+                <td className="text-cell" title={linha.aluno || ''}><span>{valorDetalhe(linha.aluno)}</span></td>
+                <td>{valorDetalhe(linha.matricula)}</td>
+                <td><span className={`monitoring-status-badge status-${statusClass}`}>{statusMonitoriaLabel(linha.status)}</span></td>
+                <td className="text-cell" title={linha.modulo || ''}><span>{ehPresente ? valorDetalhe(linha.modulo) : '—'}</span></td>
+                <td className="text-cell" title={linha.curso || ''}><span>{ehPresente ? valorDetalhe(linha.curso) : '—'}</span></td>
+                <td className="text-cell" title={linha.motivo_falta || ''}><span>{ehFalta ? valorDetalhe(linha.motivo_falta) : '—'}</span></td>
+                <td>{ehPresente && linha.read_ia_link ? <a className="read-ia-link compact" href={linha.read_ia_link} target="_blank" rel="noreferrer" title={linha.read_ia_link}>Abrir</a> : '—'}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function RelatoriosMonitoria({ aluno }) {
+  const [dados, setDados] = useState({ resumo: null, relatorios: [], total_lidos: 0 });
+  const [carregando, setCarregando] = useState(false);
+  const [erro, setErro] = useState('');
+  const [inicio, setInicio] = useState('2026-03-23');
+  const [fim, setFim] = useState('');
+  const [status, setStatus] = useState('');
+  const [aberto, setAberto] = useState('');
+  const [atualizando, setAtualizando] = useState(false);
+  const [mensagemAtualizacao, setMensagemAtualizacao] = useState('');
+
+  useEffect(() => {
+    if (!aluno?.matricula) return;
+    let cancelado = false;
+    const carregar = async () => {
+      setCarregando(true);
+      setErro('');
+      setMensagemAtualizacao('');
+      try {
+        const res = await axios.get(`${API_BASE}/alunos/${encodeURIComponent(aluno.matricula)}/relatorios-monitoria`, { timeout: 20000 });
+        if (!cancelado) setDados(res.data);
+      } catch (err) {
+        if (!cancelado) setErro(mensagemErroApi(err, 'Nao foi possivel carregar os relatorios de monitoria.'));
+      } finally {
+        if (!cancelado) setCarregando(false);
+      }
+    };
+    const timer = setTimeout(carregar, 0);
+    return () => {
+      cancelado = true;
+      clearTimeout(timer);
+    };
+  }, [aluno?.matricula]);
+
+  const atualizarAgora = async () => {
+    if (!aluno?.matricula || carregando || atualizando) return;
+    setAtualizando(true);
+    setCarregando(true);
+    setErro('');
+    setMensagemAtualizacao('');
+    try {
+      await axios.post(`${API_BASE}/relatorios-monitoria/refresh`, {}, { timeout: 12000 });
+      const res = await axios.get(`${API_BASE}/alunos/${encodeURIComponent(aluno.matricula)}/relatorios-monitoria`, { timeout: 20000 });
+      setDados(res.data);
+      setMensagemAtualizacao('Relatórios atualizados com sucesso.');
+    } catch (err) {
+      setErro(mensagemErroApi(err, 'Nao foi possivel atualizar os relatorios de monitoria.'));
+    } finally {
+      setCarregando(false);
+      setAtualizando(false);
+    }
+  };
+
+  const relatoriosFiltrados = (dados.relatorios || []).filter((relatorio) => {
+    if (inicio && relatorio.data < inicio) return false;
+    if (fim && relatorio.data > fim) return false;
+    if (status && relatorio.status !== status) return false;
+    return true;
+  });
+  const statusOptions = ['Presente', 'Falta', 'Aluno não agendado', 'Aluno finalizou'];
+  const resumo = dados.resumo || { total: 0, presentes: 0, faltas: 0, aluno_nao_agendado: 0, aluno_finalizou: 0 };
+
+  return (
+    <section className="monitoring-reports" style={styles.section}>
+      <div className="monitoring-empty-head">
+        <ClipboardList size={22} />
+        <div>
+          <h3>Relatorios de Monitoria</h3>
+          <p>Dados lidos da aba Relatorios Monitoria a partir de 23/03/2026.</p>
+          <p className="monitoring-sync-note">Os dados são sincronizados da planilha. Use o botão Atualizar se acabou de enviar um formulário.</p>
+        </div>
+        <button
+          className="ui-button monitoring-refresh-button"
+          type="button"
+          onClick={atualizarAgora}
+          disabled={carregando || atualizando}
+        >
+          {atualizando ? 'Atualizando...' : 'Atualizar'}
+        </button>
+      </div>
+
+      {carregando && <p className="monitoring-state">Carregando relatorios...</p>}
+      {erro && <p className="monitoring-state error">{erro}</p>}
+      {mensagemAtualizacao && !erro && <p className="monitoring-state success">{mensagemAtualizacao}</p>}
+
+      {!carregando && !erro && (
+        <>
+          <div className="monitoring-summary-grid">
+            <MetricCard label="Total" value={resumo.total} tone="total" />
+            <MetricCard label="Presentes" value={resumo.presentes} tone="present" />
+            <MetricCard label="Faltas" value={resumo.faltas} tone="absent" />
+            <MetricCard label="Não agendado" value={resumo.aluno_nao_agendado} tone="unscheduled" />
+            <MetricCard label="Finalizou" value={resumo.aluno_finalizou} tone="finished" />
+          </div>
+
+          <div className="monitoring-filters">
+            <ProfileField label="Data inicial" type="date" value={inicio} onChange={setInicio} />
+            <ProfileField label="Data final" type="date" value={fim} onChange={setFim} />
+            <ProfileSelect label="Status" value={status} onChange={setStatus} options={[['', 'Todos'], ...statusOptions.map((item) => [item, item])]} />
+          </div>
+
+          {relatoriosFiltrados.length === 0 ? (
+            <p className="monitoring-state">Nenhum relatorio de monitoria encontrado para este aluno a partir de 23/03/2026.</p>
+          ) : (
+            <div className="monitoring-list">
+              {relatoriosFiltrados.map((relatorio, index) => {
+                const id = `${relatorio.data}-${index}`;
+                const estaAberto = aberto === id;
+                const statusClass = statusMonitoriaClass(relatorio.status);
+                const ehPresente = statusClass === 'present';
+                const ehFalta = statusClass === 'absent';
+                const ehSimples = statusClass === 'unscheduled' || statusClass === 'finished';
+                const temObservacao = Boolean(relatorio.relatorio || relatorio.outro_motivo);
+                return (
+                  <article className={`monitoring-report-card status-${statusClass}`} key={id}>
+                    <div className="monitoring-report-head">
+                      <div>
+                        <strong>{formatarDataIso(relatorio.data)} · <span className={`monitoring-status-badge status-${statusClass}`}>{statusMonitoriaLabel(relatorio.status)}</span></strong>
+                        <span>Monitor: {relatorio.agente || 'Não informado'}</span>
+                        <span>Aluno: {relatorio.aluno || aluno?.nome || 'Não informado'}</span>
+                      </div>
+                      {(ehPresente || temObservacao) && (
+                        <button className="ui-button" type="button" style={styles.secondaryBtn} onClick={() => setAberto(estaAberto ? '' : id)}>
+                          {estaAberto ? 'Ocultar' : 'Ver detalhes'}
+                        </button>
+                      )}
+                    </div>
+
+                    {ehPresente && (
+                      <>
+                        <div className="monitoring-report-grid">
+                          <DisplayItem label="Módulo" value={relatorio.modulo} compact />
+                          <DisplayItem label="Curso" value={relatorio.curso} compact />
+                          <DisplayItem label="READ IA" value={relatorio.read_ia_link ? <a className="read-ia-link" href={relatorio.read_ia_link} target="_blank" rel="noreferrer">Abrir READ IA</a> : ''} compact />
+                        </div>
+                        {!estaAberto && relatorio.relatorio && <p className="monitoring-preview">{resumoCurto(relatorio.relatorio)}</p>}
+                      </>
+                    )}
+
+                    {ehFalta && (
+                      <div className="monitoring-report-grid">
+                        <DisplayItem label="Motivo da falta" value={relatorio.motivo_falta} compact />
+                        {relatorio.outro_motivo && <DisplayItem label="Outro motivo" value={relatorio.outro_motivo} compact />}
+                      </div>
+                    )}
+
+                    {ehSimples && temObservacao && !estaAberto && (
+                      <p className="monitoring-preview">{resumoCurto(relatorio.relatorio || relatorio.outro_motivo)}</p>
+                    )}
+
+                    {estaAberto && (ehPresente || temObservacao) && (
+                      <div className="monitoring-report-detail">
+                        <strong>Relatório READ IA / Resumo</strong>
+                        <p>{relatorio.relatorio || 'Não informado'}</p>
+                        {relatorio.outro_motivo && <p><strong>Outro motivo:</strong> {relatorio.outro_motivo}</p>}
+                      </div>
+                    )}
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
+function MetricCard({ label, value, tone, active = false, onClick }) {
+  const Tag = onClick ? 'button' : 'div';
+  return (
+    <Tag
+      className={`monitoring-metric-card metric-${tone || 'total'}${active ? ' active' : ''}${onClick ? ' clickable' : ''}`}
+      type={onClick ? 'button' : undefined}
+      onClick={onClick}
+      title={onClick ? `Filtrar por ${label}` : undefined}
+      aria-label={onClick ? `Filtrar monitorias por ${label}` : undefined}
+    >
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </Tag>
+  );
+}
+
+function RelatoriosMonitoriaPlaceholder() {
   const placeholders = [
     'Presenças',
     'Faltas',
@@ -1009,6 +1579,7 @@ function RelatoriosMonitoria() {
     </section>
   );
 }
+void RelatoriosMonitoriaPlaceholder;
 
 function DisplayItem({ label, value, compact = false }) {
   return (

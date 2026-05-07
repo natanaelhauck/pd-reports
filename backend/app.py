@@ -1,16 +1,19 @@
-from flask import Flask, jsonify, request
-from flask_cors import CORS
 import os
 import re
+import time
 import unicodedata
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import pandas as pd
 import psycopg2
+from dotenv import load_dotenv
+from flask import Flask, jsonify, request
+from flask_cors import CORS
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
 from psycopg2.extras import RealDictCursor
 from werkzeug.security import check_password_hash, generate_password_hash
-from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = BASE_DIR.parent
@@ -18,12 +21,80 @@ PROJECT_ROOT = BASE_DIR.parent
 load_dotenv(dotenv_path=Path(__file__).parent / ".env")
 
 app = Flask(__name__)
+app.json.sort_keys = False
 CORS(app)
 
 DATABASE_URL = os.getenv('DATABASE_URL')
 ADMIN_EMAIL = os.getenv('ADMIN_EMAIL')
 ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD')
+GOOGLE_SHEETS_ID = os.getenv('GOOGLE_SHEETS_ID')
+GOOGLE_SERVICE_ACCOUNT_FILE = os.getenv('GOOGLE_SERVICE_ACCOUNT_FILE', 'google-service-account.json')
 CAMINHO_PLANILHA = PROJECT_ROOT / 'dados' / 'alunos.xlsx'
+GOOGLE_SHEETS_SCOPE = 'https://www.googleapis.com/auth/spreadsheets.readonly'
+RELATORIOS_MONITORIA_ABA = 'Relatórios Monitoria'
+RELATORIOS_MONITORIA_DATA_MINIMA = date(2026, 3, 23)
+RELATORIOS_MONITORIA_CACHE_TTL = 300
+_relatorios_monitoria_cache = {'expires_at': 0, 'data': None}
+
+# Março e abril usam consolidados históricos oficiais porque o formulário mudou nesses meses.
+CONSOLIDADOS_MONITORIA_HISTORICOS = {
+    '2026-03': {
+        'resumo_geral': {'presente': 771, 'falta': 447, 'aluno_nao_agendado': 219, 'aluno_finalizou': 12, 'total': 1448},
+        'resumo_por_monitor': [
+            {'agente': 'Alex', 'aluno_finalizou': 1, 'aluno_nao_agendado': 7, 'falta': 125, 'presente': 184, 'total': 316},
+            {'agente': 'André', 'aluno_finalizou': 0, 'aluno_nao_agendado': 75, 'falta': 104, 'presente': 136, 'total': 315},
+            {'agente': 'Douglas', 'aluno_finalizou': 11, 'aluno_nao_agendado': 76, 'falta': 115, 'presente': 217, 'total': 419},
+            {'agente': 'Kellen', 'aluno_finalizou': 0, 'aluno_nao_agendado': 0, 'falta': 12, 'presente': 22, 'total': 34},
+            {'agente': 'Natanael', 'aluno_finalizou': 0, 'aluno_nao_agendado': 61, 'falta': 91, 'presente': 212, 'total': 364},
+        ],
+    },
+    '2026-04': {
+        'resumo_geral': {'presente': 599, 'falta': 389, 'aluno_nao_agendado': 267, 'aluno_finalizou': 98, 'total': 1298},
+        'resumo_por_monitor': [
+            {'agente': 'Alex', 'aluno_finalizou': 40, 'aluno_nao_agendado': 35, 'falta': 57, 'presente': 75, 'total': 210},
+            {'agente': 'André', 'aluno_finalizou': 29, 'aluno_nao_agendado': 109, 'falta': 107, 'presente': 116, 'total': 334},
+            {'agente': 'Douglas', 'aluno_finalizou': 20, 'aluno_nao_agendado': 51, 'falta': 123, 'presente': 142, 'total': 308},
+            {'agente': 'Gabriel', 'aluno_finalizou': 0, 'aluno_nao_agendado': 0, 'falta': 2, 'presente': 7, 'total': 13},
+            {'agente': 'Kellen', 'aluno_finalizou': 0, 'aluno_nao_agendado': 0, 'falta': 27, 'presente': 60, 'total': 94},
+            {'agente': 'Natanael', 'aluno_finalizou': 10, 'aluno_nao_agendado': 72, 'falta': 73, 'presente': 199, 'total': 334},
+        ],
+    },
+}
+
+MONITOR_POR_EMAIL = {
+    'alex.fonseca@projetodesenvolve.com.br': 'Alex',
+    'andre.costa@projetodesenvolve.com.br': 'André',
+    'douglas.freitas@projetodesenvolve.com.br': 'Douglas',
+    'gabriel.lopes@projetodesenvolve.com.br': 'Gabriel',
+    'kellen.cruz@projetodesenvolve.com.br': 'Kellen',
+    'natanaelhauck@projetodesenvolve.com.br': 'Natanael',
+}
+
+CURSOS_MONITORIA = {
+    'nao assistiu': ('Não consumiu', 'Não assistiu'),
+    'desafio final': ('Não consumiu', 'Desafio Final'),
+    'scratch': ('Módulo 1', 'Scratch'),
+    'no code': ('Módulo 1', 'No Code'),
+    'introducao a web': ('Módulo 1', 'Introdução à Web'),
+    'linux': ('Módulo 1', 'Linux'),
+    'python i': ('Módulo 1', 'Python I'),
+    'javascript': ('Módulo 2', 'JavaScript'),
+    'banco de dados': ('Módulo 2', 'Banco de Dados'),
+    'programacao orientada a objetos': ('Módulo 2', 'Programação Orientada a Objetos'),
+    'python ii': ('Módulo 2', 'Python II'),
+    'fundamentos de interface': ('Módulo 3', 'Fundamentos de interface'),
+    'desenvolvimento de websites com mentalidade agil': ('Módulo 3', 'Desenvolvimento de websites com mentalidade ágil'),
+    'desenvolvimento de interfaces web frameworks frontend': ('Módulo 3', 'Desenvolvimento de Interfaces Web Frameworks Front-End'),
+    'react js': ('Módulo 3', 'React JS'),
+    'programacao multiplataforma com react native': ('Módulo 3', 'Programação Multiplataforma com React Native'),
+    'programacao multiplataforma com flutter': ('Módulo 3', 'Programação Multiplataforma com Flutter'),
+    'padrao de projeto de software': ('Módulo 4', 'Padrão de Projeto de Software'),
+    'desenvolvimento de apis restful': ('Módulo 4', 'Desenvolvimento de APIs RESTful'),
+    'desenvolvimento nativo para android': ('Módulo 4', 'Desenvolvimento Nativo para Android'),
+    'framework full stack para web': ('Módulo 4', 'Framework Full Stack para Web'),
+    'teste de software para web': ('Módulo 4', 'Teste de Software para Web'),
+    'teste de software para mobile': ('Módulo 4', 'Teste de Software para Mobile'),
+}
 
 if not DATABASE_URL:
     raise RuntimeError('DATABASE_URL não configurada. Crie um arquivo .env ou configure a variável de ambiente.')
@@ -42,6 +113,7 @@ MONITORES_VALIDOS = {
     'kellen': 'Kellen',
     'natanael': 'Natanael',
 }
+MONITORES_ATIVOS = tuple(MONITORES_VALIDOS.values())
 
 COLUNAS_MONITOR = [
     'nome do agente',
@@ -251,6 +323,367 @@ def sem_acentos(valor):
         c for c in unicodedata.normalize('NFD', corrigir_mojibake(valor))
         if unicodedata.category(c) != 'Mn'
     )
+
+def chave_flexivel(valor):
+    texto = sem_acentos(valor).strip().lower()
+    return re.sub(r'[^a-z0-9]+', '', texto)
+
+def chave_curso_monitoria(valor):
+    texto = sem_acentos(valor).strip().lower()
+    texto = re.sub(r'[-–—]+', ' ', texto)
+    return re.sub(r'\s+', ' ', texto)
+
+def normalizar_matricula(valor):
+    return re.sub(r'\s+', '', str(valor or '')).upper()
+
+def normalizar_data_relatorio(valor):
+    if valor is None:
+        return None
+    if isinstance(valor, datetime):
+        return valor.date()
+    if isinstance(valor, date):
+        return valor
+    texto = str(valor).strip()
+    if not texto:
+        return None
+    if re.fullmatch(r'\d+(\.0+)?', texto):
+        try:
+            serial = int(float(texto))
+            return date(1899, 12, 30) + pd.to_timedelta(serial, unit='D').to_pytimedelta()
+        except (TypeError, ValueError, OverflowError):
+            return None
+    for formato in ('%d/%m/%Y', '%d/%m/%y', '%Y-%m-%d', '%d-%m-%Y', '%m/%d/%Y'):
+        try:
+            return datetime.strptime(texto[:10], formato).date()
+        except ValueError:
+            continue
+    try:
+        data_convertida = pd.to_datetime(texto, dayfirst=True, errors='coerce')
+        if pd.isna(data_convertida):
+            return None
+        return data_convertida.date()
+    except Exception:
+        return None
+
+def normalizar_status_monitoria(valor):
+    chave = sem_acentos(valor).strip().lower()
+    if not chave:
+        return ''
+    if 'finalizou' in chave or 'finalizado' in chave or 'concluiu' in chave:
+        return 'Aluno finalizou'
+    if 'nao agendado' in chave or 'não agendado' in chave or 'sem agendamento' in chave or 'nao agendou' in chave or 'não agendou' in chave or 'fantasma' in chave:
+        return 'Aluno não agendado'
+    if 'falt' in chave or 'ausente' in chave:
+        return 'Falta'
+    if 'present' in chave or 'compareceu' in chave:
+        return 'Presente'
+    return str(valor or '').strip()
+
+def pegar_valor(row, possiveis_nomes=None, contem_chaves=None):
+    possiveis_nomes = list(possiveis_nomes or [])
+    chaves = {chave_flexivel(nome) for nome in possiveis_nomes}
+    if chaves.intersection({'relatorio', 'resumo', 'observacoes'}):
+        possiveis_nomes.append('Não consumiu')
+    valores = pegar_valores(row, possiveis_nomes, contem_chaves)
+    return valores[0] if valores else ''
+
+def pegar_valores(row, possiveis_nomes=None, contem_chaves=None):
+    possiveis_nomes = possiveis_nomes or []
+    contem_chaves = [chave_flexivel(chave) for chave in (contem_chaves or [])]
+    alvos = [chave_flexivel(nome) for nome in possiveis_nomes]
+    valores = []
+    chaves_usadas = set()
+
+    for chave, valor in row.items():
+        if chave.startswith('__header__'):
+            continue
+        if not valor:
+            continue
+        bateu_exato = chave in alvos
+        bateu_parcial = any(alvo and chave.startswith(alvo) for alvo in alvos)
+        bateu_contem = any(chave_contem and chave_contem in chave for chave_contem in contem_chaves)
+        if bateu_exato or bateu_parcial or bateu_contem:
+            valor_limpo = re.sub(r'\s+', ' ', str(valor).strip())
+            if valor_limpo and valor_limpo not in valores:
+                valores.append(valor_limpo)
+                chaves_usadas.add(chave)
+    return valores
+
+def combinar_valores(row, possiveis_nomes=None, contem_chaves=None):
+    return ', '.join(pegar_valores(row, possiveis_nomes, contem_chaves))
+
+def pegar_link_read_ia(row):
+    valores = pegar_valores(row, ['Link READ IA', 'Link do READ IA', 'READ IA', 'Link Read IA'], ['read'])
+    for valor in valores:
+        if re.search(r'https?://', valor, flags=re.IGNORECASE):
+            return valor
+    return valores[0] if valores else ''
+
+def classificar_modulo_curso(*valores):
+    for valor in valores:
+        partes = [parte.strip() for parte in re.split(r'[,;/\n]+', str(valor or '')) if parte.strip()]
+        for parte in partes:
+            chave = chave_curso_monitoria(parte)
+            if chave in CURSOS_MONITORIA:
+                return CURSOS_MONITORIA[chave]
+    return '', ''
+
+def registrar_cabecalho_reconhecido(reconhecidos, campo, row, possiveis_nomes=None, contem_chaves=None):
+    possiveis_nomes = possiveis_nomes or []
+    contem_chaves = [chave_flexivel(chave) for chave in (contem_chaves or [])]
+    alvos = [chave_flexivel(nome) for nome in possiveis_nomes]
+    for chave, valor in row.items():
+        if chave.startswith('__header__'):
+            continue
+        if not valor:
+            continue
+        if chave in alvos or any(alvo and chave.startswith(alvo) for alvo in alvos) or any(item and item in chave for item in contem_chaves):
+            reconhecidos.setdefault(campo, set()).add(row.get(f'__header__{chave}', chave))
+
+def serializar_cabecalhos_reconhecidos(reconhecidos):
+    return {campo: sorted(valores) for campo, valores in reconhecidos.items()}
+    return ''
+
+def get_google_sheets_service():
+    service_account_path = Path(__file__).parent / GOOGLE_SERVICE_ACCOUNT_FILE
+    credentials = service_account.Credentials.from_service_account_file(
+        service_account_path,
+        scopes=[GOOGLE_SHEETS_SCOPE],
+    )
+    return build('sheets', 'v4', credentials=credentials, cache_discovery=False)
+
+def limpar_cache_relatorios():
+    _relatorios_monitoria_cache.update({'expires_at': 0, 'data': None})
+
+def buscar_relatorios_monitoria():
+    agora = time.time()
+    if _relatorios_monitoria_cache['data'] is not None and _relatorios_monitoria_cache['expires_at'] > agora:
+        return _relatorios_monitoria_cache['data']
+
+    if not GOOGLE_SHEETS_ID:
+        raise RuntimeError('GOOGLE_SHEETS_ID não configurado no backend/.env.')
+
+    service = get_google_sheets_service()
+    resultado = service.spreadsheets().values().get(
+        spreadsheetId=GOOGLE_SHEETS_ID,
+        range=f"'{RELATORIOS_MONITORIA_ABA}'",
+    ).execute()
+    valores = resultado.get('values', [])
+    if not valores:
+        dados = {'relatorios': [], 'total_lidos': 0, 'atualizado_em': datetime.now().isoformat()}
+        _relatorios_monitoria_cache.update({'expires_at': agora + RELATORIOS_MONITORIA_CACHE_TTL, 'data': dados})
+        return dados
+
+    cabecalhos_originais = [str(celula).strip() for celula in valores[0]]
+    cabecalhos = [chave_flexivel(celula) for celula in cabecalhos_originais]
+    cabecalhos_reconhecidos = {}
+    relatorios = []
+    for raw_row in valores[1:]:
+        row = {
+            cabecalhos[indice]: raw_row[indice].strip() if indice < len(raw_row) else ''
+            for indice in range(len(cabecalhos))
+            if cabecalhos[indice]
+        }
+        for indice, chave in enumerate(cabecalhos):
+            if chave:
+                row[f'__header__{chave}'] = cabecalhos_originais[indice]
+
+        registrar_cabecalho_reconhecido(cabecalhos_reconhecidos, 'data', row, ['Data', 'Data da monitoria', 'Data Monitoria'])
+        registrar_cabecalho_reconhecido(cabecalhos_reconhecidos, 'aluno', row, ['Nome do aluno', 'Aluno', 'Nome'])
+        registrar_cabecalho_reconhecido(cabecalhos_reconhecidos, 'matricula', row, ['Matrícula', 'Matricula', 'PDITA', 'PDID', 'RA'])
+        registrar_cabecalho_reconhecido(cabecalhos_reconhecidos, 'agente', row, ['Agente de Sucesso', 'Agente', 'Monitor', 'Nome do agente'])
+        registrar_cabecalho_reconhecido(cabecalhos_reconhecidos, 'status', row, ['Status da Monitoria', 'Status', 'Situação', 'Situacao'])
+        registrar_cabecalho_reconhecido(cabecalhos_reconhecidos, 'modulo', row, ['Módulo', 'Modulo'], ['modulo'])
+        registrar_cabecalho_reconhecido(cabecalhos_reconhecidos, 'curso', row, ['Curso', 'Curso assistido'])
+        registrar_cabecalho_reconhecido(cabecalhos_reconhecidos, 'motivo_falta', row, ['Motivo da Falta', 'Motivo Falta'])
+        registrar_cabecalho_reconhecido(cabecalhos_reconhecidos, 'outro_motivo', row, ['Outro Motivo', 'Outro motivo'])
+        registrar_cabecalho_reconhecido(cabecalhos_reconhecidos, 'read_ia_link', row, ['Link READ IA', 'READ IA', 'Link Read IA'], ['read'])
+        registrar_cabecalho_reconhecido(cabecalhos_reconhecidos, 'relatorio', row, ['Relatório', 'Relatorio', 'Resumo', 'Observações', 'Observacoes', 'Não consumiu'])
+        data_obj = normalizar_data_relatorio(pegar_valor(row, ['Data', 'Data da monitoria', 'Data Monitoria']))
+        matricula = normalizar_matricula(pegar_valor(row, ['Matrícula', 'Matricula', 'PDITA', 'PDID', 'RA']))
+        modulo = combinar_valores(row, ['Módulo', 'Modulo'], ['modulo'])
+        relatorio_texto = pegar_valor(row, ['Relatório', 'Relatorio', 'Resumo', 'Observações', 'Observacoes', 'Não consumiu'])
+        relatorios.append({
+            'data': data_obj.isoformat() if data_obj else '',
+            'data_obj': data_obj,
+            'aluno': pegar_valor(row, ['Nome do aluno', 'Aluno', 'Nome']),
+            'matricula': matricula,
+            'agente': pegar_valor(row, ['Agente de Sucesso', 'Agente', 'Monitor', 'Nome do agente']),
+            'status': normalizar_status_monitoria(pegar_valor(row, ['Status da Monitoria', 'Status', 'Situação', 'Situacao'])),
+            'modulo': pegar_valor(row, ['Módulo', 'Modulo']),
+            'curso': pegar_valor(row, ['Curso assistido', 'Curso']),
+            'modulo': modulo,
+            'motivo_falta': pegar_valor(row, ['Motivo da Falta', 'Motivo Falta']),
+            'outro_motivo': pegar_valor(row, ['Outro Motivo', 'Outro motivo']),
+            'read_ia_link': pegar_link_read_ia(row),
+            'relatorio': relatorio_texto,
+            'relatorio': pegar_valor(row, ['Relatório', 'Relatorio', 'Resumo', 'Observações', 'Observacoes']),
+        })
+        curso_bruto = pegar_valor(row, ['Curso assistido', 'Curso', 'Não consumiu'])
+        modulo_classificado, curso_classificado = classificar_modulo_curso(curso_bruto, modulo)
+        if modulo_classificado or curso_classificado:
+            relatorios[-1]['modulo'] = modulo_classificado
+            relatorios[-1]['curso'] = curso_classificado
+
+    dados = {
+        'relatorios': relatorios,
+        'total_lidos': len(relatorios),
+        'atualizado_em': datetime.now().isoformat(),
+        'cabecalhos_reconhecidos': serializar_cabecalhos_reconhecidos(cabecalhos_reconhecidos),
+    }
+    _relatorios_monitoria_cache.update({'expires_at': agora + RELATORIOS_MONITORIA_CACHE_TTL, 'data': dados})
+    return dados
+
+def resumo_relatorios_monitoria(relatorios):
+    resumo = {
+        'total': len(relatorios),
+        'presentes': 0,
+        'faltas': 0,
+        'aluno_nao_agendado': 0,
+        'aluno_finalizou': 0,
+    }
+    for relatorio in relatorios:
+        status = relatorio.get('status')
+        if status == 'Presente':
+            resumo['presentes'] += 1
+        elif status == 'Falta':
+            resumo['faltas'] += 1
+        elif status == 'Aluno não agendado':
+            resumo['aluno_nao_agendado'] += 1
+        elif status == 'Aluno finalizou':
+            resumo['aluno_finalizou'] += 1
+    return resumo
+
+def relatorio_json(relatorio):
+    return {k: v for k, v in relatorio.items() if k != 'data_obj'}
+
+def resumo_monitoria_vazio():
+    return {
+        'presente': 0,
+        'falta': 0,
+        'aluno_nao_agendado': 0,
+        'aluno_finalizou': 0,
+        'total': 0,
+    }
+
+def somar_resumos_monitoria(linhas):
+    resumo = resumo_monitoria_vazio()
+    for linha in linhas:
+        for campo in resumo:
+            resumo[campo] += int(linha.get(campo) or 0)
+    return resumo
+
+def ordenar_linha_resumo_monitoria(linha):
+    return {'agente': linha.get('agente', ''), **{campo: linha.get(campo, 0) for campo in resumo_monitoria_vazio()}}
+
+def chave_status_resumo(status):
+    if status == 'Presente':
+        return 'presente'
+    if status == 'Falta':
+        return 'falta'
+    if status == 'Aluno não agendado':
+        return 'aluno_nao_agendado'
+    if status == 'Aluno finalizou':
+        return 'aluno_finalizou'
+    return ''
+
+def incrementar_resumo_monitoria(resumo, status):
+    chave = chave_status_resumo(status)
+    if not chave:
+        return
+    resumo[chave] += 1
+    resumo['total'] += 1
+
+def semana_monitoria_do_mes(data_relatorio):
+    if data_relatorio.day <= 7:
+        return 1
+    if data_relatorio.day <= 14:
+        return 2
+    if data_relatorio.day <= 21:
+        return 3
+    return 4
+
+def periodo_semana_monitoria(ano, mes, semana):
+    inicio = 1 + ((semana - 1) * 7)
+    fim = 7 if semana == 1 else 14 if semana == 2 else 21 if semana == 3 else 31
+    ultimo_dia = (date(ano + (1 if mes == 12 else 0), 1 if mes == 12 else mes + 1, 1) - timedelta(days=1)).day
+    return f'{inicio:02d}/{mes:02d} a {min(fim, ultimo_dia):02d}/{mes:02d}'
+
+def parse_mes_monitoria(valor):
+    texto = str(valor or '').strip()
+    if not re.fullmatch(r'\d{4}-\d{2}', texto):
+        hoje = date.today()
+        return hoje.year, hoje.month, f'{hoje.year:04d}-{hoje.month:02d}'
+    ano, mes = map(int, texto.split('-'))
+    if mes < 1 or mes > 12:
+        hoje = date.today()
+        return hoje.year, hoje.month, f'{hoje.year:04d}-{hoje.month:02d}'
+    return ano, mes, texto
+
+def normalizar_status_filtro_monitoria(valor):
+    chave = sem_acentos(valor).strip().lower()
+    if not chave or chave == 'todos':
+        return ''
+    if 'present' in chave:
+        return 'presente'
+    if 'falt' in chave:
+        return 'falta'
+    if 'agend' in chave or 'fantasma' in chave:
+        return 'aluno_nao_agendado'
+    if 'finaliz' in chave:
+        return 'aluno_finalizou'
+    return ''
+
+def monitor_do_usuario(usuario):
+    email = usuario.get('email')
+    if email in MONITOR_POR_EMAIL:
+        return MONITOR_POR_EMAIL[email]
+    nome = normalizar_monitor(usuario.get('nome'))
+    return nome
+
+def filtros_monitoria_request():
+    usuario = usuario_do_request(request.args)
+    monitor = normalizar_monitor(request.args.get('monitor'))
+    if usuario.get('role') == 'monitor':
+        monitor = monitor_do_usuario(usuario)
+    status = normalizar_status_filtro_monitoria(request.args.get('status'))
+    return monitor, status
+
+def filtrar_linha_resumo_status(linha, status_filtro):
+    if not status_filtro:
+        return dict(linha)
+    filtrada = {'agente': linha['agente'], **resumo_monitoria_vazio()}
+    filtrada[status_filtro] = linha.get(status_filtro, 0)
+    filtrada['total'] = filtrada[status_filtro]
+    return filtrada
+
+def consolidado_historico_monitoria(mes_param, monitor_filtro='', status_filtro=''):
+    consolidado = CONSOLIDADOS_MONITORIA_HISTORICOS.get(mes_param)
+    if not consolidado:
+        return None
+    linhas = [dict(item) for item in consolidado['resumo_por_monitor'] if item.get('agente') in MONITORES_ATIVOS]
+    if monitor_filtro:
+        linhas = [item for item in linhas if item['agente'] == monitor_filtro]
+    linhas = [ordenar_linha_resumo_monitoria(filtrar_linha_resumo_status(item, status_filtro)) for item in linhas]
+    linhas = sorted(linhas, key=lambda item: item['agente'])
+    resumo_geral = somar_resumos_monitoria(linhas) if monitor_filtro or status_filtro or len(linhas) != len(consolidado['resumo_por_monitor']) else {
+        campo: consolidado['resumo_geral'].get(campo, 0)
+        for campo in resumo_monitoria_vazio()
+    }
+    return {
+        'mes': mes_param,
+        'monitores': sorted(item['agente'] for item in linhas),
+        'resumo_geral': resumo_geral,
+        'semanas': [],
+        'resumo_por_monitor': linhas,
+        'relatorios_detalhados': [],
+        'historico_oficial': True,
+        'aviso_semanas': 'Consolidado mensal histórico. Semanas detalhadas disponíveis para meses a partir de maio/2026.',
+        'aviso_detalhes': 'Detalhes individuais disponíveis a partir de maio/2026.',
+        'total_lidos': resumo_geral['total'],
+        'atualizado_em': datetime.now().isoformat(),
+        'cabecalhos_reconhecidos': {},
+    }
 
 def chave_coluna(valor):
     texto = sem_acentos(str(valor or '').strip().lower())
@@ -670,6 +1103,129 @@ def get_historico_aluno(matricula):
         if conn:
             conn.close()
 
+@app.route('/api/alunos/<matricula>/relatorios-monitoria', methods=['GET'])
+def get_relatorios_monitoria_aluno(matricula):
+    try:
+        dados = buscar_relatorios_monitoria()
+        matricula_normalizada = normalizar_matricula(matricula)
+        relatorios = [
+            relatorio for relatorio in dados['relatorios']
+            if relatorio.get('matricula') == matricula_normalizada
+            and relatorio.get('data_obj')
+            and relatorio['data_obj'] >= RELATORIOS_MONITORIA_DATA_MINIMA
+        ]
+        relatorios.sort(key=lambda item: item.get('data_obj') or date.min, reverse=True)
+        return jsonify({
+            'resumo': resumo_relatorios_monitoria(relatorios),
+            'relatorios': [relatorio_json(relatorio) for relatorio in relatorios],
+            'total_lidos': dados['total_lidos'],
+            'atualizado_em': dados['atualizado_em'],
+            'cabecalhos_reconhecidos': dados.get('cabecalhos_reconhecidos', {}),
+        })
+    except Exception as exc:
+        print(f'Erro ao buscar relatórios de monitoria: {exc}')
+        return jsonify({'erro': 'Não foi possível carregar os relatórios de monitoria.'}), 503
+
+@app.route('/api/relatorios-monitoria/refresh', methods=['POST'])
+def refresh_relatorios_monitoria():
+    limpar_cache_relatorios()
+    return jsonify({
+        'success': True,
+        'message': 'Cache limpo. Próxima consulta buscará dados atualizados da planilha.',
+    })
+
+@app.route('/api/relatorios-monitoria/resumo-monitores', methods=['GET'])
+def get_resumo_monitoria_monitores():
+    try:
+        ano, mes, mes_param = parse_mes_monitoria(request.args.get('mes'))
+        monitor_filtro, status_filtro = filtros_monitoria_request()
+        historico = consolidado_historico_monitoria(mes_param, monitor_filtro, status_filtro)
+        if historico:
+            return jsonify(historico)
+
+        dados = buscar_relatorios_monitoria()
+        resumo_geral = resumo_monitoria_vazio()
+        monitores_mes = set()
+        resumo_por_monitor = {}
+        registros_contados = set()
+        relatorios_detalhados = []
+        semanas = []
+        semanas_map = {
+            semana: {
+                'semana': semana,
+                'periodo': periodo_semana_monitoria(ano, mes, semana),
+                'total_semana': resumo_monitoria_vazio(),
+                'monitores': {},
+            }
+            for semana in range(1, 5)
+        }
+
+        for relatorio in dados['relatorios']:
+            data_relatorio = relatorio.get('data_obj')
+            if not data_relatorio or data_relatorio.year != ano or data_relatorio.month != mes:
+                continue
+            matricula = relatorio.get('matricula')
+            if not matricula:
+                continue
+            status = normalizar_status_monitoria(relatorio.get('status'))
+            if not chave_status_resumo(status):
+                continue
+            agente = normalizar_monitor(relatorio.get('agente')) or relatorio.get('agente') or ''
+            if agente not in MONITORES_ATIVOS:
+                continue
+            if monitor_filtro and agente != monitor_filtro:
+                continue
+            if status_filtro and chave_status_resumo(status) != status_filtro:
+                continue
+            chave_registro = (data_relatorio.isoformat(), matricula, status, agente)
+            if chave_registro in registros_contados:
+                continue
+            registros_contados.add(chave_registro)
+            semana = semana_monitoria_do_mes(data_relatorio)
+            monitores_mes.add(agente)
+            incrementar_resumo_monitoria(resumo_geral, status)
+            incrementar_resumo_monitoria(semanas_map[semana]['total_semana'], status)
+
+            if agente not in resumo_por_monitor:
+                resumo_por_monitor[agente] = {'agente': agente, **resumo_monitoria_vazio()}
+            incrementar_resumo_monitoria(resumo_por_monitor[agente], status)
+
+            monitores_semana = semanas_map[semana]['monitores']
+            if agente not in monitores_semana:
+                monitores_semana[agente] = {'agente': agente, **resumo_monitoria_vazio()}
+            incrementar_resumo_monitoria(monitores_semana[agente], status)
+            relatorios_detalhados.append({
+                'data': data_relatorio.isoformat(),
+                'monitor': agente,
+                'aluno': relatorio.get('aluno') or '',
+                'matricula': matricula,
+                'status': status,
+                'modulo': relatorio.get('modulo') or '',
+                'curso': relatorio.get('curso') or '',
+                'motivo_falta': relatorio.get('motivo_falta') or '',
+                'read_ia_link': relatorio.get('read_ia_link') or '',
+            })
+
+        for semana in range(1, 5):
+            item = semanas_map[semana]
+            item['monitores'] = sorted(item['monitores'].values(), key=lambda monitor: monitor['agente'])
+            semanas.append(item)
+
+        return jsonify({
+            'mes': mes_param,
+            'monitores': sorted(monitores_mes),
+            'resumo_geral': resumo_geral,
+            'semanas': semanas,
+            'resumo_por_monitor': sorted(resumo_por_monitor.values(), key=lambda item: item['agente']),
+            'relatorios_detalhados': sorted(relatorios_detalhados, key=lambda item: item['data'], reverse=True),
+            'total_lidos': dados['total_lidos'],
+            'atualizado_em': dados['atualizado_em'],
+            'cabecalhos_reconhecidos': dados.get('cabecalhos_reconhecidos', {}),
+        })
+    except Exception as exc:
+        print(f'Erro ao buscar resumo de monitoria por monitor: {exc}')
+        return jsonify({'erro': 'Não foi possível carregar o resumo de monitoria.'}), 503
+
 @app.route('/api/alunos/perfil/<matricula>', methods=['GET'])
 def get_perfil_aluno(matricula):
     conn = None
@@ -865,7 +1421,7 @@ def update_aluno():
 
 @app.route('/api/alunos/create', methods=['POST'])
 def criar_aluno():
-    # Autenticação simples para uso interno/local. Em produção, substituir por JWT ou sessão segura.
+    # Autenticação interna simples; futuramente trocar por JWT/sessão segura.
     dados = request.get_json(silent=True) or {}
     if not usuario_is_admin(dados):
         return jsonify({"erro": "Apenas administradores podem cadastrar alunos."}), 403
@@ -978,6 +1534,42 @@ def criar_usuario():
         if conn:
             conn.rollback()
         return jsonify({"erro": "Já existe usuário com esse e-mail."}), 409
+    except psycopg2.Error as exc:
+        if conn:
+            conn.rollback()
+        return erro_banco(exc)
+    finally:
+        if conn:
+            conn.close()
+
+@app.route('/api/usuarios/update-password', methods=['POST'])
+def update_usuario_password():
+    # Autenticação interna simples; futuramente trocar por JWT/sessão segura.
+    dados = request.get_json(silent=True) or {}
+    admin_user = dados.get('admin_user') or {}
+    if not usuario_is_admin(admin_user):
+        return jsonify({"erro": "Apenas administradores podem alterar senhas."}), 403
+
+    usuario_id = dados.get('usuario_id')
+    nova_senha = str(dados.get('nova_senha') or '')
+    if not usuario_id or len(nova_senha) < 6:
+        return jsonify({"erro": "Informe usuário e uma nova senha com pelo menos 6 caracteres."}), 400
+
+    conn = None
+    try:
+        conn = conectar_db()
+        cursor = cursor_db(conn)
+        cursor.execute('''
+            UPDATE usuarios
+            SET senha_hash=%s
+            WHERE id=%s
+            RETURNING id, nome, email, role, ativo, criado_em
+        ''', (generate_password_hash(nova_senha), usuario_id))
+        usuario = row_to_dict(cursor.fetchone())
+        if not usuario:
+            return jsonify({"erro": "Usuário não encontrado."}), 404
+        conn.commit()
+        return jsonify({"mensagem": "Senha alterada com sucesso.", "usuario": usuario})
     except psycopg2.Error as exc:
         if conn:
             conn.rollback()

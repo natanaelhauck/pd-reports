@@ -62,9 +62,24 @@ python scripts/corrigir_telefones.py
 python scripts/importar_perfil_alunos.py
 ```
 
+## Google Sheets API
+
+A aba **Relatorios Monitoria** e lida pela Google Sheets API com service account.
+
+Configure no `backend/.env`:
+
+```bash
+GOOGLE_SHEETS_ID=14vx2ko2l4nQlO8Ii2Gi0fDHPfQFFGp1vYxo68g2qPAE
+GOOGLE_SERVICE_ACCOUNT_FILE=google-service-account.json
+```
+
+O arquivo da service account deve ficar em `backend/google-service-account.json`.
+Compartilhe a planilha com o e-mail da service account como leitor.
+Os relatórios usam cache em memória por 5 minutos; alterações feitas na planilha podem demorar até 5 minutos para aparecer no sistema.
+
 ## Relatórios Monitoria
 
-A aba **Relatórios Monitoria** futuramente deve consumir a aba "Relatórios Monitoria" da planilha Google via Google Sheets API. O Neon deve guardar os dados estáveis dos alunos; relatórios recorrentes de formulários devem ser consultados ou sincronizados da planilha para evitar duplicação pesada.
+A aba **Relatórios Monitoria** consome a aba "Relatórios Monitoria" da planilha Google via Google Sheets API. O backend aplica cache em memoria por 5 minutos para evitar consultas repetidas a cada clique.
 
 ## Validação
 
