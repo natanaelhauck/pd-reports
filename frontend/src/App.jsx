@@ -135,9 +135,12 @@ const criarTempSeguro = (aluno = {}) => ({
 });
 
 const normalizarPerfil = (perfil = {}) => ({ ...PERFIL_INICIAL(perfil.matricula), ...perfil });
+const MENSAGEM_BACKEND_INICIANDO = 'O servidor está iniciando. Aguarde alguns segundos e tente novamente.';
+const erroDeConexao = (err) => !err.response;
+const aguardar = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const mensagemErroApi = (err, fallback) => {
-  if (!err.response) return `Não foi possível conectar ao backend. Verifique se o backend está rodando em ${API_BASE_URL}.`;
+  if (erroDeConexao(err)) return MENSAGEM_BACKEND_INICIANDO;
   return err.response?.data?.erro || fallback;
 };
 
@@ -1141,18 +1144,30 @@ function MonitoresDashboard({ usuario, usuarioPayload }) {
 
   useEffect(() => {
     let cancelado = false;
+    const carregarResumo = () => axios.get(`${API_BASE_URL}/api/relatorios-monitoria/resumo-monitores`, {
+      params: { mes, monitor: monitorEfetivo || 'Todos', status: statusFiltro || 'Todos', ...usuarioPayload },
+      timeout: 20000,
+    });
     const carregar = async () => {
       setCarregando(true);
       setErro('');
       setMensagemAtualizacao('');
       try {
-        const res = await axios.get(`${API_BASE_URL}/api/relatorios-monitoria/resumo-monitores`, {
-          params: { mes, monitor: monitorEfetivo || 'Todos', status: statusFiltro || 'Todos', ...usuarioPayload },
-          timeout: 20000,
-        });
+        const res = await carregarResumo();
         if (!cancelado) setDados(res.data);
       } catch (err) {
-        if (!cancelado) setErro(mensagemErroApi(err, 'Nao foi possivel carregar o resumo dos monitores.'));
+        if (!erroDeConexao(err)) {
+          if (!cancelado) setErro(mensagemErroApi(err, 'Nao foi possivel carregar o resumo dos monitores.'));
+          return;
+        }
+        await aguardar(3000);
+        if (cancelado) return;
+        try {
+          const res = await carregarResumo();
+          if (!cancelado) setDados(res.data);
+        } catch (retryErr) {
+          if (!cancelado) setErro(mensagemErroApi(retryErr, 'Nao foi possivel carregar o resumo dos monitores.'));
+        }
       } finally {
         if (!cancelado) setCarregando(false);
       }
@@ -1215,7 +1230,7 @@ function MonitoresDashboard({ usuario, usuarioPayload }) {
         </div>
       </div>
 
-      {carregando && <p className="monitoring-state">Carregando resumo dos monitores...</p>}
+      {carregando && <p className="monitoring-state">Carregando dados...</p>}
       {erro && <p className="monitoring-state error">{erro}</p>}
       {mensagemAtualizacao && !erro && <p className="monitoring-state success">{mensagemAtualizacao}</p>}
       {semDados && <p className="monitoring-state">Nenhum relatório de monitoria encontrado para este mês.</p>}
