@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
-import { Search, User, Mail, Hash, Calendar, ShieldCheck, Phone, Edit2, Save, X, LogIn, Briefcase, GraduationCap, Users, CheckCircle2, Moon, Sun, Plus, UserPlus, ClipboardList, Laptop } from 'lucide-react';
+import { Search, User, Mail, Hash, Calendar, ShieldCheck, Phone, Edit2, Save, X, LogIn, Briefcase, GraduationCap, Users, CheckCircle2, Moon, Sun, Plus, UserPlus, ClipboardList, Laptop, Eye, EyeOff } from 'lucide-react';
 import pdLogo from './assets/pd-logo.svg';
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
@@ -302,6 +302,8 @@ const styles = {
   textarea: { width: '100%', boxSizing: 'border-box', minHeight: '120px', padding: '10px 12px', borderRadius: '9px', border: '1px solid var(--pd-input-border)', backgroundColor: 'var(--pd-input-bg)', color: 'var(--pd-text)', fontSize: '14px', outline: 'none', resize: 'vertical', colorScheme: 'var(--pd-color-scheme)' },
   editInputName: { fontSize: '22px', fontWeight: '800', border: '1px solid var(--pd-input-border)', borderRadius: '10px', padding: '9px 11px', width: '100%', boxSizing: 'border-box', color: 'var(--pd-title)', backgroundColor: 'var(--pd-input-bg)', colorScheme: 'var(--pd-color-scheme)' },
   loginBox: { maxWidth: '420px', margin: '90px auto', background: 'var(--pd-surface)', border: '1px solid var(--pd-border)', borderRadius: '18px', padding: '28px', boxShadow: 'var(--pd-card-shadow)' },
+  passwordWrap: { position: 'relative', marginBottom: '12px' },
+  passwordToggle: { position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', width: '34px', height: '34px', padding: 0, border: 'none', borderRadius: '8px', background: 'transparent', color: 'var(--pd-muted)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' },
 };
 
 export default function App() {
@@ -314,6 +316,7 @@ export default function App() {
   });
   const [loginEmail, setLoginEmail] = useState('');
   const [senha, setSenha] = useState('');
+  const [mostrarSenhaLogin, setMostrarSenhaLogin] = useState(false);
   const [tema, setTema] = useState(() => localStorage.getItem('pd_theme') || 'light');
   const [alunos, setAlunos] = useState([]);
   const [busca, setBusca] = useState('');
@@ -673,7 +676,19 @@ export default function App() {
           <h1 style={{ ...styles.title, textAlign: 'left' }}>PD Reports</h1>
           <p style={{ ...styles.subtitle, textAlign: 'left', marginBottom: '18px' }}>Gestão de Alunos</p>
           <input type="email" style={{ ...styles.fieldInput, marginBottom: '12px' }} placeholder="E-mail" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} autoComplete="username" />
-          <input type="password" style={{ ...styles.fieldInput, marginBottom: '12px' }} placeholder="Senha" value={senha} onChange={(e) => setSenha(e.target.value)} autoComplete="current-password" />
+          <div style={styles.passwordWrap}>
+            <input type={mostrarSenhaLogin ? 'text' : 'password'} style={{ ...styles.fieldInput, paddingRight: '48px' }} placeholder="Senha" value={senha} onChange={(e) => setSenha(e.target.value)} autoComplete="current-password" />
+            <button
+              className="ui-button"
+              type="button"
+              aria-label={mostrarSenhaLogin ? 'Ocultar senha' : 'Mostrar senha'}
+              title={mostrarSenhaLogin ? 'Ocultar senha' : 'Mostrar senha'}
+              onClick={() => setMostrarSenhaLogin((atual) => !atual)}
+              style={styles.passwordToggle}
+            >
+              {mostrarSenhaLogin ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
+          </div>
           <button className="ui-button" type="submit" style={{ ...styles.primaryBtn, width: '100%' }}><LogIn size={18} /> Entrar</button>
           <button className="ui-button icon-button theme-toggle-login" type="button" title="Alternar tema" aria-label="Alternar tema" onClick={alternarTema} style={{ ...styles.iconBtn, marginTop: '10px' }}>
             {temaEscuro ? <Sun size={18} /> : <Moon size={18} />}
