@@ -47,6 +47,7 @@ GOOGLE_SHEETS_SCOPE = 'https://www.googleapis.com/auth/spreadsheets.readonly'
 RELATORIOS_MONITORIA_ABA = 'Relatórios Monitoria'
 RELATORIOS_MONITORIA_DATA_MINIMA = date(2026, 3, 23)
 RELATORIOS_MONITORIA_CACHE_TTL = 300
+USUARIO_ROLES_VALIDOS = {'admin', 'monitor', 'psicologa'}
 _relatorios_monitoria_cache = {'expires_at': 0, 'data': None}
 
 # Março e abril usam consolidados históricos oficiais porque o formulário mudou nesses meses.
@@ -872,6 +873,28 @@ def criar_admin_inicial(cursor):
     ''', ('Admin', ADMIN_EMAIL.strip().lower(), generate_password_hash(ADMIN_PASSWORD), 'admin'))
     print(f'Admin inicial criado: {ADMIN_EMAIL.strip().lower()}')
 
+def garantir_usuario_padrao(cursor, nome, email, role):
+    cursor.execute(
+        'SELECT id FROM usuarios WHERE lower(email)=lower(%s) OR lower(nome)=lower(%s) LIMIT 1',
+        (email, nome),
+    )
+    usuario = cursor.fetchone()
+    if usuario:
+        cursor.execute(
+            'UPDATE usuarios SET nome=%s, role=%s WHERE id=%s',
+            (nome, role, usuario['id']),
+        )
+        return
+
+    cursor.execute('''
+        INSERT INTO usuarios (nome, email, senha_hash, role, ativo)
+        VALUES (%s, %s, %s, %s, TRUE)
+    ''', (nome, email, generate_password_hash(ADMIN_PASSWORD), role))
+
+def garantir_usuarios_padrao(cursor):
+    garantir_usuario_padrao(cursor, 'Yuka', 'yuka@projetodesenvolve.com.br', 'admin')
+    garantir_usuario_padrao(cursor, 'Isabela', 'isabela@projetodesenvolve.com.br', 'psicologa')
+
 def criar_tabelas():
     conn = conectar_db()
     cursor = cursor_db(conn)
@@ -958,6 +981,7 @@ def criar_tabelas():
         garantir_coluna(cursor, 'historico_alunos', coluna, 'TEXT')
 
     criar_admin_inicial(cursor)
+    garantir_usuarios_padrao(cursor)
     conn.commit()
     conn.close()
 
@@ -1545,7 +1569,7 @@ def criar_usuario():
     senha = str(dados.get('senha') or '')
     role = str(dados.get('role') or 'monitor').strip().lower()
 
-    if role not in {'admin', 'monitor'}:
+    if role not in USUARIO_ROLES_VALIDOS:
         return jsonify({"erro": "Role invalida."}), 400
     if not nome or not email or not senha:
         return jsonify({"erro": "Nome, e-mail e senha são obrigatórios."}), 400
@@ -1566,6 +1590,56 @@ def criar_usuario():
         if conn:
             conn.rollback()
         return jsonify({"erro": "Já existe usuário com esse e-mail."}), 409
+    except psycopg2.Error as exc:
+        if conn:
+            conn.rollback()
+        return erro_banco(exc)
+    finally:
+        if conn:
+            conn.close()
+
+@app.route('/api/usuarios/<int:usuario_id>', methods=['PUT'])
+def update_usuario(usuario_id):
+    dados = request.get_json(silent=True) or {}
+    admin_user = dados.get('admin_user') or dados
+    if not usuario_is_admin(admin_user):
+        return jsonify({"erro": "Apenas administradores podem atualizar usuÃ¡rios."}), 403
+
+    nome = str(dados.get('nome') or '').strip()
+    email = str(dados.get('email') or '').strip().lower()
+    role = str(dados.get('role') or '').strip().lower()
+
+    if not nome or not email or not role:
+        return jsonify({"erro": "Nome, e-mail e perfil sÃ£o obrigatÃ³rios."}), 400
+    if role not in USUARIO_ROLES_VALIDOS:
+        return jsonify({"erro": "Role invalida."}), 400
+
+    conn = None
+    try:
+        conn = conectar_db()
+        cursor = cursor_db(conn)
+
+        cursor.execute('SELECT id FROM usuarios WHERE id=%s', (usuario_id,))
+        if not cursor.fetchone():
+            return jsonify({"erro": "UsuÃ¡rio nÃ£o encontrado."}), 404
+
+        cursor.execute('SELECT id FROM usuarios WHERE lower(email)=lower(%s) AND id<>%s', (email, usuario_id))
+        if cursor.fetchone():
+            return jsonify({"erro": "JÃ¡ existe usuÃ¡rio com esse e-mail."}), 409
+
+        cursor.execute('''
+            UPDATE usuarios
+            SET nome=%s, email=%s, role=%s
+            WHERE id=%s
+            RETURNING id, nome, email, role, ativo, criado_em
+        ''', (nome, email, role, usuario_id))
+        usuario = row_to_dict(cursor.fetchone())
+        conn.commit()
+        return jsonify({"mensagem": "UsuÃ¡rio atualizado com sucesso.", "usuario": usuario})
+    except psycopg2.errors.UniqueViolation:
+        if conn:
+            conn.rollback()
+        return jsonify({"erro": "JÃ¡ existe usuÃ¡rio com esse e-mail."}), 409
     except psycopg2.Error as exc:
         if conn:
             conn.rollback()

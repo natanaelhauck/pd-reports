@@ -207,6 +207,11 @@ const DIAS_MONITORIA = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta
 const QTD_FILHOS = ['1', '2', '3', '4', '5', '6+'];
 const TURNOS = ['Manhã', 'Tarde', 'Noite', 'Integral', 'Variável', 'EAD'];
 const PSICOLOGOS = ['Isabela'];
+const PERFIS_USUARIO = [
+  ['monitor', 'Monitor'],
+  ['admin', 'Admin'],
+  ['psicologa', 'Psicóloga'],
+];
 
 const parseFilhos = (valor) => {
   if (!valor) return { filhos: [], textoLivre: '' };
@@ -252,10 +257,18 @@ const formatarUsuario = (usuario) => {
   let nome = String(usuario.nome || usuario.email || '').trim();
   if (perfil === 'admin' && nome.toLowerCase() === 'admin') nome = 'Natanael';
   if (!nome && email === 'natanaelhauck@projetodesenvolve.com.br') nome = 'Natanael';
-  const perfilLabel = perfil === 'monitor' && nome.toLowerCase().startsWith('kellen')
-    ? 'Monitora'
-    : perfil ? perfil.charAt(0).toUpperCase() + perfil.slice(1) : '';
+  const perfilLabel = rotuloPerfilUsuario({ ...usuario, nome });
   return [nome || 'Usuário', perfilLabel].filter(Boolean).join(' - ');
+};
+
+const rotuloPerfilUsuario = (usuario) => {
+  const perfil = String(usuario?.role || '').trim().toLowerCase();
+  const nome = String(usuario?.nome || '').trim().toLowerCase();
+  if (perfil === 'admin') return 'Admin';
+  if (perfil === 'psicologa') return 'Psicóloga';
+  if (perfil === 'monitor' && nome.startsWith('kellen')) return 'Monitora';
+  if (perfil === 'monitor') return 'Monitor';
+  return perfil ? perfil.charAt(0).toUpperCase() + perfil.slice(1) : '';
 };
 
 const formatarUsuarioHistorico = (item) => {
@@ -340,9 +353,13 @@ export default function App() {
   const [usuarios, setUsuarios] = useState([]);
   const [novoAluno, setNovoAluno] = useState({ nome: '', matricula: '', telefone: '', email: '', nascimento: '', patrimonio: '', monitor: '', status: 'MANTER' });
   const [novoUsuario, setNovoUsuario] = useState({ nome: '', email: '', senha: '', role: 'monitor' });
+  const [usuarioEditando, setUsuarioEditando] = useState(null);
+  const [usuarioTemp, setUsuarioTemp] = useState({ nome: '', email: '', role: 'monitor' });
   const [senhaUsuarioEditando, setSenhaUsuarioEditando] = useState(null);
   const [novaSenhaUsuario, setNovaSenhaUsuario] = useState('');
+  const [mostrarSenhaUsuario, setMostrarSenhaUsuario] = useState(false);
   const [salvandoSenhaUsuario, setSalvandoSenhaUsuario] = useState(false);
+  const [salvandoUsuarioEditando, setSalvandoUsuarioEditando] = useState(false);
   const [salvandoNovoAluno, setSalvandoNovoAluno] = useState(false);
   const [salvandoUsuario, setSalvandoUsuario] = useState(false);
   const cardRef = useRef(null);
@@ -404,8 +421,11 @@ export default function App() {
     setUsuarios([]);
     setNovoAluno({ nome: '', matricula: '', telefone: '', email: '', nascimento: '', patrimonio: '', monitor: '', status: 'MANTER' });
     setNovoUsuario({ nome: '', email: '', senha: '', role: 'monitor' });
+    setUsuarioEditando(null);
+    setUsuarioTemp({ nome: '', email: '', role: 'monitor' });
     setSenhaUsuarioEditando(null);
     setNovaSenhaUsuario('');
+    setMostrarSenhaUsuario(false);
   };
 
   const salvarPerfilAluno = async () => {
@@ -531,6 +551,11 @@ export default function App() {
     setMostrarMonitores(false);
     setMostrarNovoAluno(false);
     setNovoUsuario({ nome: '', email: '', senha: '', role: 'monitor' });
+    setUsuarioEditando(null);
+    setUsuarioTemp({ nome: '', email: '', role: 'monitor' });
+    setSenhaUsuarioEditando(null);
+    setNovaSenhaUsuario('');
+    setMostrarSenhaUsuario(false);
     await carregarUsuarios();
   };
 
@@ -571,6 +596,45 @@ export default function App() {
     }
   };
 
+  const editarUsuario = (usuarioAlvo) => {
+    setUsuarioEditando(usuarioAlvo.id);
+    setUsuarioTemp({
+      nome: usuarioAlvo.nome || '',
+      email: usuarioAlvo.email || '',
+      role: usuarioAlvo.role || 'monitor',
+    });
+    setSenhaUsuarioEditando(null);
+    setNovaSenhaUsuario('');
+    setMostrarSenhaUsuario(false);
+    setMensagem(null);
+  };
+
+  const cancelarEdicaoUsuario = () => {
+    setUsuarioEditando(null);
+    setUsuarioTemp({ nome: '', email: '', role: 'monitor' });
+  };
+
+  const salvarUsuario = async (usuarioAlvo) => {
+    if (!isAdmin || salvandoUsuarioEditando) return;
+    setSalvandoUsuarioEditando(true);
+    setMensagem(null);
+    try {
+      const res = await axios.put(`${API_BASE_URL}/api/usuarios/${usuarioAlvo.id}`, {
+        ...usuarioTemp,
+        admin_user: usuarioPayload,
+      }, { timeout: 12000 });
+      setUsuarios((atuais) => atuais
+        .map((item) => (item.id === usuarioAlvo.id ? res.data.usuario : item))
+        .sort((a, b) => String(a.nome).localeCompare(String(b.nome), 'pt-BR')));
+      cancelarEdicaoUsuario();
+      setMensagem({ tipo: 'sucesso', texto: res.data.mensagem || 'Usuário atualizado com sucesso.' });
+    } catch (err) {
+      setMensagem({ tipo: 'erro', texto: mensagemErroApi(err, 'Erro ao atualizar usuário.') });
+    } finally {
+      setSalvandoUsuarioEditando(false);
+    }
+  };
+
   const salvarSenhaUsuario = async (usuarioAlvo) => {
     if (!isAdmin || salvandoSenhaUsuario) return;
     setSalvandoSenhaUsuario(true);
@@ -583,6 +647,7 @@ export default function App() {
       }, { timeout: 12000 });
       setSenhaUsuarioEditando(null);
       setNovaSenhaUsuario('');
+      setMostrarSenhaUsuario(false);
       setMensagem({ tipo: 'sucesso', texto: res.data.mensagem || 'Senha alterada com sucesso.' });
     } catch (err) {
       setMensagem({ tipo: 'erro', texto: mensagemErroApi(err, 'Erro ao alterar senha.') });
@@ -777,7 +842,7 @@ export default function App() {
             <ProfileField label="Nome" value={novoUsuario.nome} onChange={(v) => setNovoUsuario({ ...novoUsuario, nome: v })} />
             <ProfileField label="E-mail" type="email" value={novoUsuario.email} onChange={(v) => setNovoUsuario({ ...novoUsuario, email: v })} autoComplete="new-email" />
             <ProfileField label="Senha" type="password" value={novoUsuario.senha} onChange={(v) => setNovoUsuario({ ...novoUsuario, senha: v })} autoComplete="new-password" />
-            <ProfileSelect label="Perfil" value={novoUsuario.role} onChange={(v) => setNovoUsuario({ ...novoUsuario, role: v })} options={[['monitor', 'Monitor'], ['admin', 'Admin']]} />
+            <ProfileSelect label="Perfil" value={novoUsuario.role} onChange={(v) => setNovoUsuario({ ...novoUsuario, role: v })} options={PERFIS_USUARIO} />
             <button className="ui-button" type="submit" disabled={salvandoUsuario} style={styles.primaryBtn}>
               <Save size={17} /> {salvandoUsuario ? 'Salvando...' : 'Cadastrar usuário'}
             </button>
@@ -799,27 +864,67 @@ export default function App() {
                     <tr>
                       <td>{formatarUsuario(u)}</td>
                       <td>{u.email}</td>
-                      <td>{u.role}</td>
+                      <td>{rotuloPerfilUsuario(u)}</td>
                       <td>
-                        <button className="ui-button" type="button" style={styles.secondaryBtn} onClick={() => {
-                          setSenhaUsuarioEditando(u.id);
-                          setNovaSenhaUsuario('');
-                        }}>
-                          Alterar senha
-                        </button>
+                        <div style={{ ...styles.actions, marginLeft: 0 }}>
+                          <button className="ui-button" type="button" style={styles.secondaryBtn} onClick={() => editarUsuario(u)}>
+                            <Edit2 size={16} /> Editar
+                          </button>
+                          <button className="ui-button" type="button" style={styles.secondaryBtn} onClick={() => {
+                            setSenhaUsuarioEditando(u.id);
+                            setNovaSenhaUsuario('');
+                            setMostrarSenhaUsuario(false);
+                            setUsuarioEditando(null);
+                          }}>
+                            Alterar senha
+                          </button>
+                        </div>
                       </td>
                     </tr>
+                    {usuarioEditando === u.id && (
+                      <tr className="password-row">
+                        <td colSpan="4">
+                          <div className="password-inline-form">
+                            <ProfileField label="Nome" value={usuarioTemp.nome} onChange={(v) => setUsuarioTemp({ ...usuarioTemp, nome: v })} />
+                            <ProfileField label="E-mail" type="email" value={usuarioTemp.email} onChange={(v) => setUsuarioTemp({ ...usuarioTemp, email: v })} autoComplete="off" />
+                            <ProfileSelect label="Perfil" value={usuarioTemp.role} onChange={(v) => setUsuarioTemp({ ...usuarioTemp, role: v })} options={PERFIS_USUARIO} />
+                            <button className="ui-button" type="button" disabled={salvandoUsuarioEditando} style={styles.primaryBtn} onClick={() => salvarUsuario(u)}>
+                              {salvandoUsuarioEditando ? 'Salvando...' : 'Salvar'}
+                            </button>
+                            <button className="ui-button" type="button" style={styles.secondaryBtn} onClick={cancelarEdicaoUsuario}>
+                              Cancelar
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
                     {senhaUsuarioEditando === u.id && (
                       <tr className="password-row">
                         <td colSpan="4">
                           <div className="password-inline-form">
-                            <ProfileField label="Nova senha" type="password" value={novaSenhaUsuario} onChange={setNovaSenhaUsuario} autoComplete="new-password" />
+                            <label style={{ display: 'block', marginTop: '10px' }}>
+                              <span style={styles.label}>Nova senha</span>
+                              <div style={{ ...styles.passwordWrap, marginBottom: 0 }}>
+                                <input type={mostrarSenhaUsuario ? 'text' : 'password'} style={{ ...styles.fieldInput, paddingRight: '48px' }} value={novaSenhaUsuario} onChange={(e) => setNovaSenhaUsuario(e.target.value)} autoComplete="new-password" />
+                                <button
+                                  className="ui-button"
+                                  type="button"
+                                  aria-label={mostrarSenhaUsuario ? 'Ocultar senha' : 'Mostrar senha'}
+                                  title={mostrarSenhaUsuario ? 'Ocultar senha' : 'Mostrar senha'}
+                                  onClick={() => setMostrarSenhaUsuario((atual) => !atual)}
+                                  style={styles.passwordToggle}
+                                >
+                                  {mostrarSenhaUsuario ? <EyeOff size={18} /> : <Eye size={18} />}
+                                </button>
+                              </div>
+                            </label>
                             <button className="ui-button" type="button" disabled={salvandoSenhaUsuario} style={styles.primaryBtn} onClick={() => salvarSenhaUsuario(u)}>
                               {salvandoSenhaUsuario ? 'Salvando...' : 'Salvar senha'}
                             </button>
                             <button className="ui-button" type="button" style={styles.secondaryBtn} onClick={() => {
                               setSenhaUsuarioEditando(null);
                               setNovaSenhaUsuario('');
+                              setMostrarSenhaUsuario(false);
                             }}>
                               Cancelar
                             </button>
