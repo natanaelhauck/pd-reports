@@ -135,8 +135,13 @@ const criarTempSeguro = (aluno = {}) => ({
 });
 
 const normalizarPerfil = (perfil = {}) => ({ ...PERFIL_INICIAL(perfil.matricula), ...perfil });
-const MENSAGEM_BACKEND_INICIANDO = 'O servidor está iniciando. Aguarde alguns segundos e tente novamente.';
-const erroDeConexao = (err) => !err.response;
+const MENSAGEM_BACKEND_INICIANDO = 'O servidor está iniciando. Aguarde alguns segundos e clique em Atualizar novamente.';
+const erroDeConexao = (err) => (
+  !err.response
+  || err.code === 'ECONNABORTED'
+  || err.code === 'ERR_NETWORK'
+  || [502, 503, 504].includes(err.response?.status)
+);
 const aguardar = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const mensagemErroApi = (err, fallback) => {
