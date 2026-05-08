@@ -24,6 +24,14 @@ load_dotenv(dotenv_path=Path(__file__).parent / ".env")
 app = Flask(__name__)
 app.json.sort_keys = False
 
+@app.route("/", methods=["GET"])
+def root():
+    return jsonify({
+        "status": "ok",
+        "service": "pd-reports-api",
+        "route": "/"
+    }), 200
+
 DATABASE_URL = os.getenv('DATABASE_URL')
 ADMIN_EMAIL = os.getenv('ADMIN_EMAIL', 'admin@pdreports.local')
 ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD')
@@ -992,7 +1000,8 @@ def importar_planilha_para_neon():
 def health():
     return jsonify({
         "status": "ok",
-        "service": "pd-reports-api"
+        "service": "pd-reports-api",
+        "route": "/api/health"
     }), 200
 
 @app.route('/api/login', methods=['POST'])
@@ -1602,6 +1611,8 @@ def update_usuario_password():
     finally:
         if conn:
             conn.close()
+
+print("PD REPORTS BACKEND LOADED - ROUTES:", [str(rule) for rule in app.url_map.iter_rules()])
 
 if __name__ == '__main__':
     criar_tabelas()
