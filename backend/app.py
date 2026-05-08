@@ -1603,14 +1603,14 @@ def update_usuario(usuario_id):
     dados = request.get_json(silent=True) or {}
     admin_user = dados.get('admin_user') or dados
     if not usuario_is_admin(admin_user):
-        return jsonify({"erro": "Apenas administradores podem atualizar usuÃ¡rios."}), 403
+        return jsonify({"erro": "Apenas administradores podem atualizar usuários."}), 403
 
     nome = str(dados.get('nome') or '').strip()
     email = str(dados.get('email') or '').strip().lower()
     role = str(dados.get('role') or '').strip().lower()
 
     if not nome or not email or not role:
-        return jsonify({"erro": "Nome, e-mail e perfil sÃ£o obrigatÃ³rios."}), 400
+        return jsonify({"erro": "Nome, e-mail e perfil são obrigatórios."}), 400
     if role not in USUARIO_ROLES_VALIDOS:
         return jsonify({"erro": "Role invalida."}), 400
 
@@ -1621,11 +1621,11 @@ def update_usuario(usuario_id):
 
         cursor.execute('SELECT id FROM usuarios WHERE id=%s', (usuario_id,))
         if not cursor.fetchone():
-            return jsonify({"erro": "UsuÃ¡rio nÃ£o encontrado."}), 404
+            return jsonify({"erro": "Usuário não encontrado."}), 404
 
         cursor.execute('SELECT id FROM usuarios WHERE lower(email)=lower(%s) AND id<>%s', (email, usuario_id))
         if cursor.fetchone():
-            return jsonify({"erro": "JÃ¡ existe usuÃ¡rio com esse e-mail."}), 409
+            return jsonify({"erro": "Já existe usuário com esse e-mail."}), 409
 
         cursor.execute('''
             UPDATE usuarios
@@ -1635,11 +1635,11 @@ def update_usuario(usuario_id):
         ''', (nome, email, role, usuario_id))
         usuario = row_to_dict(cursor.fetchone())
         conn.commit()
-        return jsonify({"mensagem": "UsuÃ¡rio atualizado com sucesso.", "usuario": usuario})
+        return jsonify({"mensagem": "Usuário atualizado com sucesso.", "usuario": usuario})
     except psycopg2.errors.UniqueViolation:
         if conn:
             conn.rollback()
-        return jsonify({"erro": "JÃ¡ existe usuÃ¡rio com esse e-mail."}), 409
+        return jsonify({"erro": "Já existe usuário com esse e-mail."}), 409
     except psycopg2.Error as exc:
         if conn:
             conn.rollback()
