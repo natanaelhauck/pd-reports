@@ -988,12 +988,12 @@ def importar_planilha_para_neon():
     print(f'Importação manual concluída: {inseridos} alunos inseridos.')
     return inseridos
 
-@app.route('/api/health', methods=['GET'])
-def healthcheck():
+@app.route("/api/health", methods=["GET"])
+def health():
     return jsonify({
         "status": "ok",
-        "service": "pd-reports-api",
-    })
+        "service": "pd-reports-api"
+    }), 200
 
 @app.route('/api/login', methods=['POST'])
 def login():
