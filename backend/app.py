@@ -4,6 +4,7 @@ import re
 import time
 import unicodedata
 from datetime import date, datetime, timedelta
+from functools import wraps
 from pathlib import Path
 
 import pandas as pd
@@ -13,6 +14,7 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
+from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from psycopg2.extras import RealDictCursor
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -48,6 +50,7 @@ RELATORIOS_MONITORIA_ABA = 'Relatórios Monitoria'
 RELATORIOS_MONITORIA_DATA_MINIMA = date(2026, 3, 23)
 RELATORIOS_MONITORIA_CACHE_TTL = 300
 USUARIO_ROLES_VALIDOS = {'admin', 'monitor', 'psicologa'}
+AUTH_TOKEN_MAX_AGE_SECONDS = 60 * 60 * 12
 _relatorios_monitoria_cache = {'expires_at': 0, 'data': None}
 
 # Março e abril usam consolidados históricos oficiais porque o formulário mudou nesses meses.
@@ -115,6 +118,9 @@ if not DATABASE_URL:
 
 if not ADMIN_PASSWORD:
     raise RuntimeError('ADMIN_PASSWORD não configurada. Crie um arquivo .env ou configure a variável de ambiente.')
+
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY') or ADMIN_PASSWORD
+auth_serializer = URLSafeTimedSerializer(app.config['SECRET_KEY'], salt='pd-reports-auth')
 
 MONITORES_VALIDOS = {
     'alex': 'Alex',
@@ -288,15 +294,93 @@ def valor_historico(valor):
         return 'Sim' if valor else 'Não'
     return str(valor)
 
-def usuario_do_request(dados):
+def usuario_publico(usuario):
+    if not usuario:
+        return None
     return {
-        'nome': str(dados.get('usuario_nome') or '').strip(),
-        'email': str(dados.get('usuario_email') or '').strip().lower(),
-        'role': str(dados.get('usuario_role') or '').strip().lower(),
+        'id': usuario.get('id'),
+        'nome': usuario.get('nome'),
+        'email': usuario.get('email'),
+        'role': usuario.get('role'),
     }
 
-def usuario_is_admin(dados):
-    return usuario_do_request(dados).get('role') == 'admin'
+def gerar_token_usuario(usuario):
+    return auth_serializer.dumps({
+        'id': usuario.get('id'),
+        'email': usuario.get('email'),
+    })
+
+def token_do_request():
+    authorization = request.headers.get('Authorization', '')
+    if authorization.lower().startswith('bearer '):
+        return authorization.split(' ', 1)[1].strip()
+    return ''
+
+def get_current_user():
+    if hasattr(request, '_current_user'):
+        return request._current_user
+
+    token = token_do_request()
+    if not token:
+        request._current_user = None
+        return None
+
+    try:
+        dados_token = auth_serializer.loads(token, max_age=AUTH_TOKEN_MAX_AGE_SECONDS)
+    except (BadSignature, SignatureExpired):
+        request._current_user = None
+        return None
+
+    usuario_id = dados_token.get('id')
+    email = str(dados_token.get('email') or '').strip().lower()
+    if not usuario_id or not email:
+        request._current_user = None
+        return None
+
+    conn = None
+    try:
+        conn = conectar_db()
+        cursor = cursor_db(conn)
+        cursor.execute('''
+            SELECT id, nome, email, role, ativo, criado_em
+            FROM usuarios
+            WHERE id=%s AND lower(email)=lower(%s) AND ativo=TRUE
+        ''', (usuario_id, email))
+        request._current_user = row_to_dict(cursor.fetchone())
+        return request._current_user
+    except psycopg2.Error:
+        request._current_user = None
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+def require_auth():
+    usuario = get_current_user()
+    if not usuario:
+        return None, (jsonify({"erro": "Autenticação necessária."}), 401)
+    return usuario, None
+
+def require_admin():
+    usuario, erro = require_auth()
+    if erro:
+        return None, erro
+    if usuario.get('role') != 'admin':
+        return None, (jsonify({"erro": "Apenas administradores podem executar esta ação."}), 403)
+    return usuario, None
+
+def admin_ativo_count(cursor):
+    cursor.execute("SELECT COUNT(*) AS total FROM usuarios WHERE role='admin' AND ativo=TRUE")
+    return int(cursor.fetchone()['total'])
+
+def email_valido(email):
+    return bool(re.fullmatch(r'[^@\s]+@[^@\s]+\.[^@\s]+', email or ''))
+
+def rejeitar_campos_inesperados(dados, permitidos):
+    extras = set(dados.keys()) - set(permitidos)
+    if extras:
+        return jsonify({"erro": "Campos inesperados no payload.", "campos": sorted(extras)}), 400
+    return None
 
 def registrar_historico(cursor, matricula, campo, valor_antigo, valor_novo, usuario=None):
     usuario = usuario or {}
@@ -667,8 +751,8 @@ def monitor_do_usuario(usuario):
     nome = normalizar_monitor(usuario.get('nome'))
     return nome
 
-def filtros_monitoria_request():
-    usuario = usuario_do_request(request.args)
+def filtros_monitoria_request(usuario=None):
+    usuario = usuario or {}
     monitor = normalizar_monitor(request.args.get('monitor'))
     if usuario.get('role') == 'monitor':
         monitor = monitor_do_usuario(usuario)
@@ -1040,19 +1124,17 @@ def login():
         conn = conectar_db()
         cursor = cursor_db(conn)
         cursor.execute(
-            'SELECT nome, email, senha_hash, role FROM usuarios WHERE lower(email)=lower(%s) AND ativo=TRUE',
+            'SELECT id, nome, email, senha_hash, role FROM usuarios WHERE lower(email)=lower(%s) AND ativo=TRUE',
             (email,)
         )
         usuario = row_to_dict(cursor.fetchone())
 
         if usuario and check_password_hash(usuario.get('senha_hash') or '', senha):
+            usuario_resposta = usuario_publico(usuario)
+            usuario_resposta['token'] = gerar_token_usuario(usuario)
             return jsonify({
                 "sucesso": True,
-                "usuario": {
-                    "nome": usuario.get('nome'),
-                    "email": usuario.get('email'),
-                    "role": usuario.get('role'),
-                }
+                "usuario": usuario_resposta,
             })
 
         return jsonify({"erro": "E-mail ou senha inválidos."}), 401
@@ -1184,6 +1266,9 @@ def get_relatorios_monitoria_aluno(matricula):
 
 @app.route('/api/relatorios-monitoria/refresh', methods=['POST'])
 def refresh_relatorios_monitoria():
+    _, erro = require_admin()
+    if erro:
+        return erro
     limpar_cache_relatorios()
     return jsonify({
         'success': True,
@@ -1192,9 +1277,12 @@ def refresh_relatorios_monitoria():
 
 @app.route('/api/relatorios-monitoria/resumo-monitores', methods=['GET'])
 def get_resumo_monitoria_monitores():
+    usuario, erro = require_auth()
+    if erro:
+        return erro
     try:
         ano, mes, mes_param = parse_mes_monitoria(request.args.get('mes'))
-        monitor_filtro, status_filtro = filtros_monitoria_request()
+        monitor_filtro, status_filtro = filtros_monitoria_request(usuario)
         historico = consolidado_historico_monitoria(mes_param, monitor_filtro, status_filtro)
         if historico:
             return jsonify(historico)
@@ -1298,9 +1386,11 @@ def get_perfil_aluno(matricula):
 
 @app.route('/api/alunos/perfil/update', methods=['POST'])
 def update_perfil_aluno():
+    usuario, erro = require_admin()
+    if erro:
+        return erro
     dados = request.get_json(silent=True) or {}
     matricula = dados.get('matricula')
-    usuario = usuario_do_request(dados)
 
     if not matricula:
         return jsonify({"erro": "Matrícula não enviada. Não foi possível salvar o perfil."}), 400
@@ -1411,9 +1501,11 @@ def update_perfil_aluno():
 
 @app.route('/api/alunos/update', methods=['POST'])
 def update_aluno():
+    usuario, erro = require_admin()
+    if erro:
+        return erro
     dados = request.get_json(silent=True) or {}
     matricula = dados.get('matricula')
-    usuario = usuario_do_request(dados)
 
     if not matricula:
         return jsonify({"erro": "Matrícula não enviada. Não foi possível atualizar o aluno."}), 400
@@ -1477,12 +1569,11 @@ def update_aluno():
 
 @app.route('/api/alunos/create', methods=['POST'])
 def criar_aluno():
-    # Autenticação interna simples; futuramente trocar por JWT/sessão segura.
-    dados = request.get_json(silent=True) or {}
-    if not usuario_is_admin(dados):
-        return jsonify({"erro": "Apenas administradores podem cadastrar alunos."}), 403
+    usuario, erro = require_admin()
+    if erro:
+        return erro
 
-    usuario = usuario_do_request(dados)
+    dados = request.get_json(silent=True) or {}
     nome = str(dados.get('nome') or '').strip()
     matricula = str(dados.get('matricula') or '').strip()
     status = normalizar_status(dados.get('status'))
@@ -1532,14 +1623,9 @@ def criar_aluno():
 
 @app.route('/api/usuarios', methods=['GET'])
 def listar_usuarios():
-    # Autenticação simples para uso interno/local. Em produção, substituir por JWT ou sessão segura.
-    dados = {
-        'usuario_nome': request.args.get('usuario_nome'),
-        'usuario_email': request.args.get('usuario_email'),
-        'usuario_role': request.args.get('usuario_role'),
-    }
-    if not usuario_is_admin(dados):
-        return jsonify({"erro": "Apenas administradores podem listar usuários."}), 403
+    _, erro = require_admin()
+    if erro:
+        return erro
 
     conn = None
     try:
@@ -1559,10 +1645,14 @@ def listar_usuarios():
 
 @app.route('/api/usuarios/create', methods=['POST'])
 def criar_usuario():
-    # Autenticação simples para uso interno/local. Em produção, substituir por JWT ou sessão segura.
+    _, erro = require_admin()
+    if erro:
+        return erro
+
     dados = request.get_json(silent=True) or {}
-    if not usuario_is_admin(dados):
-        return jsonify({"erro": "Apenas administradores podem cadastrar usuários."}), 403
+    erro_payload = rejeitar_campos_inesperados(dados, {'nome', 'email', 'senha', 'role'})
+    if erro_payload:
+        return erro_payload
 
     nome = str(dados.get('nome') or '').strip()
     email = str(dados.get('email') or '').strip().lower()
@@ -1573,6 +1663,10 @@ def criar_usuario():
         return jsonify({"erro": "Role invalida."}), 400
     if not nome or not email or not senha:
         return jsonify({"erro": "Nome, e-mail e senha são obrigatórios."}), 400
+    if not email_valido(email):
+        return jsonify({"erro": "E-mail inválido."}), 400
+    if len(senha) < 6:
+        return jsonify({"erro": "A senha deve ter pelo menos 6 caracteres."}), 400
 
     conn = None
     try:
@@ -1600,10 +1694,14 @@ def criar_usuario():
 
 @app.route('/api/usuarios/<int:usuario_id>', methods=['PUT'])
 def update_usuario(usuario_id):
+    _, erro = require_admin()
+    if erro:
+        return erro
+
     dados = request.get_json(silent=True) or {}
-    admin_user = dados.get('admin_user') or dados
-    if not usuario_is_admin(admin_user):
-        return jsonify({"erro": "Apenas administradores podem atualizar usuários."}), 403
+    erro_payload = rejeitar_campos_inesperados(dados, {'nome', 'email', 'role'})
+    if erro_payload:
+        return erro_payload
 
     nome = str(dados.get('nome') or '').strip()
     email = str(dados.get('email') or '').strip().lower()
@@ -1613,19 +1711,25 @@ def update_usuario(usuario_id):
         return jsonify({"erro": "Nome, e-mail e perfil são obrigatórios."}), 400
     if role not in USUARIO_ROLES_VALIDOS:
         return jsonify({"erro": "Role invalida."}), 400
+    if not email_valido(email):
+        return jsonify({"erro": "E-mail inválido."}), 400
 
     conn = None
     try:
         conn = conectar_db()
         cursor = cursor_db(conn)
 
-        cursor.execute('SELECT id FROM usuarios WHERE id=%s', (usuario_id,))
-        if not cursor.fetchone():
+        cursor.execute('SELECT id, role, ativo FROM usuarios WHERE id=%s', (usuario_id,))
+        usuario_atual = row_to_dict(cursor.fetchone())
+        if not usuario_atual:
             return jsonify({"erro": "Usuário não encontrado."}), 404
 
         cursor.execute('SELECT id FROM usuarios WHERE lower(email)=lower(%s) AND id<>%s', (email, usuario_id))
         if cursor.fetchone():
             return jsonify({"erro": "Já existe usuário com esse e-mail."}), 409
+
+        if usuario_atual.get('role') == 'admin' and role != 'admin' and usuario_atual.get('ativo') and admin_ativo_count(cursor) <= 1:
+            return jsonify({"erro": "Não é possível rebaixar o último admin ativo."}), 400
 
         cursor.execute('''
             UPDATE usuarios
@@ -1650,11 +1754,14 @@ def update_usuario(usuario_id):
 
 @app.route('/api/usuarios/update-password', methods=['POST'])
 def update_usuario_password():
-    # Autenticação interna simples; futuramente trocar por JWT/sessão segura.
+    _, erro = require_admin()
+    if erro:
+        return erro
+
     dados = request.get_json(silent=True) or {}
-    admin_user = dados.get('admin_user') or {}
-    if not usuario_is_admin(admin_user):
-        return jsonify({"erro": "Apenas administradores podem alterar senhas."}), 403
+    erro_payload = rejeitar_campos_inesperados(dados, {'usuario_id', 'nova_senha'})
+    if erro_payload:
+        return erro_payload
 
     usuario_id = dados.get('usuario_id')
     nova_senha = str(dados.get('nova_senha') or '')
