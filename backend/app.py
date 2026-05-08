@@ -28,8 +28,7 @@ app.json.sort_keys = False
 def root():
     return jsonify({
         "status": "ok",
-        "service": "pd-reports-api",
-        "route": "/"
+        "service": "pd-reports-api"
     }), 200
 
 DATABASE_URL = os.getenv('DATABASE_URL')
@@ -1000,8 +999,7 @@ def importar_planilha_para_neon():
 def health():
     return jsonify({
         "status": "ok",
-        "service": "pd-reports-api",
-        "route": "/api/health"
+        "service": "pd-reports-api"
     }), 200
 
 @app.route('/api/login', methods=['POST'])
@@ -1612,8 +1610,7 @@ def update_usuario_password():
         if conn:
             conn.close()
 
-print("PD REPORTS BACKEND LOADED - ROUTES:", [str(rule) for rule in app.url_map.iter_rules()])
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     criar_tabelas()
-    app.run(debug=True, port=int(os.getenv('PORT', 5000)))
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=True)

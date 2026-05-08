@@ -71,7 +71,7 @@ Em producao, use `GOOGLE_SERVICE_ACCOUNT_JSON` com o conteudo completo do JSON d
 
 - Root Directory: `backend`
 - Build Command: `pip install -r requirements.txt`
-- Start Command: `gunicorn app:app`
+- Start Command: `gunicorn wsgi:app`
 - Healthcheck: `GET /api/health`
 
 Environment Variables:
