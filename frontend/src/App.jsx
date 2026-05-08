@@ -941,7 +941,7 @@ export default function App() {
       )}
 
       {aluno && (
-        <div ref={cardRef} className="student-card" style={{ ...styles.card, borderLeft: `8px solid ${corStatus}`, marginBottom: '18px' }}>
+        <div ref={cardRef} className="student-card" style={{ ...styles.card, '--student-status-color': corStatus, borderLeft: `8px solid ${corStatus}`, marginBottom: '18px' }}>
           <button className="ui-button card-close" type="button" onClick={fecharAlunoSelecionado} aria-label="Fechar aluno selecionado" style={styles.iconBtn}><X size={17} /></button>
           <div className="student-card-header" style={styles.cardHeader}>
             <div style={{ ...styles.avatar, backgroundColor: `${corStatus}18` }}>

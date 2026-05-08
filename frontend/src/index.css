@@ -1324,6 +1324,10 @@ body:has(.theme-dark) {
   box-shadow: 0 10px 26px rgba(0, 0, 0, 0.25) !important;
 }
 
+.theme-dark .student-card {
+  border-left-color: var(--student-status-color) !important;
+}
+
 .theme-dark .result-button,
 .theme-dark section,
 .theme-dark [style*='background: rgb(248, 250, 252)'],
