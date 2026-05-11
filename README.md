@@ -1,45 +1,98 @@
 # PD Reports
 
-Sistema interno para gestao e consulta de alunos, com backend Flask/PostgreSQL e frontend React/Vite.
+Sistema interno para gestão e acompanhamento de alunos, monitores, perfis, relatórios de monitoria e indicadores mensais.
 
-## Estrutura
+## Links de produção
+
+- Frontend: https://pdreports.netlify.app
+- Backend: https://sistema-alunos-mwkw.onrender.com
+- Healthcheck: https://sistema-alunos-mwkw.onrender.com/api/health
+
+## Tecnologias
+
+### Frontend
+
+- React
+- Vite
+- CSS
+- Lucide React
+- Netlify
+
+### Backend
+
+- Python
+- Flask
+- Gunicorn
+- PostgreSQL
+- psycopg2
+- Google Sheets API
+- Render
+
+### Banco de dados
+
+- Neon PostgreSQL
+
+## Funcionalidades principais
+
+- Login e autenticação
+- Gestão de alunos
+- Perfil do aluno
+- Dados principais
+- Histórico
+- Relatórios de monitoria por aluno
+- Dashboard de monitores
+- Indicadores por mês, monitor e status
+- Integração com Google Sheets
+- Gestão de usuários
+- Permissões por perfil: admin, monitor e psicóloga
+- Modo claro/escuro
+
+## Arquitetura
+
+O projeto está organizado em módulos separados:
 
 ```text
 sistema_alunos/
-|-- backend/
-|   |-- app.py
-|   |-- requirements.txt
-|   |-- .env
-|   `-- scripts/
-|-- frontend/
-|-- dados/
-|-- docs/
-|-- .gitignore
-`-- README.md
+├── frontend/   # Aplicação React/Vite
+├── backend/    # API Flask, autenticação, regras de negócio e integrações
+├── dados/      # Arquivos de apoio e dados operacionais
+├── docs/       # Documentação complementar
+└── README.md
 ```
 
-## Backend local
+## Variáveis de ambiente
+
+Nunca commite arquivos `.env`, credenciais, URLs privadas de banco, senhas ou o JSON da conta de serviço do Google. Use variáveis de ambiente locais e configure os valores diretamente nos provedores de deploy.
+
+### Backend
+
+```env
+DATABASE_URL=
+ADMIN_PASSWORD=
+GOOGLE_SHEETS_ID=
+GOOGLE_SERVICE_ACCOUNT_JSON=
+FRONTEND_URL=
+```
+
+### Frontend
+
+```env
+VITE_API_URL=
+```
+
+## Como rodar localmente
+
+### Backend
 
 ```bash
 cd backend
-python -m venv venv
-venv\Scripts\activate
+python -m venv .venv
+.venv\Scripts\activate
 pip install -r requirements.txt
 python app.py
 ```
 
-O backend local usa a porta `5000` por padrao. Configure `backend/.env` com:
-
-```bash
-DATABASE_URL=postgresql://...
-ADMIN_PASSWORD=...
-GOOGLE_SHEETS_ID=...
-GOOGLE_SERVICE_ACCOUNT_FILE=google-service-account.json
-```
-
-O arquivo `backend/google-service-account.json` e apenas local e nao deve ser commitado.
-
-## Frontend local
+### Frontend
 
 ```bash
 cd frontend
@@ -47,84 +100,99 @@ npm install
 npm run dev
 ```
 
-Sem variavel adicional, o frontend usa `http://localhost:5000` como backend. Para apontar para outro backend:
-
-```bash
-VITE_API_URL=http://localhost:5000
-```
-
-## Google Sheets API
-
-A aba **Relatorios Monitoria** e lida pela Google Sheets API com service account.
-
-Localmente, use:
-
-```bash
-GOOGLE_SERVICE_ACCOUNT_FILE=google-service-account.json
-```
-
-Em producao, use `GOOGLE_SERVICE_ACCOUNT_JSON` com o conteudo completo do JSON da service account em uma variavel de ambiente. Compartilhe a planilha com o e-mail da service account como leitor.
-
 ## Deploy
 
-### Backend Render
+### Render
+
+Configuração do backend:
 
 - Root Directory: `backend`
 - Build Command: `pip install -r requirements.txt`
 - Start Command: `gunicorn wsgi:app`
-- Healthcheck: `GET /api/health`
 
-Environment Variables:
+Variáveis de ambiente esperadas:
 
-```bash
-DATABASE_URL=postgresql://...
-ADMIN_PASSWORD=...
-GOOGLE_SHEETS_ID=...
-GOOGLE_SERVICE_ACCOUNT_JSON={...}
-FRONTEND_URL=https://URL_DO_FRONTEND_NETLIFY
+```env
+DATABASE_URL=
+ADMIN_PASSWORD=
+GOOGLE_SHEETS_ID=
+GOOGLE_SERVICE_ACCOUNT_JSON=
+FRONTEND_URL=https://pdreports.netlify.app
 ```
 
-Use `GOOGLE_SERVICE_ACCOUNT_JSON` no Render. Nao envie `google-service-account.json` para o repositorio.
+### Netlify
 
-### Frontend Netlify
+Configuração do frontend:
 
 - Base directory: `frontend`
 - Build command: `npm run build`
-- Publish directory: `dist`
-
-Environment Variable:
-
-```bash
-VITE_API_URL=https://URL_DO_BACKEND_RENDER
-```
-
-Se o Base directory nao for configurado como `frontend`, use:
-
-- Build command: `cd frontend && npm run build`
 - Publish directory: `frontend/dist`
 
-Depois que o Netlify gerar a URL do frontend, volte no Render, preencha `FRONTEND_URL` com a URL do Netlify e faca redeploy do backend.
+Variável de ambiente:
 
-## Scripts de manutencao
+```env
+VITE_API_URL=https://sistema-alunos-mwkw.onrender.com
+```
 
-Os scripts em `backend/scripts/` sao utilitarios manuais de manutencao. Eles nao rodam automaticamente pela aplicacao.
+## Scripts úteis
 
-Execute a partir da pasta `backend`:
+Os scripts em `backend/scripts/` são utilitários manuais de manutenção. Eles não rodam automaticamente pela aplicação e devem ser usados com cuidado, preferencialmente após validação local e backup dos dados afetados.
+
+Scripts existentes:
+
+- `corrigir_nomes.py`
+- `corrigir_telefones.py`
+- `criar_usuarios_monitores.py`
+- `importar_perfil_alunos.py`
+- `testar_permissoes.py`
+
+Exemplo de execução:
 
 ```bash
 cd backend
 python scripts/corrigir_nomes.py
-python scripts/corrigir_telefones.py
-python scripts/importar_perfil_alunos.py
 ```
 
-## Validacao
+## Segurança
+
+- As permissões devem ser validadas no backend.
+- Usuários admin podem gerenciar usuários e dados.
+- Monitores têm acesso restrito conforme o perfil de permissão.
+- A psicóloga possui perfil próprio de acesso.
+- O frontend não deve ser usado como barreira de segurança.
+- Em produção, o CORS deve ser restrito por `FRONTEND_URL`.
+- Credenciais, senhas, arquivos `.env` e JSON da conta de serviço não devem ser versionados.
+
+## Boas práticas
+
+- Sempre testar localmente antes de commitar.
+- Rodar build e lint antes do deploy.
+- Não expor credenciais em código, logs, commits ou documentação.
+- Acompanhar logs do Render e Netlify após deploys.
+- Validar mudanças sensíveis em autenticação, permissões e integrações antes de publicar.
+
+## Comandos de validação
+
+### Backend
 
 ```bash
 cd backend
 python -m py_compile app.py
+python -m py_compile wsgi.py
+```
 
-cd ../frontend
+### Frontend
+
+```bash
+cd frontend
 npm run build
 npm run lint
 ```
+
+## Observações sobre Render Free
+
+No plano gratuito do Render, o backend pode entrar em modo de suspensão após períodos sem uso. Por isso, o primeiro acesso pode demorar alguns segundos devido ao cold start.
+
+## Licença/uso
+
+Uso interno - Projeto Desenvolve.
