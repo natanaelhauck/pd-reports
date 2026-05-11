@@ -206,6 +206,7 @@ const boolFromSelect = (valor) => (valor === 'sim' ? true : valor === 'nao' ? fa
 const DIAS_MONITORIA = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira'];
 const QTD_FILHOS = ['1', '2', '3', '4', '5', '6+'];
 const TURNOS = ['Manhã', 'Tarde', 'Noite', 'Integral', 'Variável', 'EAD'];
+const TURNOS_TRABALHO = ['Manhã', 'Tarde', 'Noite', 'Integral', 'Variável'];
 const PSICOLOGOS = ['Isabela'];
 const PERFIS_USUARIO = [
   ['monitor', 'Monitor'],
@@ -1152,7 +1153,7 @@ function PerfilAluno({ perfil, perfilTemp, setPerfilTemp, editPerfil, setEditPer
           {p.trabalha === true && (
             <>
               <ProfileField label="Com o que trabalha?" value={p.trabalho_descricao} disabled={!editPerfil} onChange={(v) => setCampo('trabalho_descricao', v)} />
-              <ProfileSelect label="Turno de trabalho" value={p.turno_trabalho || ''} disabled={!editPerfil} onChange={(v) => setCampo('turno_trabalho', v)} options={[['', 'Não informado'], ...TURNOS.map((turno) => [turno, turno])]} />
+              <ProfileSelect label="Turno de trabalho" value={p.turno_trabalho || ''} disabled={!editPerfil} onChange={(v) => setCampo('turno_trabalho', v)} options={[['', 'Não informado'], ...TURNOS_TRABALHO.map((turno) => [turno, turno])]} />
             </>
           )}
           <ProfileField label="Em qual área profissional pretende trabalhar futuramente?" value={p.area_profissional_interesse} disabled={!editPerfil} onChange={(v) => setCampo('area_profissional_interesse', v)} />
