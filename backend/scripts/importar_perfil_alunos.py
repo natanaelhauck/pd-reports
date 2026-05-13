@@ -54,7 +54,7 @@ NOMES_FEMININOS_PROGRAMADORA = {
 }
 
 
-load_dotenv(BASE_DIR / '.env')
+load_dotenv(dotenv_path=BASE_DIR / '.env', override=True)
 DATABASE_URL = os.getenv('DATABASE_URL')
 
 

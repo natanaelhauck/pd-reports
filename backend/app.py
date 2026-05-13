@@ -21,7 +21,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 BASE_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = BASE_DIR.parent
 
-load_dotenv(dotenv_path=Path(__file__).parent / ".env")
+load_dotenv(dotenv_path=BASE_DIR / ".env", override=True)
 
 app = Flask(__name__)
 app.json.sort_keys = False
@@ -38,17 +38,19 @@ ADMIN_EMAIL = os.getenv('ADMIN_EMAIL', 'admin@pdreports.local')
 ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD')
 GOOGLE_SHEETS_ID = os.getenv('GOOGLE_SHEETS_ID')
 GOOGLE_SERVICE_ACCOUNT_JSON = os.getenv('GOOGLE_SERVICE_ACCOUNT_JSON')
-GOOGLE_SERVICE_ACCOUNT_FILE = os.getenv('GOOGLE_SERVICE_ACCOUNT_FILE', 'google-service-account.json')
+GOOGLE_SERVICE_ACCOUNT_FILE = os.getenv('GOOGLE_SERVICE_ACCOUNT_FILE', str(BASE_DIR / 'google-service-account.json'))
+GOOGLE_STUDENTS_SHEET_NAME = os.getenv('GOOGLE_STUDENTS_SHEET_NAME', 'Alunos')
+GOOGLE_STUDENTS_SHEET_SYNC = os.getenv('GOOGLE_STUDENTS_SHEET_SYNC', 'true').strip().lower() in {'true', '1', 'sim', 'yes'}
 FRONTEND_URL = os.getenv('FRONTEND_URL')
 allowed_origins = ['http://localhost:5173']
 if FRONTEND_URL:
     allowed_origins.insert(0, FRONTEND_URL.rstrip('/'))
 CORS(app, resources={r"/api/*": {"origins": allowed_origins}})
 CAMINHO_PLANILHA = PROJECT_ROOT / 'dados' / 'alunos.xlsx'
-GOOGLE_SHEETS_SCOPE = 'https://www.googleapis.com/auth/spreadsheets.readonly'
+GOOGLE_SHEETS_SCOPE = 'https://www.googleapis.com/auth/spreadsheets'
 RELATORIOS_MONITORIA_ABA = 'Relatórios Monitoria'
 RELATORIOS_MONITORIA_DATA_MINIMA = date(2026, 3, 23)
-RELATORIOS_MONITORIA_CACHE_TTL = 300
+RELATORIOS_MONITORIA_CACHE_TTL = int(os.getenv('RELATORIOS_MONITORIA_CACHE_TTL', '60'))
 USUARIO_ROLES_VALIDOS = {'admin', 'monitor', 'psicologa'}
 AUTH_TOKEN_MAX_AGE_SECONDS = 60 * 60 * 12
 _relatorios_monitoria_cache = {'expires_at': 0, 'data': None}
@@ -119,8 +121,21 @@ if not DATABASE_URL:
 if not ADMIN_PASSWORD:
     raise RuntimeError('ADMIN_PASSWORD não configurada. Crie um arquivo .env ou configure a variável de ambiente.')
 
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY') or ADMIN_PASSWORD
+IS_PRODUCTION = os.getenv('FLASK_ENV') == 'production' or os.getenv('ENV') == 'production' or bool(os.getenv('RENDER'))
+SECRET_KEY = os.getenv('SECRET_KEY')
+if IS_PRODUCTION and not SECRET_KEY:
+    raise RuntimeError('SECRET_KEY precisa ser configurada em produção.')
+
+app.config['SECRET_KEY'] = SECRET_KEY or ADMIN_PASSWORD
 auth_serializer = URLSafeTimedSerializer(app.config['SECRET_KEY'], salt='pd-reports-auth')
+
+@app.after_request
+def adicionar_headers_seguranca(response):
+    response.headers.setdefault('X-Content-Type-Options', 'nosniff')
+    response.headers.setdefault('X-Frame-Options', 'DENY')
+    response.headers.setdefault('Referrer-Policy', 'strict-origin-when-cross-origin')
+    response.headers.setdefault('Permissions-Policy', 'geolocation=(), microphone=(), camera=()')
+    return response
 
 MONITORES_VALIDOS = {
     'alex': 'Alex',
@@ -182,6 +197,39 @@ CAMPOS_BOOLEANOS_PERFIL = {
     'acompanhamento_psicologico',
 }
 CAMPOS_INTEIROS_PERFIL = {'previsao_formacao_ano'}
+CAMPOS_PERFIL_ADMIN_ONLY = {'acompanhamento_psicologico', 'psicologo'}
+SHEETS_STUDENT_FIELD_HEADERS = {
+    'nome': ['Nome', 'Nome do aluno', 'Aluno'],
+    'telefone': ['Telefone', 'Celular'],
+    'email': ['Email', 'E-mail'],
+    'nascimento': ['Nascimento', 'Data de nascimento'],
+    'monitor': ['Monitor', 'Agente', 'Agente de Sucesso'],
+    'status': ['Status', 'Situação', 'Situacao'],
+    'patrimonio': ['Patrimônio', 'Patrimonio'],
+    'analise_perfil': ['analise_perfil', 'Análise de perfil', 'Analise de perfil'],
+    'trabalha': ['trabalha', 'Trabalha?'],
+    'trabalho_descricao': ['trabalho_descricao', 'Descrição do trabalho', 'Descricao do trabalho'],
+    'area_profissional_interesse': ['area_profissional_interesse', 'Área profissional de interesse', 'Area profissional de interesse'],
+    'turno_trabalho': ['turno_trabalho', 'Turno de trabalho'],
+    'estuda': ['estuda', 'Estuda?'],
+    'estudo_instituicao': ['estudo_instituicao', 'Instituição de estudo', 'Instituicao de estudo'],
+    'estudo_curso': ['estudo_curso', 'Curso de estudo'],
+    'turno_estudo': ['turno_estudo', 'Turno de estudo'],
+    'tem_filhos': ['tem_filhos', 'Tem filhos?'],
+    'filhos_descricao': ['filhos_descricao', 'Filhos'],
+    'nivel_engajamento': ['nivel_engajamento', 'Nível de engajamento', 'Nivel de engajamento'],
+    'nivel_programacao': ['nivel_programacao', 'Nível de programação', 'Nivel de programacao'],
+    'previsao_formacao_ano': ['previsao_formacao_ano', 'Ano de previsão de formação', 'Ano de previsao de formacao'],
+    'previsao_formacao_semestre': ['previsao_formacao_semestre', 'Semestre de previsão de formação', 'Semestre de previsao de formacao'],
+    'monitoria_1': ['monitoria_1', 'Monitoria 1'],
+    'monitoria_2': ['monitoria_2', 'Monitoria 2'],
+    'monitoria_3': ['monitoria_3', 'Monitoria 3'],
+    'monitoria_4': ['monitoria_4', 'Monitoria 4'],
+    'dia_monitoria': ['dia_monitoria', 'Dia da monitoria'],
+    'horario_monitoria': ['horario_monitoria', 'Horário da monitoria', 'Horario da monitoria'],
+    'acompanhamento_psicologico': ['acompanhamento_psicologico', 'Acompanhamento psicológico', 'Acompanhamento psicologico'],
+    'psicologo': ['psicologo', 'Psicólogo', 'Psicologo'],
+}
 
 def conectar_db():
     return psycopg2.connect(DATABASE_URL)
@@ -369,6 +417,17 @@ def require_admin():
         return None, (jsonify({"erro": "Apenas administradores podem executar esta ação."}), 403)
     return usuario, None
 
+def require_roles(*roles):
+    usuario, erro = require_auth()
+    if erro:
+        return None, erro
+    if usuario.get('role') not in set(roles):
+        return None, (jsonify({"erro": "Você não tem permissão para executar esta ação."}), 403)
+    return usuario, None
+
+def require_student_edit_permission():
+    return require_roles('admin', 'monitor', 'psicologa')
+
 def admin_ativo_count(cursor):
     cursor.execute("SELECT COUNT(*) AS total FROM usuarios WHERE role='admin' AND ativo=TRUE")
     return int(cursor.fetchone()['total'])
@@ -380,6 +439,20 @@ def rejeitar_campos_inesperados(dados, permitidos):
     extras = set(dados.keys()) - set(permitidos)
     if extras:
         return jsonify({"erro": "Campos inesperados no payload.", "campos": sorted(extras)}), 400
+    return None
+
+def validar_campos_admin_only(usuario, atual, novo, campos):
+    if usuario.get('role') == 'admin':
+        return None
+    alterados = [
+        campo for campo in campos
+        if valor_historico(atual.get(campo)) != valor_historico(novo.get(campo))
+    ]
+    if alterados:
+        return jsonify({
+            "erro": "Apenas administradores podem alterar campos sensíveis.",
+            "campos": sorted(alterados),
+        }), 403
     return None
 
 def registrar_historico(cursor, matricula, campo, valor_antigo, valor_novo, usuario=None):
@@ -410,8 +483,12 @@ def corrigir_mojibake(valor):
         return texto
 
 def erro_banco(exception):
-    print(f'Erro de banco: {exception}')
+    print(f'Erro de banco: {exception.__class__.__name__}')
     return jsonify({"erro": "Não foi possível conectar ao banco de dados. Tente novamente em instantes."}), 503
+
+def erro_google_sheets(exception):
+    print(f'Erro Google Sheets: {exception.__class__.__name__}')
+    return jsonify({"erro": "Não foi possível acessar a planilha no momento. Tente novamente em instantes."}), 503
 
 def sem_acentos(valor):
     return ''.join(
@@ -552,7 +629,13 @@ def get_google_sheets_credentials():
 
     service_account_path = Path(GOOGLE_SERVICE_ACCOUNT_FILE)
     if not service_account_path.is_absolute():
-        service_account_path = BASE_DIR / service_account_path
+        backend_relative_path = BASE_DIR / service_account_path
+        project_relative_path = PROJECT_ROOT / service_account_path
+        service_account_path = (
+            project_relative_path
+            if project_relative_path.exists()
+            else backend_relative_path
+        )
     return service_account.Credentials.from_service_account_file(
         service_account_path,
         scopes=[GOOGLE_SHEETS_SCOPE],
@@ -561,6 +644,104 @@ def get_google_sheets_credentials():
 def get_google_sheets_service():
     credentials = get_google_sheets_credentials()
     return build('sheets', 'v4', credentials=credentials, cache_discovery=False)
+
+def coluna_a1(indice_zero_based):
+    indice = indice_zero_based + 1
+    letras = ''
+    while indice:
+        indice, resto = divmod(indice - 1, 26)
+        letras = chr(65 + resto) + letras
+    return letras
+
+def ler_aba_planilha(nome_aba):
+    service = get_google_sheets_service()
+    resultado = service.spreadsheets().values().get(
+        spreadsheetId=GOOGLE_SHEETS_ID,
+        range=f"'{nome_aba}'",
+    ).execute()
+    return resultado.get('values', [])
+
+def mapa_cabecalhos(cabecalhos):
+    mapa = {}
+    for indice, cabecalho in enumerate(cabecalhos):
+        chave = chave_flexivel(cabecalho)
+        if chave and chave not in mapa:
+            mapa[chave] = indice
+    return mapa
+
+def localizar_linha_por_matricula(valores, matricula):
+    if not valores:
+        return None, None, None
+    cabecalhos = [str(celula).strip() for celula in valores[0]]
+    indices = mapa_cabecalhos(cabecalhos)
+    indice_matricula = None
+    for candidato in ['Matrícula', 'Matricula', 'PDITA', 'PDID', 'RA']:
+        indice_matricula = indices.get(chave_flexivel(candidato))
+        if indice_matricula is not None:
+            break
+    if indice_matricula is None:
+        return None, cabecalhos, indices
+
+    matricula_normalizada = normalizar_matricula(matricula)
+    for row_index, row in enumerate(valores[1:], start=2):
+        valor = row[indice_matricula] if indice_matricula < len(row) else ''
+        if normalizar_matricula(valor) == matricula_normalizada:
+            return row_index, cabecalhos, indices
+    return None, cabecalhos, indices
+
+def localizar_coluna_campo(indices, campo):
+    for cabecalho in SHEETS_STUDENT_FIELD_HEADERS.get(campo, []):
+        indice = indices.get(chave_flexivel(cabecalho))
+        if indice is not None:
+            return indice
+    return None
+
+def atualizar_campo_planilha_por_matricula(matricula, campo, valor, valor_esperado=None):
+    if not GOOGLE_SHEETS_ID or not GOOGLE_STUDENTS_SHEET_NAME:
+        return {'ok': False, 'aviso': 'Espelhamento Google Sheets não configurado.'}
+
+    valores = ler_aba_planilha(GOOGLE_STUDENTS_SHEET_NAME)
+    linha, _, indices = localizar_linha_por_matricula(valores, matricula)
+    if not linha:
+        return {'ok': False, 'aviso': 'Matrícula não localizada na aba de alunos da planilha.'}
+
+    coluna = localizar_coluna_campo(indices, campo)
+    if coluna is None:
+        return {'ok': False, 'aviso': f'Campo {campo} sem coluna mapeada na planilha.'}
+
+    row = valores[linha - 1] if linha - 1 < len(valores) else []
+    valor_atual_sheet = row[coluna] if coluna < len(row) else ''
+    if (
+        valor_esperado is not None
+        and str(valor_atual_sheet or '') != str(valor_esperado or '')
+        and str(valor_atual_sheet or '') != str(valor or '')
+    ):
+        print(f'Divergência Google Sheets em {campo} para matrícula {matricula}; escrita ignorada.')
+        return {'ok': False, 'aviso': f'Divergência detectada na planilha para {campo}; valor não foi sobrescrito.'}
+
+    service = get_google_sheets_service()
+    intervalo = f"'{GOOGLE_STUDENTS_SHEET_NAME}'!{coluna_a1(coluna)}{linha}"
+    service.spreadsheets().values().update(
+        spreadsheetId=GOOGLE_SHEETS_ID,
+        range=intervalo,
+        valueInputOption='USER_ENTERED',
+        body={'values': [[valor or '']]},
+    ).execute()
+    limpar_cache_relatorios()
+    return {'ok': True}
+
+def espelhar_aluno_planilha(matricula, alteracoes):
+    avisos = []
+    for campo, valores in alteracoes.items():
+        valor_antigo, valor_novo = valores
+        try:
+            resultado = atualizar_campo_planilha_por_matricula(matricula, campo, valor_novo, valor_antigo)
+            if not resultado.get('ok') and resultado.get('aviso'):
+                avisos.append(resultado['aviso'])
+        except Exception as exc:
+            print(f'Erro ao espelhar aluno no Google Sheets: {exc.__class__.__name__}')
+            avisos.append('Não foi possível espelhar a alteração na planilha agora.')
+    return avisos
 
 def limpar_cache_relatorios():
     _relatorios_monitoria_cache.update({'expires_at': 0, 'data': None})
@@ -573,12 +754,7 @@ def buscar_relatorios_monitoria():
     if not GOOGLE_SHEETS_ID:
         raise RuntimeError('GOOGLE_SHEETS_ID não configurado no backend/.env.')
 
-    service = get_google_sheets_service()
-    resultado = service.spreadsheets().values().get(
-        spreadsheetId=GOOGLE_SHEETS_ID,
-        range=f"'{RELATORIOS_MONITORIA_ABA}'",
-    ).execute()
-    valores = resultado.get('values', [])
+    valores = ler_aba_planilha(RELATORIOS_MONITORIA_ABA)
     if not valores:
         dados = {'relatorios': [], 'total_lidos': 0, 'atualizado_em': datetime.now().isoformat()}
         _relatorios_monitoria_cache.update({'expires_at': agora + RELATORIOS_MONITORIA_CACHE_TTL, 'data': dados})
@@ -620,14 +796,12 @@ def buscar_relatorios_monitoria():
             'matricula': matricula,
             'agente': pegar_valor(row, ['Agente de Sucesso', 'Agente', 'Monitor', 'Nome do agente']),
             'status': normalizar_status_monitoria(pegar_valor(row, ['Status da Monitoria', 'Status', 'Situação', 'Situacao'])),
-            'modulo': pegar_valor(row, ['Módulo', 'Modulo']),
             'curso': pegar_valor(row, ['Curso assistido', 'Curso']),
             'modulo': modulo,
             'motivo_falta': pegar_valor(row, ['Motivo da Falta', 'Motivo Falta']),
             'outro_motivo': pegar_valor(row, ['Outro Motivo', 'Outro motivo']),
             'read_ia_link': pegar_link_read_ia(row),
             'relatorio': relatorio_texto,
-            'relatorio': pegar_valor(row, ['Relatório', 'Relatorio', 'Resumo', 'Observações', 'Observacoes']),
         })
         curso_bruto = pegar_valor(row, ['Curso assistido', 'Curso', 'Não consumiu'])
         modulo_classificado, curso_classificado = classificar_modulo_curso(curso_bruto, modulo)
@@ -992,7 +1166,8 @@ def criar_tabelas():
             nascimento TEXT,
             monitor TEXT,
             status TEXT,
-            patrimonio TEXT
+            patrimonio TEXT,
+            atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
     cursor.execute('''
@@ -1049,6 +1224,7 @@ def criar_tabelas():
 
     for coluna, tipo in {
         'patrimonio': 'TEXT',
+        'atualizado_em': 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
     }.items():
         garantir_coluna(cursor, 'alunos', coluna, tipo)
 
@@ -1261,12 +1437,22 @@ def get_relatorios_monitoria_aluno(matricula):
             'cabecalhos_reconhecidos': dados.get('cabecalhos_reconhecidos', {}),
         })
     except Exception as exc:
-        print(f'Erro ao buscar relatórios de monitoria: {exc}')
-        return jsonify({'erro': 'Não foi possível carregar os relatórios de monitoria.'}), 503
+        return erro_google_sheets(exc)
 
 @app.route('/api/relatorios-monitoria/refresh', methods=['POST'])
 def refresh_relatorios_monitoria():
     _, erro = require_admin()
+    if erro:
+        return erro
+    limpar_cache_relatorios()
+    return jsonify({
+        'success': True,
+        'message': 'Cache limpo. Próxima consulta buscará dados atualizados da planilha.',
+    })
+
+@app.route('/api/sync/refresh', methods=['POST'])
+def sync_refresh():
+    _, erro = require_roles('admin', 'monitor', 'psicologa')
     if erro:
         return erro
     limpar_cache_relatorios()
@@ -1386,10 +1572,13 @@ def get_perfil_aluno(matricula):
 
 @app.route('/api/alunos/perfil/update', methods=['POST'])
 def update_perfil_aluno():
-    usuario, erro = require_admin()
+    usuario, erro = require_student_edit_permission()
     if erro:
         return erro
     dados = request.get_json(silent=True) or {}
+    erro_payload = rejeitar_campos_inesperados(dados, {'matricula', *CAMPOS_PERFIL})
+    if erro_payload:
+        return erro_payload
     matricula = dados.get('matricula')
 
     if not matricula:
@@ -1407,7 +1596,11 @@ def update_perfil_aluno():
         cursor.execute('SELECT * FROM perfil_alunos WHERE matricula=%s', (matricula,))
         atual = formatar_perfil(cursor.fetchone(), matricula)
         novo = {campo: normalizar_valor_perfil(campo, dados.get(campo)) for campo in CAMPOS_PERFIL}
+        erro_campos_sensiveis = validar_campos_admin_only(usuario, atual, novo, CAMPOS_PERFIL_ADMIN_ONLY)
+        if erro_campos_sensiveis:
+            return erro_campos_sensiveis
 
+        alteracoes_sheets = {}
         for campo in CAMPOS_PERFIL:
             antigo = atual.get(campo)
             novo_valor = novo.get(campo)
@@ -1421,6 +1614,7 @@ def update_perfil_aluno():
                     valor_historico(novo_valor),
                     usuario
                 )
+                alteracoes_sheets[campo] = (valor_historico(antigo), valor_historico(novo_valor))
 
         cursor.execute('''
             INSERT INTO perfil_alunos (
@@ -1490,7 +1684,8 @@ def update_perfil_aluno():
         ))
         perfil = formatar_perfil(cursor.fetchone(), matricula)
         conn.commit()
-        return jsonify({"mensagem": "Perfil atualizado com sucesso.", "perfil": perfil})
+        avisos = espelhar_aluno_planilha(matricula, alteracoes_sheets) if GOOGLE_STUDENTS_SHEET_SYNC and alteracoes_sheets else []
+        return jsonify({"mensagem": "Perfil atualizado com sucesso.", "perfil": perfil, "avisos": avisos})
     except psycopg2.Error as exc:
         if conn:
             conn.rollback()
@@ -1501,10 +1696,13 @@ def update_perfil_aluno():
 
 @app.route('/api/alunos/update', methods=['POST'])
 def update_aluno():
-    usuario, erro = require_admin()
+    usuario, erro = require_student_edit_permission()
     if erro:
         return erro
     dados = request.get_json(silent=True) or {}
+    erro_payload = rejeitar_campos_inesperados(dados, {'matricula', *CAMPOS_EDITAVEIS})
+    if erro_payload:
+        return erro_payload
     matricula = dados.get('matricula')
 
     if not matricula:
@@ -1530,15 +1728,18 @@ def update_aluno():
             'patrimonio': normalizar_patrimonio(dados.get('patrimonio', atual.get('patrimonio'))),
         }
 
+        alteracoes_sheets = {}
         for campo in CAMPOS_EDITAVEIS:
             valor_antigo = normalizar_monitor(atual.get(campo)) if campo == 'monitor' else normalizar_status(atual.get(campo)) if campo == 'status' else str(atual.get(campo) or '')
             valor_novo = str(novo.get(campo) or '')
             if valor_antigo != valor_novo:
                 registrar_historico(cursor, matricula, campo, valor_antigo, valor_novo, usuario)
+                alteracoes_sheets[campo] = (valor_antigo, valor_novo)
 
         cursor.execute('''
             UPDATE alunos
-            SET nome=%s, telefone=%s, email=%s, nascimento=%s, monitor=%s, status=%s, patrimonio=%s
+            SET nome=%s, telefone=%s, email=%s, nascimento=%s, monitor=%s, status=%s, patrimonio=%s,
+                atualizado_em=CURRENT_TIMESTAMP
             WHERE matricula=%s
             RETURNING *
         ''', (
@@ -1553,11 +1754,13 @@ def update_aluno():
         ))
         aluno_atualizado = formatar_aluno(row_to_dict(cursor.fetchone()))
         conn.commit()
+        avisos = espelhar_aluno_planilha(matricula, alteracoes_sheets) if GOOGLE_STUDENTS_SHEET_SYNC and alteracoes_sheets else []
 
         return jsonify({
             "status": "sucesso",
             "mensagem": "Aluno atualizado com sucesso.",
-            "aluno": aluno_atualizado
+            "aluno": aluno_atualizado,
+            "avisos": avisos,
         })
     except psycopg2.Error as exc:
         if conn:

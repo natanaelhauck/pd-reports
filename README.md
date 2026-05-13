@@ -82,6 +82,8 @@ VITE_API_URL=
 
 ## Como rodar localmente
 
+Veja o passo a passo completo para Windows em [`docs/SETUP_LOCAL.md`](docs/SETUP_LOCAL.md).
+
 ### Backend
 
 ```bash
