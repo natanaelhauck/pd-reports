@@ -664,6 +664,125 @@ button:disabled {
   font-weight: 850;
 }
 
+.absence-reasons-card {
+  border: 1px solid var(--pd-border);
+  border-radius: 12px;
+  background: var(--pd-surface);
+  padding: 12px;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.05);
+}
+
+.absence-reasons-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.absence-reasons-head h3 {
+  margin-bottom: 3px;
+}
+
+.absence-reasons-head p {
+  margin: 0;
+  color: var(--pd-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.absence-reasons-head > span {
+  flex: 0 0 auto;
+  border: 1px solid var(--pd-border);
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: color-mix(in srgb, var(--pd-surface) 88%, #dc2626 12%);
+  color: var(--pd-title);
+  font-size: 12px;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.absence-reasons-table-wrap {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--pd-border);
+  border-radius: 10px;
+}
+
+.absence-reasons-table {
+  width: 100%;
+  min-width: 560px;
+  border-collapse: collapse;
+  color: var(--pd-text);
+  table-layout: fixed;
+}
+
+.absence-reasons-table th,
+.absence-reasons-table td {
+  padding: 11px 12px;
+  border-bottom: 1px solid var(--pd-border);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.absence-reasons-table th {
+  background: color-mix(in srgb, var(--pd-surface) 94%, #dc2626 6%);
+  color: #64748b;
+  font-size: 0.76rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.absence-reasons-table th:first-child,
+.absence-reasons-table td:first-child {
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.absence-reasons-table th:nth-child(2),
+.absence-reasons-table td:nth-child(2) {
+  width: 130px;
+  text-align: right;
+  font-weight: 850;
+}
+
+.absence-reasons-table th:nth-child(3),
+.absence-reasons-table td:nth-child(3) {
+  width: 220px;
+}
+
+.absence-reasons-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.absence-reasons-table tbody tr:nth-child(even) td {
+  background: color-mix(in srgb, var(--pd-surface) 96%, #64748b 4%);
+}
+
+.absence-percent-cell {
+  display: grid;
+  grid-template-columns: 54px minmax(90px, 1fr);
+  align-items: center;
+  gap: 10px;
+  font-weight: 850;
+}
+
+.absence-percent-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--pd-border) 70%, transparent);
+  overflow: hidden;
+}
+
+.absence-percent-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #dc2626;
+}
+
 .monitors-table-wrap {
   width: 100%;
   max-width: 100%;
@@ -1458,6 +1577,36 @@ body:has(.theme-dark) {
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.22);
 }
 
+.theme-dark .absence-reasons-card,
+.theme-dark .absence-reasons-table-wrap {
+  background: #111827;
+  border-color: #334155;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.22);
+}
+
+.theme-dark .absence-reasons-head > span {
+  background: rgba(220, 38, 38, 0.16);
+  border-color: rgba(248, 113, 113, 0.32);
+  color: #f8fafc;
+}
+
+.theme-dark .absence-reasons-table th {
+  background: rgba(220, 38, 38, 0.12);
+  color: #cbd5e1;
+}
+
+.theme-dark .absence-reasons-table td {
+  border-color: #334155;
+}
+
+.theme-dark .absence-reasons-table tbody tr:nth-child(even) td {
+  background: rgba(148, 163, 184, 0.05);
+}
+
+.theme-dark .absence-percent-bar {
+  background: rgba(148, 163, 184, 0.18);
+}
+
 .theme-dark .details-table-wrapper {
   background: #111827;
   border-color: #334155;
@@ -1664,6 +1813,16 @@ code {
   .week-panel-head {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .absence-reasons-head {
+    flex-direction: column;
+  }
+
+  .absence-reasons-head > span {
+    width: 100%;
+    box-sizing: border-box;
+    text-align: center;
   }
 
   .week-toggle-button {

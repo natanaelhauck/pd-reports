@@ -884,6 +884,43 @@ def incrementar_resumo_monitoria(resumo, status):
     resumo[chave] += 1
     resumo['total'] += 1
 
+def limpar_motivo_falta(valor):
+    if valor is None:
+        return ''
+    try:
+        if pd.isna(valor):
+            return ''
+    except (TypeError, ValueError):
+        pass
+    texto = re.sub(r'\s+', ' ', corrigir_mojibake(valor).strip())
+    chave = sem_acentos(texto).strip().lower()
+    if not texto or chave in {'-', 'nan', 'none', 'null', 'undefined', 'nao informado'}:
+        return ''
+    return texto
+
+def motivo_falta_relatorio(relatorio):
+    motivo = limpar_motivo_falta(relatorio.get('motivo_falta'))
+    outro = limpar_motivo_falta(relatorio.get('outro_motivo'))
+    if sem_acentos(motivo).strip().lower() == 'outro' and outro:
+        return outro
+    return motivo or outro or 'Não informado'
+
+def resumo_motivos_falta(contagens):
+    total = sum(contagens.values())
+    if not total:
+        return []
+    return [
+        {
+            'motivo': motivo,
+            'total': quantidade,
+            'percentual': round((quantidade / total) * 100, 1),
+        }
+        for motivo, quantidade in sorted(
+            contagens.items(),
+            key=lambda item: (-item[1], sem_acentos(item[0]).lower()),
+        )
+    ]
+
 def hoje_monitoria():
     return datetime.now(APP_TIMEZONE).date()
 
@@ -1006,6 +1043,7 @@ def consolidado_historico_monitoria(mes_param, monitor_filtro='', status_filtro=
         'semanas': [],
         'resumo_por_monitor': linhas,
         'relatorios_detalhados': [],
+        'resumo_motivos_falta': [],
         'historico_oficial': True,
         'aviso_semanas': 'Consolidado mensal histórico. Semanas detalhadas disponíveis para meses a partir de maio/2026.',
         'aviso_detalhes': 'Detalhes individuais disponíveis a partir de maio/2026.',
@@ -1522,6 +1560,7 @@ def get_resumo_monitoria_monitores():
         resumo_geral = resumo_monitoria_vazio()
         monitores_mes = set()
         resumo_por_monitor = {}
+        motivos_falta = {}
         registros_contados = set()
         relatorios_detalhados = []
         semanas_base = semanas_uteis_monitoria_mes(ano, mes)
@@ -1565,6 +1604,9 @@ def get_resumo_monitoria_monitores():
             monitores_mes.add(agente)
             incrementar_resumo_monitoria(resumo_geral, status)
             incrementar_resumo_monitoria(semanas_map[semana]['total_semana'], status)
+            if status_filtro == 'falta' and status == 'Falta':
+                motivo = motivo_falta_relatorio(relatorio)
+                motivos_falta[motivo] = motivos_falta.get(motivo, 0) + 1
 
             if agente not in resumo_por_monitor:
                 resumo_por_monitor[agente] = {'agente': agente, **resumo_monitoria_vazio()}
@@ -1597,6 +1639,7 @@ def get_resumo_monitoria_monitores():
             'resumo_geral': resumo_geral,
             'semanas': semanas,
             'resumo_por_monitor': sorted(resumo_por_monitor.values(), key=lambda item: item['agente']),
+            'resumo_motivos_falta': resumo_motivos_falta(motivos_falta),
             'relatorios_detalhados': sorted(relatorios_detalhados, key=lambda item: item['data'], reverse=True),
             'total_lidos': dados['total_lidos'],
             'atualizado_em': dados['atualizado_em'],

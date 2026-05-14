@@ -1328,6 +1328,8 @@ function MonitoresDashboard({ usuario, authHeaders }) {
   const resumo = dados ? (dados.resumo_geral || resumoMonitoriaVazio()) : resumoMonitoriaVazio();
   const semanasFiltradas = dados?.semanas || [];
   const detalhes = dados?.relatorios_detalhados || [];
+  const resumoMotivosFalta = dados?.resumo_motivos_falta || [];
+  const mostrarMotivosFalta = statusFiltro === 'Falta';
   const semDados = !carregando && !erro && dados && resumo.total === 0;
   const alternarSemana = (semana) => {
     setSemanasAbertas((atuais) => ({ ...atuais, [semana]: !atuais[semana] }));
@@ -1376,12 +1378,16 @@ function MonitoresDashboard({ usuario, authHeaders }) {
             <span className="legend-dot metric-finished" /> Finalizou
           </div>
 
+          {mostrarMotivosFalta && semDados && <MotivosFaltaCard motivos={resumoMotivosFalta} />}
+
           {!semDados && (
             <>
               <div className="monitors-section">
                 <h3>Resumo por monitor no mês</h3>
                 <MonitoresTabela linhas={resumoMonitorMes} />
               </div>
+
+              {mostrarMotivosFalta && <MotivosFaltaCard motivos={resumoMotivosFalta} />}
 
               {dados.aviso_semanas ? (
                 <p className="monitors-historical-note">{dados.aviso_semanas}</p>
@@ -1420,6 +1426,59 @@ function MonitoresDashboard({ usuario, authHeaders }) {
         </>
       )}
     </section>
+  );
+}
+
+function MotivosFaltaCard({ motivos }) {
+  const linhas = motivos || [];
+  const total = linhas.reduce((soma, item) => soma + Number(item.total || 0), 0);
+  const formatarPercentual = (valor) => `${Number(valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
+
+  return (
+    <div className="monitors-section absence-reasons-card">
+      <div className="absence-reasons-head">
+        <div>
+          <h3>Motivos das faltas</h3>
+          <p>Distribuição dos motivos de falta no período filtrado</p>
+        </div>
+        <span>Total analisado: {total}</span>
+      </div>
+
+      {linhas.length === 0 ? (
+        <p className="monitoring-state">Nenhum motivo de falta encontrado para os filtros selecionados.</p>
+      ) : (
+        <div className="absence-reasons-table-wrap">
+          <table className="absence-reasons-table">
+            <thead>
+              <tr>
+                <th>Motivo da falta</th>
+                <th>Quantidade</th>
+                <th>Percentual</th>
+              </tr>
+            </thead>
+            <tbody>
+              {linhas.map((item) => {
+                const percentual = Math.max(0, Math.min(100, Number(item.percentual || 0)));
+                return (
+                  <tr key={item.motivo}>
+                    <td>{item.motivo}</td>
+                    <td>{item.total || 0}</td>
+                    <td>
+                      <div className="absence-percent-cell">
+                        <span>{formatarPercentual(item.percentual)}</span>
+                        <div className="absence-percent-bar" aria-hidden="true">
+                          <span style={{ width: `${percentual}%` }} />
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   );
 }
 
