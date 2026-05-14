@@ -881,6 +881,7 @@ button:disabled {
   color: var(--pd-title);
   font-size: 15px;
   font-weight: 850;
+  overflow-wrap: anywhere;
 }
 
 .week-panel-head span {
@@ -1653,6 +1654,21 @@ code {
 
   .monitors-actions {
     grid-template-columns: 1fr;
+  }
+
+  .monitors-panel {
+    width: min(100%, calc(100vw - 28px));
+    transform: none;
+  }
+
+  .week-panel-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .week-toggle-button {
+    width: 100%;
+    justify-content: center;
   }
 
   .monitors-actions,

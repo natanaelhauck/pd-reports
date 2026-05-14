@@ -1309,7 +1309,7 @@ function MonitoresDashboard({ usuario, authHeaders }) {
     setErro('');
     setMensagemAtualizacao('');
     try {
-      await axios.post(`${API_BASE_URL}/api/relatorios-monitoria/refresh`, {}, { headers: authHeaders, timeout: 12000 });
+      await axios.post(`${API_BASE_URL}/api/sync/refresh`, {}, { headers: authHeaders, timeout: 12000 });
       const res = await axios.get(`${API_BASE_URL}/api/relatorios-monitoria/resumo-monitores`, {
         params: { mes, monitor: monitorEfetivo || 'Todos', status: statusFiltro || 'Todos' },
         headers: authHeaders,

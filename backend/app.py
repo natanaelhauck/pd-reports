@@ -3,9 +3,10 @@ import os
 import re
 import time
 import unicodedata
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from functools import wraps
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import pandas as pd
 import psycopg2
@@ -53,6 +54,11 @@ RELATORIOS_MONITORIA_DATA_MINIMA = date(2026, 3, 23)
 RELATORIOS_MONITORIA_CACHE_TTL = int(os.getenv('RELATORIOS_MONITORIA_CACHE_TTL', '60'))
 USUARIO_ROLES_VALIDOS = {'admin', 'monitor', 'psicologa'}
 AUTH_TOKEN_MAX_AGE_SECONDS = 60 * 60 * 12
+APP_TIMEZONE_NAME = os.getenv('APP_TIMEZONE', 'America/Sao_Paulo')
+try:
+    APP_TIMEZONE = ZoneInfo(APP_TIMEZONE_NAME)
+except ZoneInfoNotFoundError:
+    APP_TIMEZONE = timezone(timedelta(hours=-3))
 _relatorios_monitoria_cache = {'expires_at': 0, 'data': None}
 
 # Março e abril usam consolidados históricos oficiais porque o formulário mudou nesses meses.
@@ -756,7 +762,7 @@ def buscar_relatorios_monitoria():
 
     valores = ler_aba_planilha(RELATORIOS_MONITORIA_ABA)
     if not valores:
-        dados = {'relatorios': [], 'total_lidos': 0, 'atualizado_em': datetime.now().isoformat()}
+        dados = {'relatorios': [], 'total_lidos': 0, 'atualizado_em': datetime.now(APP_TIMEZONE).isoformat()}
         _relatorios_monitoria_cache.update({'expires_at': agora + RELATORIOS_MONITORIA_CACHE_TTL, 'data': dados})
         return dados
 
@@ -812,7 +818,7 @@ def buscar_relatorios_monitoria():
     dados = {
         'relatorios': relatorios,
         'total_lidos': len(relatorios),
-        'atualizado_em': datetime.now().isoformat(),
+        'atualizado_em': datetime.now(APP_TIMEZONE).isoformat(),
         'cabecalhos_reconhecidos': serializar_cabecalhos_reconhecidos(cabecalhos_reconhecidos),
     }
     _relatorios_monitoria_cache.update({'expires_at': agora + RELATORIOS_MONITORIA_CACHE_TTL, 'data': dados})
@@ -878,29 +884,68 @@ def incrementar_resumo_monitoria(resumo, status):
     resumo[chave] += 1
     resumo['total'] += 1
 
-def semana_monitoria_do_mes(data_relatorio):
-    if data_relatorio.day <= 7:
-        return 1
-    if data_relatorio.day <= 14:
-        return 2
-    if data_relatorio.day <= 21:
-        return 3
-    return 4
+def hoje_monitoria():
+    return datetime.now(APP_TIMEZONE).date()
+
+def ultimo_dia_mes(ano, mes):
+    proximo_mes = date(ano + (1 if mes == 12 else 0), 1 if mes == 12 else mes + 1, 1)
+    return proximo_mes - timedelta(days=1)
+
+def formatar_periodo_monitoria(inicio, fim):
+    return f'{inicio.day:02d}/{inicio.month:02d} a {fim.day:02d}/{fim.month:02d}'
+
+def semanas_uteis_monitoria_mes(ano, mes, hoje=None, limitar_futuro=True):
+    primeiro_dia = date(ano, mes, 1)
+    ultimo_dia = ultimo_dia_mes(ano, mes)
+    hoje = hoje if hoje is not None else hoje_monitoria()
+    inicio = primeiro_dia + timedelta(days=(7 - primeiro_dia.weekday()) % 7)
+    semanas = []
+
+    while inicio <= ultimo_dia:
+        fim = inicio + timedelta(days=4)
+        # O dashboard do PD considera apenas semanas completas de segunda a sexta.
+        if fim.month != mes:
+            break
+        if limitar_futuro and inicio > hoje:
+            break
+        semanas.append({
+            'semana': len(semanas) + 1,
+            'inicio': inicio,
+            'fim': fim,
+            'periodo': formatar_periodo_monitoria(inicio, fim),
+        })
+        inicio += timedelta(days=7)
+
+    return semanas
+
+def semana_monitoria_do_mes(data_relatorio, semanas=None):
+    if not data_relatorio or data_relatorio.weekday() >= 5:
+        return None
+    semanas = semanas or semanas_uteis_monitoria_mes(
+        data_relatorio.year,
+        data_relatorio.month,
+        limitar_futuro=False,
+    )
+    for semana in semanas:
+        if semana['inicio'] <= data_relatorio <= semana['fim']:
+            return semana['semana']
+    return None
 
 def periodo_semana_monitoria(ano, mes, semana):
-    inicio = 1 + ((semana - 1) * 7)
-    fim = 7 if semana == 1 else 14 if semana == 2 else 21 if semana == 3 else 31
-    ultimo_dia = (date(ano + (1 if mes == 12 else 0), 1 if mes == 12 else mes + 1, 1) - timedelta(days=1)).day
-    return f'{inicio:02d}/{mes:02d} a {min(fim, ultimo_dia):02d}/{mes:02d}'
+    semanas = semanas_uteis_monitoria_mes(ano, mes, limitar_futuro=False)
+    for item in semanas:
+        if item['semana'] == semana:
+            return item['periodo']
+    return ''
 
 def parse_mes_monitoria(valor):
     texto = str(valor or '').strip()
     if not re.fullmatch(r'\d{4}-\d{2}', texto):
-        hoje = date.today()
+        hoje = hoje_monitoria()
         return hoje.year, hoje.month, f'{hoje.year:04d}-{hoje.month:02d}'
     ano, mes = map(int, texto.split('-'))
     if mes < 1 or mes > 12:
-        hoje = date.today()
+        hoje = hoje_monitoria()
         return hoje.year, hoje.month, f'{hoje.year:04d}-{hoje.month:02d}'
     return ano, mes, texto
 
@@ -965,7 +1010,7 @@ def consolidado_historico_monitoria(mes_param, monitor_filtro='', status_filtro=
         'aviso_semanas': 'Consolidado mensal histórico. Semanas detalhadas disponíveis para meses a partir de maio/2026.',
         'aviso_detalhes': 'Detalhes individuais disponíveis a partir de maio/2026.',
         'total_lidos': resumo_geral['total'],
-        'atualizado_em': datetime.now().isoformat(),
+        'atualizado_em': datetime.now(APP_TIMEZONE).isoformat(),
         'cabecalhos_reconhecidos': {},
     }
 
@@ -1091,7 +1136,7 @@ def carregar_planilha():
 def calcular_idade(data_nasc):
     try:
         nasc = datetime.strptime(data_nasc, '%Y-%m-%d')
-        hoje = datetime.now()
+        hoje = datetime.now(APP_TIMEZONE)
         return hoje.year - nasc.year - ((hoje.month, hoje.day) < (nasc.month, nasc.day))
     except:
         return "-"
@@ -1479,15 +1524,18 @@ def get_resumo_monitoria_monitores():
         resumo_por_monitor = {}
         registros_contados = set()
         relatorios_detalhados = []
+        semanas_base = semanas_uteis_monitoria_mes(ano, mes)
         semanas = []
         semanas_map = {
-            semana: {
-                'semana': semana,
-                'periodo': periodo_semana_monitoria(ano, mes, semana),
+            item['semana']: {
+                'semana': item['semana'],
+                'periodo': item['periodo'],
+                'inicio': item['inicio'].isoformat(),
+                'fim': item['fim'].isoformat(),
                 'total_semana': resumo_monitoria_vazio(),
                 'monitores': {},
             }
-            for semana in range(1, 5)
+            for item in semanas_base
         }
 
         for relatorio in dados['relatorios']:
@@ -1511,7 +1559,9 @@ def get_resumo_monitoria_monitores():
             if chave_registro in registros_contados:
                 continue
             registros_contados.add(chave_registro)
-            semana = semana_monitoria_do_mes(data_relatorio)
+            semana = semana_monitoria_do_mes(data_relatorio, semanas_base)
+            if semana is None:
+                continue
             monitores_mes.add(agente)
             incrementar_resumo_monitoria(resumo_geral, status)
             incrementar_resumo_monitoria(semanas_map[semana]['total_semana'], status)
@@ -1536,8 +1586,8 @@ def get_resumo_monitoria_monitores():
                 'read_ia_link': relatorio.get('read_ia_link') or '',
             })
 
-        for semana in range(1, 5):
-            item = semanas_map[semana]
+        for semana_base in semanas_base:
+            item = semanas_map[semana_base['semana']]
             item['monitores'] = sorted(item['monitores'].values(), key=lambda monitor: monitor['agente'])
             semanas.append(item)
 
