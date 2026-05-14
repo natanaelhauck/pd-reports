@@ -95,6 +95,22 @@ MONITOR_POR_EMAIL = {
     'natanaelhauck@projetodesenvolve.com.br': 'Natanael',
 }
 
+MOTIVOS_FALTA_OFICIAIS = (
+    'Sem resposta',
+    'Trabalho ou Estudo',
+    'Questões Médicas',
+    'Viajando',
+    'Notebook com Suporte',
+    'Atraso/Compromisso',
+    'Reunião/Demanda (PD)',
+    'Troca de turno',
+    'Problema de Internet',
+    'Outro',
+)
+MOTIVOS_FALTA_OFICIAIS_SET = set(MOTIVOS_FALTA_OFICIAIS)
+MOTIVO_FALTA_SEM_RESPOSTA = 'Sem resposta'
+MOTIVO_FALTA_OUTRO = 'Outro'
+
 CURSOS_MONITORIA = {
     'nao assistiu': ('Não consumiu', 'Não assistiu'),
     'desafio final': ('Não consumiu', 'Desafio Final'),
@@ -901,25 +917,44 @@ def limpar_motivo_falta(valor):
 def motivo_falta_relatorio(relatorio):
     motivo = limpar_motivo_falta(relatorio.get('motivo_falta'))
     outro = limpar_motivo_falta(relatorio.get('outro_motivo'))
-    if sem_acentos(motivo).strip().lower() == 'outro' and outro:
-        return outro
-    return motivo or outro or 'Não informado'
+    if not motivo:
+        return MOTIVO_FALTA_SEM_RESPOSTA, ''
+    if motivo in MOTIVOS_FALTA_OFICIAIS_SET:
+        detalhe = outro if motivo == MOTIVO_FALTA_OUTRO else ''
+        return motivo, detalhe
+    return MOTIVO_FALTA_OUTRO, motivo
 
 def resumo_motivos_falta(contagens):
-    total = sum(contagens.values())
+    total = sum(item['total'] for item in contagens.values())
     if not total:
         return []
-    return [
-        {
+    linhas = []
+    ordem_oficial = {motivo: indice for indice, motivo in enumerate(MOTIVOS_FALTA_OFICIAIS)}
+    for motivo, item in contagens.items():
+        quantidade = item['total']
+        if not quantidade:
+            continue
+        detalhes = [
+            {'texto': texto, 'total': total_texto}
+            for texto, total_texto in sorted(
+                item.get('detalhes', {}).items(),
+                key=lambda detalhe: (-detalhe[1], sem_acentos(detalhe[0]).lower()),
+            )
+        ]
+        linhas.append({
             'motivo': motivo,
             'total': quantidade,
             'percentual': round((quantidade / total) * 100, 1),
-        }
-        for motivo, quantidade in sorted(
-            contagens.items(),
-            key=lambda item: (-item[1], sem_acentos(item[0]).lower()),
-        )
-    ]
+            'detalhes': detalhes,
+        })
+    return sorted(linhas, key=lambda item: (-item['total'], ordem_oficial[item['motivo']]))
+
+def incrementar_motivo_falta(contagens, relatorio):
+    motivo, detalhe = motivo_falta_relatorio(relatorio)
+    item = contagens.setdefault(motivo, {'total': 0, 'detalhes': {}})
+    item['total'] += 1
+    if motivo == MOTIVO_FALTA_OUTRO and detalhe:
+        item['detalhes'][detalhe] = item['detalhes'].get(detalhe, 0) + 1
 
 def hoje_monitoria():
     return datetime.now(APP_TIMEZONE).date()
@@ -1043,6 +1078,7 @@ def consolidado_historico_monitoria(mes_param, monitor_filtro='', status_filtro=
         'semanas': [],
         'resumo_por_monitor': linhas,
         'relatorios_detalhados': [],
+        # Motivos e detalhes só são enviados para históricos quando a aba real confere com o consolidado oficial.
         'resumo_motivos_falta': [],
         'historico_oficial': True,
         'aviso_semanas': 'Consolidado mensal histórico. Semanas detalhadas disponíveis para meses a partir de maio/2026.',
@@ -1544,6 +1580,112 @@ def sync_refresh():
         'message': 'Cache limpo. Próxima consulta buscará dados atualizados da planilha.',
     })
 
+def montar_resumo_monitoria_monitores(dados, ano, mes, mes_param, monitor_filtro='', status_filtro=''):
+    resumo_geral = resumo_monitoria_vazio()
+    monitores_mes = set()
+    resumo_por_monitor = {}
+    motivos_falta = {}
+    registros_contados = set()
+    relatorios_detalhados = []
+    semanas_base = semanas_uteis_monitoria_mes(ano, mes)
+    semanas = []
+    semanas_map = {
+        item['semana']: {
+            'semana': item['semana'],
+            'periodo': item['periodo'],
+            'inicio': item['inicio'].isoformat(),
+            'fim': item['fim'].isoformat(),
+            'total_semana': resumo_monitoria_vazio(),
+            'monitores': {},
+        }
+        for item in semanas_base
+    }
+
+    for relatorio in dados['relatorios']:
+        data_relatorio = relatorio.get('data_obj')
+        if not data_relatorio or data_relatorio.year != ano or data_relatorio.month != mes:
+            continue
+        matricula = relatorio.get('matricula')
+        if not matricula:
+            continue
+        status = normalizar_status_monitoria(relatorio.get('status'))
+        if not chave_status_resumo(status):
+            continue
+        agente = normalizar_monitor(relatorio.get('agente')) or relatorio.get('agente') or ''
+        if agente not in MONITORES_ATIVOS:
+            continue
+        if monitor_filtro and agente != monitor_filtro:
+            continue
+        if status_filtro and chave_status_resumo(status) != status_filtro:
+            continue
+        chave_registro = (data_relatorio.isoformat(), matricula, status, agente)
+        if chave_registro in registros_contados:
+            continue
+        registros_contados.add(chave_registro)
+        semana = semana_monitoria_do_mes(data_relatorio, semanas_base)
+        if semana is None:
+            continue
+        monitores_mes.add(agente)
+        incrementar_resumo_monitoria(resumo_geral, status)
+        incrementar_resumo_monitoria(semanas_map[semana]['total_semana'], status)
+        if status_filtro == 'falta' and status == 'Falta':
+            incrementar_motivo_falta(motivos_falta, relatorio)
+
+        if agente not in resumo_por_monitor:
+            resumo_por_monitor[agente] = {'agente': agente, **resumo_monitoria_vazio()}
+        incrementar_resumo_monitoria(resumo_por_monitor[agente], status)
+
+        monitores_semana = semanas_map[semana]['monitores']
+        if agente not in monitores_semana:
+            monitores_semana[agente] = {'agente': agente, **resumo_monitoria_vazio()}
+        incrementar_resumo_monitoria(monitores_semana[agente], status)
+        relatorios_detalhados.append({
+            'data': data_relatorio.isoformat(),
+            'monitor': agente,
+            'aluno': relatorio.get('aluno') or '',
+            'matricula': matricula,
+            'status': status,
+            'modulo': relatorio.get('modulo') or '',
+            'curso': relatorio.get('curso') or '',
+            'motivo_falta': relatorio.get('motivo_falta') or '',
+            'read_ia_link': relatorio.get('read_ia_link') or '',
+        })
+
+    for semana_base in semanas_base:
+        item = semanas_map[semana_base['semana']]
+        item['monitores'] = sorted(item['monitores'].values(), key=lambda monitor: monitor['agente'])
+        semanas.append(item)
+
+    return {
+        'mes': mes_param,
+        'monitores': sorted(monitores_mes),
+        'resumo_geral': resumo_geral,
+        'semanas': semanas,
+        'resumo_por_monitor': sorted(resumo_por_monitor.values(), key=lambda item: item['agente']),
+        'resumo_motivos_falta': resumo_motivos_falta(motivos_falta),
+        'relatorios_detalhados': sorted(relatorios_detalhados, key=lambda item: item['data'], reverse=True),
+        'total_lidos': dados['total_lidos'],
+        'atualizado_em': dados['atualizado_em'],
+        'cabecalhos_reconhecidos': dados.get('cabecalhos_reconhecidos', {}),
+    }
+
+def resumos_monitoria_equivalentes(oficial, detalhado):
+    campos = tuple(resumo_monitoria_vazio())
+    for campo in campos:
+        if int(oficial['resumo_geral'].get(campo) or 0) != int(detalhado['resumo_geral'].get(campo) or 0):
+            return False
+
+    oficial_por_monitor = {item['agente']: item for item in oficial['resumo_por_monitor']}
+    detalhado_por_monitor = {item['agente']: item for item in detalhado['resumo_por_monitor']}
+    if set(oficial_por_monitor) != set(detalhado_por_monitor):
+        return False
+    for agente, linha_oficial in oficial_por_monitor.items():
+        linha_detalhada = detalhado_por_monitor[agente]
+        for campo in campos:
+            if int(linha_oficial.get(campo) or 0) != int(linha_detalhada.get(campo) or 0):
+                return False
+    return True
+
 @app.route('/api/relatorios-monitoria/resumo-monitores', methods=['GET'])
 def get_resumo_monitoria_monitores():
     usuario, erro = require_auth()
@@ -1554,97 +1696,17 @@ def get_resumo_monitoria_monitores():
         monitor_filtro, status_filtro = filtros_monitoria_request(usuario)
         historico = consolidado_historico_monitoria(mes_param, monitor_filtro, status_filtro)
         if historico:
+            try:
+                dados = buscar_relatorios_monitoria()
+                detalhado = montar_resumo_monitoria_monitores(dados, ano, mes, mes_param, monitor_filtro, status_filtro)
+                if resumos_monitoria_equivalentes(historico, detalhado):
+                    return jsonify(detalhado)
+            except Exception as exc:
+                print(f'Não foi possível validar detalhes históricos de monitoria: {exc.__class__.__name__}')
             return jsonify(historico)
 
         dados = buscar_relatorios_monitoria()
-        resumo_geral = resumo_monitoria_vazio()
-        monitores_mes = set()
-        resumo_por_monitor = {}
-        motivos_falta = {}
-        registros_contados = set()
-        relatorios_detalhados = []
-        semanas_base = semanas_uteis_monitoria_mes(ano, mes)
-        semanas = []
-        semanas_map = {
-            item['semana']: {
-                'semana': item['semana'],
-                'periodo': item['periodo'],
-                'inicio': item['inicio'].isoformat(),
-                'fim': item['fim'].isoformat(),
-                'total_semana': resumo_monitoria_vazio(),
-                'monitores': {},
-            }
-            for item in semanas_base
-        }
-
-        for relatorio in dados['relatorios']:
-            data_relatorio = relatorio.get('data_obj')
-            if not data_relatorio or data_relatorio.year != ano or data_relatorio.month != mes:
-                continue
-            matricula = relatorio.get('matricula')
-            if not matricula:
-                continue
-            status = normalizar_status_monitoria(relatorio.get('status'))
-            if not chave_status_resumo(status):
-                continue
-            agente = normalizar_monitor(relatorio.get('agente')) or relatorio.get('agente') or ''
-            if agente not in MONITORES_ATIVOS:
-                continue
-            if monitor_filtro and agente != monitor_filtro:
-                continue
-            if status_filtro and chave_status_resumo(status) != status_filtro:
-                continue
-            chave_registro = (data_relatorio.isoformat(), matricula, status, agente)
-            if chave_registro in registros_contados:
-                continue
-            registros_contados.add(chave_registro)
-            semana = semana_monitoria_do_mes(data_relatorio, semanas_base)
-            if semana is None:
-                continue
-            monitores_mes.add(agente)
-            incrementar_resumo_monitoria(resumo_geral, status)
-            incrementar_resumo_monitoria(semanas_map[semana]['total_semana'], status)
-            if status_filtro == 'falta' and status == 'Falta':
-                motivo = motivo_falta_relatorio(relatorio)
-                motivos_falta[motivo] = motivos_falta.get(motivo, 0) + 1
-
-            if agente not in resumo_por_monitor:
-                resumo_por_monitor[agente] = {'agente': agente, **resumo_monitoria_vazio()}
-            incrementar_resumo_monitoria(resumo_por_monitor[agente], status)
-
-            monitores_semana = semanas_map[semana]['monitores']
-            if agente not in monitores_semana:
-                monitores_semana[agente] = {'agente': agente, **resumo_monitoria_vazio()}
-            incrementar_resumo_monitoria(monitores_semana[agente], status)
-            relatorios_detalhados.append({
-                'data': data_relatorio.isoformat(),
-                'monitor': agente,
-                'aluno': relatorio.get('aluno') or '',
-                'matricula': matricula,
-                'status': status,
-                'modulo': relatorio.get('modulo') or '',
-                'curso': relatorio.get('curso') or '',
-                'motivo_falta': relatorio.get('motivo_falta') or '',
-                'read_ia_link': relatorio.get('read_ia_link') or '',
-            })
-
-        for semana_base in semanas_base:
-            item = semanas_map[semana_base['semana']]
-            item['monitores'] = sorted(item['monitores'].values(), key=lambda monitor: monitor['agente'])
-            semanas.append(item)
-
-        return jsonify({
-            'mes': mes_param,
-            'monitores': sorted(monitores_mes),
-            'resumo_geral': resumo_geral,
-            'semanas': semanas,
-            'resumo_por_monitor': sorted(resumo_por_monitor.values(), key=lambda item: item['agente']),
-            'resumo_motivos_falta': resumo_motivos_falta(motivos_falta),
-            'relatorios_detalhados': sorted(relatorios_detalhados, key=lambda item: item['data'], reverse=True),
-            'total_lidos': dados['total_lidos'],
-            'atualizado_em': dados['atualizado_em'],
-            'cabecalhos_reconhecidos': dados.get('cabecalhos_reconhecidos', {}),
-        })
+        return jsonify(montar_resumo_monitoria_monitores(dados, ano, mes, mes_param, monitor_filtro, status_filtro))
     except Exception as exc:
         print(f'Erro ao buscar resumo de monitoria por monitor: {exc}')
         return jsonify({'erro': 'Não foi possível carregar o resumo de monitoria.'}), 503

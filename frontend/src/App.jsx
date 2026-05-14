@@ -1430,6 +1430,7 @@ function MonitoresDashboard({ usuario, authHeaders }) {
 }
 
 function MotivosFaltaCard({ motivos }) {
+  const [outroAberto, setOutroAberto] = useState(false);
   const linhas = motivos || [];
   const total = linhas.reduce((soma, item) => soma + Number(item.total || 0), 0);
   const formatarPercentual = (valor) => `${Number(valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
@@ -1459,25 +1460,66 @@ function MotivosFaltaCard({ motivos }) {
             <tbody>
               {linhas.map((item) => {
                 const percentual = Math.max(0, Math.min(100, Number(item.percentual || 0)));
+                const detalhesOutro = item.motivo === 'Outro' ? (item.detalhes || []) : [];
                 return (
-                  <tr key={item.motivo}>
-                    <td>{item.motivo}</td>
-                    <td>{item.total || 0}</td>
-                    <td>
-                      <div className="absence-percent-cell">
-                        <span>{formatarPercentual(item.percentual)}</span>
-                        <div className="absence-percent-bar" aria-hidden="true">
-                          <span style={{ width: `${percentual}%` }} />
+                  <Fragment key={item.motivo}>
+                    <tr>
+                      <td>
+                        <div className="absence-reason-name">
+                          <span>{item.motivo}</span>
+                          {detalhesOutro.length > 0 && (
+                            <button className="absence-detail-toggle" type="button" onClick={() => setOutroAberto((atual) => !atual)}>
+                              {outroAberto ? 'Ocultar detalhes' : 'Ver detalhes'}
+                            </button>
+                          )}
                         </div>
-                      </div>
-                    </td>
-                  </tr>
+                      </td>
+                      <td>{item.total || 0}</td>
+                      <td>
+                        <div className="absence-percent-cell">
+                          <span>{formatarPercentual(item.percentual)}</span>
+                          <div className="absence-percent-bar" aria-hidden="true">
+                            <span style={{ width: `${percentual}%` }} />
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                    {item.motivo === 'Outro' && outroAberto && detalhesOutro.length > 0 && (
+                      <tr className="absence-details-row">
+                        <td colSpan={3}>
+                          <div className="absence-details-list">
+                            {detalhesOutro.map((detalhe) => <MotivoOutroDetalhe key={detalhe.texto} detalhe={detalhe} />)}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 );
               })}
             </tbody>
           </table>
         </div>
       )}
+    </div>
+  );
+}
+
+function MotivoOutroDetalhe({ detalhe }) {
+  const [expandido, setExpandido] = useState(false);
+  const texto = String(detalhe?.texto || '').trim();
+  const textoLongo = texto.length > 180;
+
+  return (
+    <div className="absence-detail-item">
+      <p className={expandido ? '' : 'clamped'}>{texto}</p>
+      <div className="absence-detail-meta">
+        <span>Quantidade: {detalhe?.total || 0}</span>
+        {textoLongo && (
+          <button className="absence-detail-toggle" type="button" onClick={() => setExpandido((atual) => !atual)}>
+            {expandido ? 'Ver menos' : 'Ver mais'}
+          </button>
+        )}
+      </div>
     </div>
   );
 }
