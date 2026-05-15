@@ -626,10 +626,11 @@ button:disabled {
 
 .monitors-actions {
   display: grid;
-  grid-template-columns: repeat(3, minmax(150px, 170px)) minmax(112px, auto);
+  grid-template-columns: repeat(auto-fit, minmax(150px, 170px));
   align-items: end;
   gap: 10px;
   justify-content: start;
+  width: min(100%, 1080px);
   padding: 10px;
   border: 1px solid var(--pd-border);
   border-radius: 10px;
@@ -638,7 +639,7 @@ button:disabled {
 
 .monitors-actions label {
   min-width: 0;
-  width: 170px;
+  width: 100%;
   margin: 0;
 }
 
@@ -1086,15 +1087,25 @@ button:disabled {
 .week-toggle-button {
   min-height: 34px;
   padding: 7px 11px;
+  border: 1px solid #93c5fd;
   border-radius: 8px;
+  background: #dbeafe;
+  color: #1d4ed8;
   font-size: 12.5px;
   font-weight: 850;
   cursor: pointer;
+  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.14);
 }
 
 .week-toggle-button:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--pd-button-bg) 84%, #60a5fa 16%);
+  background: #bfdbfe;
   border-color: #93c5fd !important;
+  box-shadow: 0 6px 14px rgba(37, 99, 235, 0.18);
+}
+
+.week-toggle-button:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, 0.28);
+  outline-offset: 2px;
 }
 
 .truncate-cell {
@@ -1185,6 +1196,20 @@ button:disabled {
   color: var(--pd-label);
   font-size: 12px;
   font-weight: 800;
+}
+
+.monitors-period-note {
+  margin: 0;
+  width: fit-content;
+  max-width: 100%;
+  padding: 8px 11px;
+  border: 1px solid #93c5fd;
+  border-radius: 9px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 12.5px;
+  font-weight: 850;
+  box-sizing: border-box;
 }
 
 .legend-dot {
@@ -1752,10 +1777,33 @@ body:has(.theme-dark) {
   border-color: #334155;
 }
 
+.theme-dark .monitors-period-note {
+  background: rgba(59, 130, 246, 0.16);
+  border-color: rgba(147, 197, 253, 0.46);
+  color: #bfdbfe;
+}
+
 .theme-dark .week-panel {
   background: #111827;
   border-color: #334155;
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+}
+
+.theme-dark .week-toggle-button {
+  background: rgba(59, 130, 246, 0.22);
+  border-color: rgba(147, 197, 253, 0.42);
+  color: #dbeafe;
+  box-shadow: 0 1px 2px rgba(96, 165, 250, 0.2);
+}
+
+.theme-dark .week-toggle-button:hover:not(:disabled) {
+  background: rgba(59, 130, 246, 0.38);
+  border-color: #93c5fd !important;
+  box-shadow: 0 6px 16px rgba(96, 165, 250, 0.28);
+}
+
+.theme-dark .week-toggle-button:focus-visible {
+  outline-color: rgba(147, 197, 253, 0.38);
 }
 
 .theme-dark .monitors-historical-note {

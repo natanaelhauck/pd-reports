@@ -1010,6 +1010,75 @@ def periodo_semana_monitoria(ano, mes, semana):
             return item['periodo']
     return ''
 
+def formatar_data_periodo_monitoria(valor):
+    return f'{valor.day:02d}/{valor.month:02d}/{valor.year:04d}'
+
+def parse_periodo_monitoria(ano, mes, valor_periodo=None, valor_data=None):
+    semanas = semanas_uteis_monitoria_mes(ano, mes)
+    periodo = sem_acentos(valor_periodo or '').strip().lower()
+    primeiro_dia = date(ano, mes, 1)
+    ultimo_dia = ultimo_dia_mes(ano, mes)
+
+    if periodo == 'hoje':
+        hoje = hoje_monitoria()
+        return {
+            'tipo': 'hoje',
+            'label': f'Hoje — {formatar_data_periodo_monitoria(hoje)}',
+            'inicio': hoje.isoformat(),
+            'fim': hoje.isoformat(),
+        }
+
+    if periodo in {'dia', 'dia_especifico', 'dia especifico'}:
+        data_especifica = normalizar_data_relatorio(valor_data)
+        if data_especifica and data_especifica.year == ano and data_especifica.month == mes:
+            return {
+                'tipo': 'dia',
+                'label': formatar_data_periodo_monitoria(data_especifica),
+                'inicio': data_especifica.isoformat(),
+                'fim': data_especifica.isoformat(),
+            }
+
+    semana_match = re.fullmatch(r'semana[_\-\s]*(\d+)', periodo)
+    if semana_match:
+        semana_numero = int(semana_match.group(1))
+        for semana in semanas:
+            if semana['semana'] == semana_numero:
+                return {
+                    'tipo': 'semana',
+                    'semana': semana_numero,
+                    'label': f"Semana {semana_numero} — {semana['periodo']}",
+                    'inicio': semana['inicio'].isoformat(),
+                    'fim': semana['fim'].isoformat(),
+                }
+
+    return {
+        'tipo': 'mes',
+        'label': 'Mês inteiro',
+        'inicio': primeiro_dia.isoformat(),
+        'fim': ultimo_dia.isoformat(),
+    }
+
+def data_no_periodo_monitoria(data_relatorio, periodo_aplicado):
+    if not periodo_aplicado or periodo_aplicado.get('tipo') == 'mes':
+        return True
+    inicio = normalizar_data_relatorio(periodo_aplicado.get('inicio'))
+    fim = normalizar_data_relatorio(periodo_aplicado.get('fim'))
+    if not inicio or not fim:
+        return True
+    return inicio <= data_relatorio <= fim
+
+def semanas_visiveis_monitoria(semanas_base, periodo_aplicado):
+    tipo = (periodo_aplicado or {}).get('tipo')
+    if tipo == 'semana':
+        return [semana for semana in semanas_base if semana['semana'] == periodo_aplicado.get('semana')]
+    if tipo in {'hoje', 'dia'}:
+        data_periodo = normalizar_data_relatorio(periodo_aplicado.get('inicio'))
+        if not data_periodo:
+            return semanas_base
+        semana_numero = semana_monitoria_do_mes(data_periodo, semanas_base)
+        return [semana for semana in semanas_base if semana['semana'] == semana_numero]
+    return semanas_base
+
 def parse_mes_monitoria(valor):
     texto = str(valor or '').strip()
     if not re.fullmatch(r'\d{4}-\d{2}', texto):
@@ -1058,7 +1127,7 @@ def filtrar_linha_resumo_status(linha, status_filtro):
     filtrada['total'] = filtrada[status_filtro]
     return filtrada
 
-def consolidado_historico_monitoria(mes_param, monitor_filtro='', status_filtro=''):
+def consolidado_historico_monitoria(mes_param, monitor_filtro='', status_filtro='', periodo_aplicado=None):
     consolidado = CONSOLIDADOS_MONITORIA_HISTORICOS.get(mes_param)
     if not consolidado:
         return None
@@ -1080,6 +1149,7 @@ def consolidado_historico_monitoria(mes_param, monitor_filtro='', status_filtro=
         'relatorios_detalhados': [],
         # Motivos e detalhes só são enviados para históricos quando a aba real confere com o consolidado oficial.
         'resumo_motivos_falta': [],
+        'periodo_aplicado': periodo_aplicado,
         'historico_oficial': True,
         'aviso_semanas': 'Consolidado mensal histórico. Semanas detalhadas disponíveis para meses a partir de maio/2026.',
         'aviso_detalhes': 'Detalhes individuais disponíveis a partir de maio/2026.',
@@ -1580,14 +1650,16 @@ def sync_refresh():
         'message': 'Cache limpo. Próxima consulta buscará dados atualizados da planilha.',
     })
 
-def montar_resumo_monitoria_monitores(dados, ano, mes, mes_param, monitor_filtro='', status_filtro=''):
+def montar_resumo_monitoria_monitores(dados, ano, mes, mes_param, monitor_filtro='', status_filtro='', periodo_aplicado=None):
     resumo_geral = resumo_monitoria_vazio()
     monitores_mes = set()
     resumo_por_monitor = {}
     motivos_falta = {}
     registros_contados = set()
     relatorios_detalhados = []
+    periodo_aplicado = periodo_aplicado or parse_periodo_monitoria(ano, mes)
     semanas_base = semanas_uteis_monitoria_mes(ano, mes)
+    semanas_base_visiveis = semanas_visiveis_monitoria(semanas_base, periodo_aplicado)
     semanas = []
     semanas_map = {
         item['semana']: {
@@ -1604,6 +1676,8 @@ def montar_resumo_monitoria_monitores(dados, ano, mes, mes_param, monitor_filtro
     for relatorio in dados['relatorios']:
         data_relatorio = relatorio.get('data_obj')
         if not data_relatorio or data_relatorio.year != ano or data_relatorio.month != mes:
+            continue
+        if not data_no_periodo_monitoria(data_relatorio, periodo_aplicado):
             continue
         matricula = relatorio.get('matricula')
         if not matricula:
@@ -1624,6 +1698,8 @@ def montar_resumo_monitoria_monitores(dados, ano, mes, mes_param, monitor_filtro
         registros_contados.add(chave_registro)
         semana = semana_monitoria_do_mes(data_relatorio, semanas_base)
         if semana is None:
+            continue
+        if semana not in semanas_map:
             continue
         monitores_mes.add(agente)
         incrementar_resumo_monitoria(resumo_geral, status)
@@ -1651,7 +1727,7 @@ def montar_resumo_monitoria_monitores(dados, ano, mes, mes_param, monitor_filtro
             'read_ia_link': relatorio.get('read_ia_link') or '',
         })
 
-    for semana_base in semanas_base:
+    for semana_base in semanas_base_visiveis:
         item = semanas_map[semana_base['semana']]
         item['monitores'] = sorted(item['monitores'].values(), key=lambda monitor: monitor['agente'])
         semanas.append(item)
@@ -1664,6 +1740,7 @@ def montar_resumo_monitoria_monitores(dados, ano, mes, mes_param, monitor_filtro
         'resumo_por_monitor': sorted(resumo_por_monitor.values(), key=lambda item: item['agente']),
         'resumo_motivos_falta': resumo_motivos_falta(motivos_falta),
         'relatorios_detalhados': sorted(relatorios_detalhados, key=lambda item: item['data'], reverse=True),
+        'periodo_aplicado': periodo_aplicado,
         'total_lidos': dados['total_lidos'],
         'atualizado_em': dados['atualizado_em'],
         'cabecalhos_reconhecidos': dados.get('cabecalhos_reconhecidos', {}),
@@ -1694,19 +1771,52 @@ def get_resumo_monitoria_monitores():
     try:
         ano, mes, mes_param = parse_mes_monitoria(request.args.get('mes'))
         monitor_filtro, status_filtro = filtros_monitoria_request(usuario)
-        historico = consolidado_historico_monitoria(mes_param, monitor_filtro, status_filtro)
+        periodo_aplicado = parse_periodo_monitoria(
+            ano,
+            mes,
+            request.args.get('periodo'),
+            request.args.get('data_periodo') or request.args.get('data'),
+        )
+        periodo_mes = parse_periodo_monitoria(ano, mes)
+        historico = consolidado_historico_monitoria(mes_param, monitor_filtro, status_filtro, periodo_mes)
         if historico:
             try:
                 dados = buscar_relatorios_monitoria()
-                detalhado = montar_resumo_monitoria_monitores(dados, ano, mes, mes_param, monitor_filtro, status_filtro)
-                if resumos_monitoria_equivalentes(historico, detalhado):
-                    return jsonify(detalhado)
+                detalhado_mes = montar_resumo_monitoria_monitores(
+                    dados,
+                    ano,
+                    mes,
+                    mes_param,
+                    monitor_filtro,
+                    status_filtro,
+                    periodo_mes,
+                )
+                if resumos_monitoria_equivalentes(historico, detalhado_mes):
+                    if periodo_aplicado.get('tipo') == 'mes':
+                        return jsonify(detalhado_mes)
+                    return jsonify(montar_resumo_monitoria_monitores(
+                        dados,
+                        ano,
+                        mes,
+                        mes_param,
+                        monitor_filtro,
+                        status_filtro,
+                        periodo_aplicado,
+                    ))
             except Exception as exc:
                 print(f'Não foi possível validar detalhes históricos de monitoria: {exc.__class__.__name__}')
             return jsonify(historico)
 
         dados = buscar_relatorios_monitoria()
-        return jsonify(montar_resumo_monitoria_monitores(dados, ano, mes, mes_param, monitor_filtro, status_filtro))
+        return jsonify(montar_resumo_monitoria_monitores(
+            dados,
+            ano,
+            mes,
+            mes_param,
+            monitor_filtro,
+            status_filtro,
+            periodo_aplicado,
+        ))
     except Exception as exc:
         print(f'Erro ao buscar resumo de monitoria por monitor: {exc}')
         return jsonify({'erro': 'Não foi possível carregar o resumo de monitoria.'}), 503

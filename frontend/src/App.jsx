@@ -166,6 +166,45 @@ const mesAtualInput = () => {
   return `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
 };
 
+const dataInputLocal = (data = new Date()) => {
+  const ano = data.getFullYear();
+  const mes = String(data.getMonth() + 1).padStart(2, '0');
+  const dia = String(data.getDate()).padStart(2, '0');
+  return `${ano}-${mes}-${dia}`;
+};
+
+const formatarDiaMes = (data) => `${String(data.getDate()).padStart(2, '0')}/${String(data.getMonth() + 1).padStart(2, '0')}`;
+
+const semanasUteisMonitoriaMes = (mesValor) => {
+  const [anoTexto, mesTexto] = String(mesValor || '').split('-');
+  const ano = Number(anoTexto);
+  const mes = Number(mesTexto);
+  if (!ano || !mes) return [];
+
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  const primeiroDia = new Date(ano, mes - 1, 1);
+  const ultimoDia = new Date(ano, mes, 0);
+  const diasAteSegunda = (8 - primeiroDia.getDay()) % 7;
+  let inicio = new Date(ano, mes - 1, primeiroDia.getDate() + diasAteSegunda);
+  const semanas = [];
+
+  while (inicio <= ultimoDia) {
+    const fim = new Date(inicio);
+    fim.setDate(inicio.getDate() + 4);
+    if (fim.getMonth() !== mes - 1) break;
+    if (inicio > hoje) break;
+    semanas.push({
+      valor: `semana_${semanas.length + 1}`,
+      label: `Semana ${semanas.length + 1}`,
+      periodo: `${formatarDiaMes(inicio)} a ${formatarDiaMes(fim)}`,
+    });
+    inicio = new Date(inicio);
+    inicio.setDate(inicio.getDate() + 7);
+  }
+  return semanas;
+};
+
 const statusMonitoriaClass = (status) => {
   const chave = semAcentos(status).toLowerCase();
   if (chave.includes('presente')) return 'present';
@@ -1254,6 +1293,8 @@ function MonitoresDashboard({ usuario, authHeaders }) {
   const [mes, setMes] = useState(mesAtualInput());
   const [monitorFiltro, setMonitorFiltro] = useState('');
   const [statusFiltro, setStatusFiltro] = useState('');
+  const [periodoFiltro, setPeriodoFiltro] = useState('mes');
+  const [dataPeriodo, setDataPeriodo] = useState(dataInputLocal());
   const [mostrarDetalhes, setMostrarDetalhes] = useState(false);
   const [semanasAbertas, setSemanasAbertas] = useState({});
   const [dados, setDados] = useState(null);
@@ -1264,11 +1305,30 @@ function MonitoresDashboard({ usuario, authHeaders }) {
   const isAdmin = usuario?.role === 'admin';
   const monitorUsuario = monitorDoUsuario(usuario);
   const monitorEfetivo = isAdmin ? monitorFiltro : monitorUsuario;
+  const semanasPeriodo = useMemo(() => semanasUteisMonitoriaMes(mes), [mes]);
+  const periodoOptions = useMemo(() => ([
+    ['mes', 'Mês inteiro'],
+    ...semanasPeriodo.map((semana) => [semana.valor, `${semana.label} — ${semana.periodo}`]),
+    ['hoje', 'Hoje'],
+    ['dia', 'Dia específico'],
+  ]), [semanasPeriodo]);
+  const periodoFiltroEfetivo = periodoOptions.some(([valor]) => valor === periodoFiltro) ? periodoFiltro : 'mes';
+  const dataPeriodoEfetiva = dataPeriodo && dataPeriodo.startsWith(`${mes}-`) ? dataPeriodo : `${mes}-01`;
+  const paramsResumo = useMemo(() => {
+    const params = {
+      mes,
+      monitor: monitorEfetivo || 'Todos',
+      status: statusFiltro || 'Todos',
+      periodo: periodoFiltroEfetivo,
+    };
+    if (periodoFiltroEfetivo === 'dia') params.data_periodo = dataPeriodoEfetiva;
+    return params;
+  }, [mes, monitorEfetivo, statusFiltro, periodoFiltroEfetivo, dataPeriodoEfetiva]);
 
   useEffect(() => {
     let cancelado = false;
     const carregarResumo = () => axios.get(`${API_BASE_URL}/api/relatorios-monitoria/resumo-monitores`, {
-      params: { mes, monitor: monitorEfetivo || 'Todos', status: statusFiltro || 'Todos' },
+      params: paramsResumo,
       headers: authHeaders,
       timeout: 20000,
     });
@@ -1301,7 +1361,7 @@ function MonitoresDashboard({ usuario, authHeaders }) {
       cancelado = true;
       clearTimeout(timer);
     };
-  }, [mes, monitorEfetivo, statusFiltro, authHeaders]);
+  }, [paramsResumo, authHeaders]);
 
   const atualizarAgora = async () => {
     if (carregando) return;
@@ -1311,7 +1371,7 @@ function MonitoresDashboard({ usuario, authHeaders }) {
     try {
       await axios.post(`${API_BASE_URL}/api/sync/refresh`, {}, { headers: authHeaders, timeout: 12000 });
       const res = await axios.get(`${API_BASE_URL}/api/relatorios-monitoria/resumo-monitores`, {
-        params: { mes, monitor: monitorEfetivo || 'Todos', status: statusFiltro || 'Todos' },
+        params: paramsResumo,
         headers: authHeaders,
         timeout: 20000,
       });
@@ -1329,6 +1389,7 @@ function MonitoresDashboard({ usuario, authHeaders }) {
   const semanasFiltradas = dados?.semanas || [];
   const detalhes = dados?.relatorios_detalhados || [];
   const resumoMotivosFalta = dados?.resumo_motivos_falta || [];
+  const periodoAplicado = dados?.periodo_aplicado;
   const mostrarMotivosFalta = statusFiltro === 'Falta';
   const semDados = !carregando && !erro && dados && resumo.total === 0;
   const alternarSemana = (semana) => {
@@ -1350,6 +1411,8 @@ function MonitoresDashboard({ usuario, authHeaders }) {
             <ProfileField label="Monitor" value={monitorUsuario || 'Monitor'} disabled onChange={() => {}} />
           )}
           <ProfileSelect label="Status" value={statusFiltro} onChange={setStatusFiltro} options={STATUS_MONITORIA_FILTROS} />
+          <ProfileSelect label="Período" value={periodoFiltroEfetivo} onChange={setPeriodoFiltro} options={periodoOptions} />
+          {periodoFiltroEfetivo === 'dia' && <ProfileField label="Data" type="date" value={dataPeriodoEfetiva} onChange={setDataPeriodo} />}
           <button className="ui-button monitoring-refresh-button" type="button" onClick={atualizarAgora} disabled={carregando}>
             {carregando && <span className="button-spinner" aria-hidden="true" />}
             {carregando ? 'Atualizando...' : 'Atualizar'}
@@ -1377,6 +1440,9 @@ function MonitoresDashboard({ usuario, authHeaders }) {
             <span className="legend-dot metric-unscheduled" /> Não agendado
             <span className="legend-dot metric-finished" /> Finalizou
           </div>
+          {periodoAplicado?.tipo && periodoAplicado.tipo !== 'mes' && (
+            <p className="monitors-period-note">Período filtrado: {periodoAplicado.label}</p>
+          )}
 
           {mostrarMotivosFalta && semDados && <MotivosFaltaCard motivos={resumoMotivosFalta} />}
 
