@@ -50,6 +50,13 @@ const PERFIL_INICIAL = (matricula = '') => ({
   psicologo: '',
 });
 
+const NOVO_ALUNO_INICIAL = { nome: '', matricula: '', telefone: '', email: '', nascimento: '', patrimonio: '', monitor: '', status: 'MANTER' };
+const PERFIL_CADASTRO_INICIAL = () => {
+  const perfil = PERFIL_INICIAL();
+  delete perfil.matricula;
+  return perfil;
+};
+
 const STATUS_COLORS = {
   MANTER: '#1f9d55',
   'EM ANÁLISE': '#d97706',
@@ -278,6 +285,12 @@ const ajustarQuantidadeFilhos = (quantidade, filhosAtuais) => {
   return Array.from({ length: total }, (_, index) => filhosAtuais[index] || { nome: '', idade: '' });
 };
 
+const perfilCadastroTemDados = (perfil) => Object.values(perfil || {}).some((valor) => {
+  if (typeof valor === 'boolean') return true;
+  if (valor === null || valor === undefined) return false;
+  return String(valor).trim() !== '';
+});
+
 const filhosResumo = (valor) => {
   const { filhos, textoLivre } = parseFilhos(valor);
   if (filhos.length) {
@@ -391,7 +404,9 @@ export default function App() {
   const [mostrarUsuarios, setMostrarUsuarios] = useState(false);
   const [mostrarMonitores, setMostrarMonitores] = useState(false);
   const [usuarios, setUsuarios] = useState([]);
-  const [novoAluno, setNovoAluno] = useState({ nome: '', matricula: '', telefone: '', email: '', nascimento: '', patrimonio: '', monitor: '', status: 'MANTER' });
+  const [novoAluno, setNovoAluno] = useState(NOVO_ALUNO_INICIAL);
+  const [mostrarPerfilNovoAluno, setMostrarPerfilNovoAluno] = useState(false);
+  const [novoAlunoPerfil, setNovoAlunoPerfil] = useState(PERFIL_CADASTRO_INICIAL);
   const [novoUsuario, setNovoUsuario] = useState({ nome: '', email: '', senha: '', role: 'monitor' });
   const [usuarioEditando, setUsuarioEditando] = useState(null);
   const [usuarioTemp, setUsuarioTemp] = useState({ nome: '', email: '', role: 'monitor' });
@@ -461,7 +476,9 @@ export default function App() {
     setMostrarUsuarios(false);
     setMostrarMonitores(false);
     setUsuarios([]);
-    setNovoAluno({ nome: '', matricula: '', telefone: '', email: '', nascimento: '', patrimonio: '', monitor: '', status: 'MANTER' });
+    setNovoAluno(NOVO_ALUNO_INICIAL);
+    setMostrarPerfilNovoAluno(false);
+    setNovoAlunoPerfil(PERFIL_CADASTRO_INICIAL());
     setNovoUsuario({ nome: '', email: '', senha: '', role: 'monitor' });
     setUsuarioEditando(null);
     setUsuarioTemp({ nome: '', email: '', role: 'monitor' });
@@ -585,6 +602,8 @@ export default function App() {
     setMostrarMonitores(false);
     setMostrarUsuarios(false);
     setMostrarNovoAluno(true);
+    setMostrarPerfilNovoAluno(false);
+    setNovoAlunoPerfil(PERFIL_CADASTRO_INICIAL());
     setMensagem(null);
   };
 
@@ -705,14 +724,28 @@ export default function App() {
         monitor: normalizarMonitor(novoAluno.monitor),
         status: normalizarStatus(novoAluno.status),
       };
+      if (mostrarPerfilNovoAluno && perfilCadastroTemDados(novoAlunoPerfil)) {
+        payload.perfil = novoAlunoPerfil;
+      }
       const res = await axios.post(`${API_BASE_URL}/api/alunos/create`, payload, authConfig({ timeout: 12000 }));
       const criado = res.data.aluno;
       setAlunos((atuais) => [...atuais.filter((a) => a.matricula !== criado.matricula), criado]);
       setAluno(criado);
       setTemp(criarTempSeguro(criado));
+      if (res.data.perfil) {
+        const perfilCriado = normalizarPerfil(res.data.perfil);
+        setPerfil(perfilCriado);
+        setPerfilTemp(perfilCriado);
+      } else {
+        const perfilInicial = PERFIL_INICIAL(criado.matricula);
+        setPerfil(perfilInicial);
+        setPerfilTemp(perfilInicial);
+      }
       setBuscaRealizada(true);
       setMostrarNovoAluno(false);
-      setNovoAluno({ nome: '', matricula: '', telefone: '', email: '', nascimento: '', patrimonio: '', monitor: '', status: 'MANTER' });
+      setNovoAluno(NOVO_ALUNO_INICIAL);
+      setMostrarPerfilNovoAluno(false);
+      setNovoAlunoPerfil(PERFIL_CADASTRO_INICIAL());
       setMensagem({ tipo: 'sucesso', texto: res.data.mensagem || 'Aluno cadastrado com sucesso.' });
     } catch (err) {
       setMensagem({ tipo: 'erro', texto: mensagemErroApi(err, 'Erro ao cadastrar aluno.') });
@@ -862,6 +895,20 @@ export default function App() {
             <ProfileField label="Patrimônio" value={novoAluno.patrimonio} onChange={(v) => setNovoAluno({ ...novoAluno, patrimonio: v })} />
             <ProfileSelect label="Monitor" value={novoAluno.monitor} onChange={(v) => setNovoAluno({ ...novoAluno, monitor: v })} options={[['', 'Selecione...'], ...MONITORES.map((m) => [m, m])]} />
             <ProfileSelect label="Status *" value={novoAluno.status} onChange={(v) => setNovoAluno({ ...novoAluno, status: v })} options={STATUS_OPTIONS.map((s) => [s, s])} />
+          </div>
+          <div className="new-student-profile">
+            <div className="new-student-profile-head">
+              <div>
+                <h3>Perfil do aluno</h3>
+                <p>Preenchimento opcional no cadastro</p>
+              </div>
+              <button className="ui-button" type="button" onClick={() => setMostrarPerfilNovoAluno((atual) => !atual)} style={styles.secondaryBtn}>
+                {mostrarPerfilNovoAluno ? 'Ocultar perfil' : 'Preencher perfil agora'}
+              </button>
+            </div>
+            {mostrarPerfilNovoAluno && (
+              <NovoAlunoPerfilForm perfil={novoAlunoPerfil} setPerfil={setNovoAlunoPerfil} />
+            )}
           </div>
           <button className="ui-button" type="submit" disabled={salvandoNovoAluno} style={{ ...styles.primaryBtn, marginTop: '14px' }}>
             <Save size={17} /> {salvandoNovoAluno ? 'Salvando...' : 'Cadastrar aluno'}
@@ -1586,6 +1633,91 @@ function MotivoOutroDetalhe({ detalhe }) {
           </button>
         )}
       </div>
+    </div>
+  );
+}
+
+function NovoAlunoPerfilForm({ perfil, setPerfil }) {
+  const setCampo = (campo, valor) => setPerfil((atual) => ({ ...atual, [campo]: valor }));
+  const filhosInfo = parseFilhos(perfil.filhos_descricao);
+  const filhos = filhosInfo.filhos;
+  const setFilhos = (novosFilhos) => setCampo('filhos_descricao', stringifyFilhos(novosFilhos));
+
+  return (
+    <div style={styles.profileGrid} className="profile-grid new-student-profile-grid">
+      <section style={{ ...styles.section, gridColumn: '1 / -1' }}>
+        <h3><User size={18} /> Breve análise de perfil</h3>
+        <textarea style={styles.textarea} value={perfil.analise_perfil || ''} onChange={(e) => setCampo('analise_perfil', e.target.value)} />
+      </section>
+      <section style={styles.section}>
+        <h3><Briefcase size={18} /> Trabalho e Estudos</h3>
+        <ProfileSelect label="Trabalha?" value={boolSelectValue(perfil.trabalha)} onChange={(v) => setCampo('trabalha', boolFromSelect(v))} options={[['', 'Não informado'], ['sim', 'Sim'], ['nao', 'Não']]} />
+        <ProfileField label="Em qual área profissional pretende trabalhar futuramente?" value={perfil.area_profissional_interesse} onChange={(v) => setCampo('area_profissional_interesse', v)} />
+        <ProfileSelect label="Estuda?" value={boolSelectValue(perfil.estuda)} onChange={(v) => setCampo('estuda', boolFromSelect(v))} options={[['', 'Não informado'], ['sim', 'Sim'], ['nao', 'Não']]} />
+        {perfil.estuda === true && (
+          <>
+            <ProfileField label="Onde estuda?" value={perfil.estudo_instituicao} onChange={(v) => setCampo('estudo_instituicao', v)} />
+            <ProfileField label="Qual curso?" value={perfil.estudo_curso} onChange={(v) => setCampo('estudo_curso', v)} />
+            <ProfileSelect label="Turno de estudo" value={perfil.turno_estudo || ''} onChange={(v) => setCampo('turno_estudo', v)} options={[['', 'Não informado'], ...TURNOS.map((turno) => [turno, turno])]} />
+          </>
+        )}
+      </section>
+      <section style={styles.section}>
+        <h3><Users size={18} /> Família</h3>
+        <ProfileSelect label="Tem filhos?" value={boolSelectValue(perfil.tem_filhos)} onChange={(v) => {
+          const temFilhos = boolFromSelect(v);
+          setPerfil((atual) => ({ ...atual, tem_filhos: temFilhos, filhos_descricao: temFilhos === true ? atual.filhos_descricao : '' }));
+        }} options={[['', 'Não informado'], ['sim', 'Sim'], ['nao', 'Não']]} />
+        {perfil.tem_filhos === true && (
+          <>
+            <ProfileSelect
+              label="Quantidade de filhos"
+              value={quantidadeFromFilhos(filhos)}
+              onChange={(v) => setFilhos(ajustarQuantidadeFilhos(v, filhos))}
+              options={[['', 'Selecione...'], ...QTD_FILHOS.map((qtd) => [qtd, qtd])]}
+            />
+            <div className="children-editor">
+              {filhos.map((filho, index) => (
+                <div key={index} className="child-row">
+                  <ProfileField label={`Nome do filho ${index + 1}`} value={filho.nome} onChange={(v) => {
+                    const novos = [...filhos];
+                    novos[index] = { ...novos[index], nome: v };
+                    setFilhos(novos);
+                  }} />
+                  <ProfileField label="Idade" value={filho.idade} onChange={(v) => {
+                    const novos = [...filhos];
+                    novos[index] = { ...novos[index], idade: v };
+                    setFilhos(novos);
+                  }} />
+                </div>
+              ))}
+            </div>
+            {filhosInfo.textoLivre && <p className="legacy-note">Dado antigo: {filhosInfo.textoLivre}</p>}
+          </>
+        )}
+      </section>
+      <section style={styles.section}>
+        <h3><GraduationCap size={18} /> Curso</h3>
+        <ProfileSelect label="Nível de Engajamento" value={perfil.nivel_engajamento || ''} onChange={(v) => setCampo('nivel_engajamento', v)} options={[['', 'Não informado'], ['baixo', 'Baixo'], ['médio', 'Médio'], ['alto', 'Alto']]} color={pillColor(perfil.nivel_engajamento, ENG_COLORS)} />
+        <ProfileSelect label="Nível de Conhecimento em Programação" value={perfil.nivel_programacao || ''} onChange={(v) => setCampo('nivel_programacao', v)} options={[['', 'Não informado'], ['básico', 'Básico'], ['intermediário', 'Intermediário'], ['avançado', 'Avançado']]} color={pillColor(perfil.nivel_programacao, PROG_COLORS)} />
+        <ProfileField label="Ano de previsão de formação" type="number" value={perfil.previsao_formacao_ano || ''} onChange={(v) => setCampo('previsao_formacao_ano', v)} />
+        <ProfileSelect label="Semestre de previsão" value={perfil.previsao_formacao_semestre || ''} onChange={(v) => setCampo('previsao_formacao_semestre', v)} options={[['', 'Não informado'], ['1º semestre', '1º semestre'], ['2º semestre', '2º semestre']]} />
+      </section>
+      <section style={styles.section}>
+        <h3><Calendar size={18} /> Monitoria</h3>
+        <ProfileSelect label="Dia da monitoria" value={perfil.dia_monitoria || ''} onChange={(v) => setCampo('dia_monitoria', v)} options={[['', 'Não informado'], ...DIAS_MONITORIA.map((dia) => [dia, dia])]} />
+        <ProfileField label="Horário da monitoria" type="time" value={perfil.horario_monitoria} onChange={(v) => setCampo('horario_monitoria', v)} />
+      </section>
+      <section style={styles.section}>
+        <h3><ShieldCheck size={18} /> Acompanhamento psicológico</h3>
+        <ProfileSelect label="Faz acompanhamento?" value={boolSelectValue(perfil.acompanhamento_psicologico)} onChange={(v) => {
+          const faz = boolFromSelect(v);
+          setPerfil((atual) => ({ ...atual, acompanhamento_psicologico: faz, psicologo: faz === true ? atual.psicologo : '' }));
+        }} options={[['', 'Não informado'], ['sim', 'Sim'], ['nao', 'Não']]} />
+        {perfil.acompanhamento_psicologico === true && (
+          <ProfileSelect label="Psicólogo responsável" value={perfil.psicologo || ''} onChange={(v) => setCampo('psicologo', v)} options={[['', 'Selecione...'], ...PSICOLOGOS.map((nome) => [nome, nome])]} />
+        )}
+      </section>
     </div>
   );
 }

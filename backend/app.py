@@ -357,6 +357,79 @@ def formatar_perfil(perfil, matricula):
         dados.setdefault(campo, None if campo in CAMPOS_BOOLEANOS_PERFIL or campo in CAMPOS_INTEIROS_PERFIL else '')
     return dados
 
+def normalizar_payload_perfil(dados):
+    dados = dados or {}
+    return {campo: normalizar_valor_perfil(campo, dados.get(campo)) for campo in CAMPOS_PERFIL}
+
+def salvar_perfil_aluno(cursor, matricula, perfil):
+    cursor.execute('''
+        INSERT INTO perfil_alunos (
+            matricula, analise_perfil, trabalha, trabalho_descricao, area_profissional_interesse, turno_trabalho,
+            estuda, estudo_instituicao, estudo_curso, turno_estudo, tem_filhos, filhos_descricao,
+            nivel_engajamento, nivel_programacao, previsao_formacao_ano,
+            previsao_formacao_semestre, monitoria_1, monitoria_2, monitoria_3,
+            monitoria_4, dia_monitoria, horario_monitoria, acompanhamento_psicologico,
+            psicologo, atualizado_em
+        )
+        VALUES (
+            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+            %s, %s, %s, %s, %s,
+            CURRENT_TIMESTAMP
+        )
+        ON CONFLICT (matricula) DO UPDATE SET
+            analise_perfil=EXCLUDED.analise_perfil,
+            trabalha=EXCLUDED.trabalha,
+            trabalho_descricao=EXCLUDED.trabalho_descricao,
+            area_profissional_interesse=EXCLUDED.area_profissional_interesse,
+            turno_trabalho=EXCLUDED.turno_trabalho,
+            estuda=EXCLUDED.estuda,
+            estudo_instituicao=EXCLUDED.estudo_instituicao,
+            estudo_curso=EXCLUDED.estudo_curso,
+            turno_estudo=EXCLUDED.turno_estudo,
+            tem_filhos=EXCLUDED.tem_filhos,
+            filhos_descricao=EXCLUDED.filhos_descricao,
+            nivel_engajamento=EXCLUDED.nivel_engajamento,
+            nivel_programacao=EXCLUDED.nivel_programacao,
+            previsao_formacao_ano=EXCLUDED.previsao_formacao_ano,
+            previsao_formacao_semestre=EXCLUDED.previsao_formacao_semestre,
+            monitoria_1=EXCLUDED.monitoria_1,
+            monitoria_2=EXCLUDED.monitoria_2,
+            monitoria_3=EXCLUDED.monitoria_3,
+            monitoria_4=EXCLUDED.monitoria_4,
+            dia_monitoria=EXCLUDED.dia_monitoria,
+            horario_monitoria=EXCLUDED.horario_monitoria,
+            acompanhamento_psicologico=EXCLUDED.acompanhamento_psicologico,
+            psicologo=EXCLUDED.psicologo,
+            atualizado_em=CURRENT_TIMESTAMP
+        RETURNING *
+    ''', (
+        matricula,
+        perfil['analise_perfil'],
+        perfil['trabalha'],
+        perfil['trabalho_descricao'],
+        perfil['area_profissional_interesse'],
+        perfil['turno_trabalho'],
+        perfil['estuda'],
+        perfil['estudo_instituicao'],
+        perfil['estudo_curso'],
+        perfil['turno_estudo'],
+        perfil['tem_filhos'],
+        perfil['filhos_descricao'],
+        perfil['nivel_engajamento'],
+        perfil['nivel_programacao'],
+        perfil['previsao_formacao_ano'],
+        perfil['previsao_formacao_semestre'],
+        perfil['monitoria_1'],
+        perfil['monitoria_2'],
+        perfil['monitoria_3'],
+        perfil['monitoria_4'],
+        perfil['dia_monitoria'],
+        perfil['horario_monitoria'],
+        perfil['acompanhamento_psicologico'],
+        perfil['psicologo'],
+    ))
+    return formatar_perfil(cursor.fetchone(), matricula)
+
 def valor_historico(valor):
     if valor is None:
         return ''
@@ -1860,7 +1933,7 @@ def update_perfil_aluno():
 
         cursor.execute('SELECT * FROM perfil_alunos WHERE matricula=%s', (matricula,))
         atual = formatar_perfil(cursor.fetchone(), matricula)
-        novo = {campo: normalizar_valor_perfil(campo, dados.get(campo)) for campo in CAMPOS_PERFIL}
+        novo = normalizar_payload_perfil(dados)
         erro_campos_sensiveis = validar_campos_admin_only(usuario, atual, novo, CAMPOS_PERFIL_ADMIN_ONLY)
         if erro_campos_sensiveis:
             return erro_campos_sensiveis
@@ -1881,73 +1954,7 @@ def update_perfil_aluno():
                 )
                 alteracoes_sheets[campo] = (valor_historico(antigo), valor_historico(novo_valor))
 
-        cursor.execute('''
-            INSERT INTO perfil_alunos (
-                matricula, analise_perfil, trabalha, trabalho_descricao, area_profissional_interesse, turno_trabalho,
-                estuda, estudo_instituicao, estudo_curso, turno_estudo, tem_filhos, filhos_descricao,
-                nivel_engajamento, nivel_programacao, previsao_formacao_ano,
-                previsao_formacao_semestre, monitoria_1, monitoria_2, monitoria_3,
-                monitoria_4, dia_monitoria, horario_monitoria, acompanhamento_psicologico,
-                psicologo, atualizado_em
-            )
-            VALUES (
-                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                %s, %s, %s, %s, %s,
-                CURRENT_TIMESTAMP
-            )
-            ON CONFLICT (matricula) DO UPDATE SET
-                analise_perfil=EXCLUDED.analise_perfil,
-                trabalha=EXCLUDED.trabalha,
-                trabalho_descricao=EXCLUDED.trabalho_descricao,
-                area_profissional_interesse=EXCLUDED.area_profissional_interesse,
-                turno_trabalho=EXCLUDED.turno_trabalho,
-                estuda=EXCLUDED.estuda,
-                estudo_instituicao=EXCLUDED.estudo_instituicao,
-                estudo_curso=EXCLUDED.estudo_curso,
-                turno_estudo=EXCLUDED.turno_estudo,
-                tem_filhos=EXCLUDED.tem_filhos,
-                filhos_descricao=EXCLUDED.filhos_descricao,
-                nivel_engajamento=EXCLUDED.nivel_engajamento,
-                nivel_programacao=EXCLUDED.nivel_programacao,
-                previsao_formacao_ano=EXCLUDED.previsao_formacao_ano,
-                previsao_formacao_semestre=EXCLUDED.previsao_formacao_semestre,
-                monitoria_1=EXCLUDED.monitoria_1,
-                monitoria_2=EXCLUDED.monitoria_2,
-                monitoria_3=EXCLUDED.monitoria_3,
-                monitoria_4=EXCLUDED.monitoria_4,
-                dia_monitoria=EXCLUDED.dia_monitoria,
-                horario_monitoria=EXCLUDED.horario_monitoria,
-                acompanhamento_psicologico=EXCLUDED.acompanhamento_psicologico,
-                psicologo=EXCLUDED.psicologo,
-                atualizado_em=CURRENT_TIMESTAMP
-            RETURNING *
-        ''', (
-            matricula,
-            novo['analise_perfil'],
-            novo['trabalha'],
-            novo['trabalho_descricao'],
-            novo['area_profissional_interesse'],
-            novo['turno_trabalho'],
-            novo['estuda'],
-            novo['estudo_instituicao'],
-            novo['estudo_curso'],
-            novo['turno_estudo'],
-            novo['tem_filhos'],
-            novo['filhos_descricao'],
-            novo['nivel_engajamento'],
-            novo['nivel_programacao'],
-            novo['previsao_formacao_ano'],
-            novo['previsao_formacao_semestre'],
-            novo['monitoria_1'],
-            novo['monitoria_2'],
-            novo['monitoria_3'],
-            novo['monitoria_4'],
-            novo['dia_monitoria'],
-            novo['horario_monitoria'],
-            novo['acompanhamento_psicologico'],
-            novo['psicologo'],
-        ))
-        perfil = formatar_perfil(cursor.fetchone(), matricula)
+        perfil = salvar_perfil_aluno(cursor, matricula, novo)
         conn.commit()
         avisos = espelhar_aluno_planilha(matricula, alteracoes_sheets) if GOOGLE_STUDENTS_SHEET_SYNC and alteracoes_sheets else []
         return jsonify({"mensagem": "Perfil atualizado com sucesso.", "perfil": perfil, "avisos": avisos})
@@ -2042,6 +2049,17 @@ def criar_aluno():
         return erro
 
     dados = request.get_json(silent=True) or {}
+    erro_payload = rejeitar_campos_inesperados(dados, {'nome', 'matricula', 'telefone', 'email', 'nascimento', 'monitor', 'status', 'patrimonio', 'perfil'})
+    if erro_payload:
+        return erro_payload
+    perfil_payload = dados.get('perfil')
+    if perfil_payload is not None:
+        if not isinstance(perfil_payload, dict):
+            return jsonify({"erro": "Perfil deve ser um objeto."}), 400
+        erro_perfil = rejeitar_campos_inesperados(perfil_payload, CAMPOS_PERFIL)
+        if erro_perfil:
+            return erro_perfil
+
     nome = str(dados.get('nome') or '').strip()
     matricula = str(dados.get('matricula') or '').strip()
     status = normalizar_status(dados.get('status'))
@@ -2077,10 +2095,24 @@ def criar_aluno():
             novo['nascimento'], novo['monitor'], novo['status'], novo['patrimonio']
         ))
         aluno = formatar_aluno(row_to_dict(cursor.fetchone()))
-        cursor.execute('INSERT INTO perfil_alunos (matricula) VALUES (%s) ON CONFLICT (matricula) DO NOTHING', (matricula,))
         registrar_historico(cursor, matricula, 'sistema.cadastro', '', 'Aluno cadastrado', usuario)
+        perfil = None
+        alteracoes_sheets = {}
+        if perfil_payload is not None:
+            perfil_novo = normalizar_payload_perfil(perfil_payload)
+            perfil = salvar_perfil_aluno(cursor, matricula, perfil_novo)
+            for campo in CAMPOS_PERFIL:
+                novo_valor = perfil_novo.get(campo)
+                if valor_historico(novo_valor):
+                    campo_historico = 'Área profissional de interesse' if campo == 'area_profissional_interesse' else f'perfil.{campo}'
+                    registrar_historico(cursor, matricula, campo_historico, '', valor_historico(novo_valor), usuario)
+                    alteracoes_sheets[campo] = ('', valor_historico(novo_valor))
         conn.commit()
-        return jsonify({"mensagem": "Aluno cadastrado com sucesso.", "aluno": aluno}), 201
+        avisos = espelhar_aluno_planilha(matricula, alteracoes_sheets) if GOOGLE_STUDENTS_SHEET_SYNC and alteracoes_sheets else []
+        resposta = {"mensagem": "Aluno cadastrado com sucesso.", "aluno": aluno, "avisos": avisos}
+        if perfil is not None:
+            resposta["perfil"] = perfil
+        return jsonify(resposta), 201
     except psycopg2.Error as exc:
         if conn:
             conn.rollback()

@@ -268,6 +268,38 @@ button:disabled {
   gap: 10px 12px;
 }
 
+.new-student-profile {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--pd-border);
+}
+
+.new-student-profile-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.new-student-profile-head h3 {
+  margin: 0 0 3px;
+  color: var(--pd-title);
+  font-size: 16px;
+  font-weight: 850;
+}
+
+.new-student-profile-head p {
+  margin: 0;
+  color: var(--pd-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.new-student-profile-grid {
+  margin-top: 0;
+}
+
 .users-table-wrap {
   margin-top: 14px;
   text-align: left;
@@ -1989,6 +2021,15 @@ code {
   .app-header {
     grid-template-columns: 1fr;
     gap: 10px;
+  }
+
+  .new-student-profile-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .new-student-profile-head .ui-button {
+    width: 100%;
   }
 
   .header-user,
