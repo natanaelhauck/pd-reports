@@ -359,7 +359,11 @@ def formatar_perfil(perfil, matricula):
 
 def normalizar_payload_perfil(dados):
     dados = dados or {}
-    return {campo: normalizar_valor_perfil(campo, dados.get(campo)) for campo in CAMPOS_PERFIL}
+    perfil = {campo: normalizar_valor_perfil(campo, dados.get(campo)) for campo in CAMPOS_PERFIL}
+    if perfil.get('trabalha') is not True:
+        perfil['trabalho_descricao'] = ''
+        perfil['turno_trabalho'] = ''
+    return perfil
 
 def salvar_perfil_aluno(cursor, matricula, perfil):
     cursor.execute('''

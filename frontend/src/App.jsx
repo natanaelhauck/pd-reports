@@ -252,7 +252,7 @@ const boolFromSelect = (valor) => (valor === 'sim' ? true : valor === 'nao' ? fa
 const DIAS_MONITORIA = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira'];
 const QTD_FILHOS = ['1', '2', '3', '4', '5', '6+'];
 const TURNOS = ['Manhã', 'Tarde', 'Noite', 'Integral', 'Variável', 'EAD'];
-const TURNOS_TRABALHO = ['Manhã', 'Tarde', 'Noite', 'Integral', 'Variável'];
+const TURNOS_TRABALHO = ['Manhã', 'Tarde', 'Noite', 'Integral', 'Escala', 'Freelancer', 'Outro'];
 const PSICOLOGOS = ['Isabela'];
 const PERFIS_USUARIO = [
   ['monitor', 'Monitor'],
@@ -1235,7 +1235,15 @@ function PerfilAluno({ perfil, perfilTemp, setPerfilTemp, editPerfil, setEditPer
         </section>
         <section style={styles.section}>
           <h3><Briefcase size={18} /> Trabalho e Estudos</h3>
-          <ProfileSelect label="Trabalha?" value={boolSelectValue(p.trabalha)} disabled={!editPerfil} onChange={(v) => setCampo('trabalha', boolFromSelect(v))} options={[['', 'Não informado'], ['sim', 'Sim'], ['nao', 'Não']]} />
+          <ProfileSelect label="Trabalha?" value={boolSelectValue(p.trabalha)} disabled={!editPerfil} onChange={(v) => {
+            const trabalha = boolFromSelect(v);
+            setPerfilTemp({
+              ...perfilTemp,
+              trabalha,
+              trabalho_descricao: trabalha === true ? perfilTemp.trabalho_descricao : '',
+              turno_trabalho: trabalha === true ? perfilTemp.turno_trabalho : '',
+            });
+          }} options={[['', 'Não informado'], ['sim', 'Sim'], ['nao', 'Não']]} />
           {p.trabalha === true && (
             <>
               <ProfileField label="Com o que trabalha?" value={p.trabalho_descricao} disabled={!editPerfil} onChange={(v) => setCampo('trabalho_descricao', v)} />
@@ -1651,7 +1659,21 @@ function NovoAlunoPerfilForm({ perfil, setPerfil }) {
       </section>
       <section style={styles.section}>
         <h3><Briefcase size={18} /> Trabalho e Estudos</h3>
-        <ProfileSelect label="Trabalha?" value={boolSelectValue(perfil.trabalha)} onChange={(v) => setCampo('trabalha', boolFromSelect(v))} options={[['', 'Não informado'], ['sim', 'Sim'], ['nao', 'Não']]} />
+        <ProfileSelect label="Trabalha?" value={boolSelectValue(perfil.trabalha)} onChange={(v) => {
+          const trabalha = boolFromSelect(v);
+          setPerfil((atual) => ({
+            ...atual,
+            trabalha,
+            trabalho_descricao: trabalha === true ? atual.trabalho_descricao : '',
+            turno_trabalho: trabalha === true ? atual.turno_trabalho : '',
+          }));
+        }} options={[['', 'Não informado'], ['sim', 'Sim'], ['nao', 'Não']]} />
+        {perfil.trabalha === true && (
+          <>
+            <ProfileField label="Com o que trabalha?" value={perfil.trabalho_descricao} onChange={(v) => setCampo('trabalho_descricao', v)} />
+            <ProfileSelect label="Turno de trabalho" value={perfil.turno_trabalho || ''} onChange={(v) => setCampo('turno_trabalho', v)} options={[['', 'Não informado'], ...TURNOS_TRABALHO.map((turno) => [turno, turno])]} />
+          </>
+        )}
         <ProfileField label="Em qual área profissional pretende trabalhar futuramente?" value={perfil.area_profissional_interesse} onChange={(v) => setCampo('area_profissional_interesse', v)} />
         <ProfileSelect label="Estuda?" value={boolSelectValue(perfil.estuda)} onChange={(v) => setCampo('estuda', boolFromSelect(v))} options={[['', 'Não informado'], ['sim', 'Sim'], ['nao', 'Não']]} />
         {perfil.estuda === true && (
