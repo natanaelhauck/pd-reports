@@ -22,6 +22,11 @@ const STATUS_MONITORIA_FILTROS = [
   ['Não agendado', 'Não agendado'],
   ['Finalizou', 'Finalizou'],
 ];
+const TIPO_MATRICULA_FILTROS = [
+  ['todos', 'Todos'],
+  ['pdita', 'Itabira - PDITA'],
+  ['pdbd', 'Bom Despacho - PDBD'],
+];
 
 const PERFIL_INICIAL = (matricula = '') => ({
   matricula,
@@ -1350,6 +1355,7 @@ function MonitoresDashboard({ usuario, authHeaders }) {
   const [statusFiltro, setStatusFiltro] = useState('');
   const [periodoFiltro, setPeriodoFiltro] = useState('mes');
   const [dataPeriodo, setDataPeriodo] = useState(dataInputLocal());
+  const [tipoMatriculaFiltro, setTipoMatriculaFiltro] = useState('todos');
   const [mostrarDetalhes, setMostrarDetalhes] = useState(false);
   const [semanasAbertas, setSemanasAbertas] = useState({});
   const [dados, setDados] = useState(null);
@@ -1375,10 +1381,11 @@ function MonitoresDashboard({ usuario, authHeaders }) {
       monitor: monitorEfetivo || 'Todos',
       status: statusFiltro || 'Todos',
       periodo: periodoFiltroEfetivo,
+      tipo_matricula: tipoMatriculaFiltro,
     };
     if (periodoFiltroEfetivo === 'dia') params.data_periodo = dataPeriodoEfetiva;
     return params;
-  }, [mes, monitorEfetivo, statusFiltro, periodoFiltroEfetivo, dataPeriodoEfetiva]);
+  }, [mes, monitorEfetivo, statusFiltro, periodoFiltroEfetivo, tipoMatriculaFiltro, dataPeriodoEfetiva]);
 
   useEffect(() => {
     let cancelado = false;
@@ -1468,8 +1475,8 @@ function MonitoresDashboard({ usuario, authHeaders }) {
           <ProfileSelect label="Status" value={statusFiltro} onChange={setStatusFiltro} options={STATUS_MONITORIA_FILTROS} />
           <ProfileSelect label="Período" value={periodoFiltroEfetivo} onChange={setPeriodoFiltro} options={periodoOptions} />
           {periodoFiltroEfetivo === 'dia' && <ProfileField label="Data" type="date" value={dataPeriodoEfetiva} onChange={setDataPeriodo} />}
-          <button className="ui-button monitoring-refresh-button" type="button" onClick={atualizarAgora} disabled={carregando}>
-            {carregando && <span className="button-spinner" aria-hidden="true" />}
+          <ProfileSelect label="Cidade - Matrícula" value={tipoMatriculaFiltro} onChange={setTipoMatriculaFiltro} options={TIPO_MATRICULA_FILTROS} />
+          <button className={carregando ? 'ui-button monitoring-refresh-button is-loading' : 'ui-button monitoring-refresh-button'} type="button" onClick={atualizarAgora} disabled={carregando}>
             {carregando ? 'Atualizando...' : 'Atualizar'}
           </button>
         </div>

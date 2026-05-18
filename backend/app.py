@@ -1156,6 +1156,16 @@ def semanas_visiveis_monitoria(semanas_base, periodo_aplicado):
         return [semana for semana in semanas_base if semana['semana'] == semana_numero]
     return semanas_base
 
+def normalizar_tipo_matricula(valor):
+    chave = sem_acentos(valor or '').strip().lower()
+    return chave if chave in {'pdita', 'pdbd'} else 'todos'
+
+def matricula_corresponde_tipo(matricula, tipo_matricula):
+    tipo = normalizar_tipo_matricula(tipo_matricula)
+    if tipo == 'todos':
+        return True
+    return normalizar_matricula(matricula).upper().startswith(tipo.upper())
+
 def parse_mes_monitoria(valor):
     texto = str(valor or '').strip()
     if not re.fullmatch(r'\d{4}-\d{2}', texto):
@@ -1227,6 +1237,7 @@ def consolidado_historico_monitoria(mes_param, monitor_filtro='', status_filtro=
         # Motivos e detalhes só são enviados para históricos quando a aba real confere com o consolidado oficial.
         'resumo_motivos_falta': [],
         'periodo_aplicado': periodo_aplicado,
+        'tipo_matricula': 'todos',
         'historico_oficial': True,
         'aviso_semanas': 'Consolidado mensal histórico. Semanas detalhadas disponíveis para meses a partir de maio/2026.',
         'aviso_detalhes': 'Detalhes individuais disponíveis a partir de maio/2026.',
@@ -1727,7 +1738,7 @@ def sync_refresh():
         'message': 'Cache limpo. Próxima consulta buscará dados atualizados da planilha.',
     })
 
-def montar_resumo_monitoria_monitores(dados, ano, mes, mes_param, monitor_filtro='', status_filtro='', periodo_aplicado=None):
+def montar_resumo_monitoria_monitores(dados, ano, mes, mes_param, monitor_filtro='', status_filtro='', periodo_aplicado=None, tipo_matricula='todos'):
     resumo_geral = resumo_monitoria_vazio()
     monitores_mes = set()
     resumo_por_monitor = {}
@@ -1735,6 +1746,7 @@ def montar_resumo_monitoria_monitores(dados, ano, mes, mes_param, monitor_filtro
     registros_contados = set()
     relatorios_detalhados = []
     periodo_aplicado = periodo_aplicado or parse_periodo_monitoria(ano, mes)
+    tipo_matricula = normalizar_tipo_matricula(tipo_matricula)
     semanas_base = semanas_uteis_monitoria_mes(ano, mes)
     semanas_base_visiveis = semanas_visiveis_monitoria(semanas_base, periodo_aplicado)
     semanas = []
@@ -1758,6 +1770,8 @@ def montar_resumo_monitoria_monitores(dados, ano, mes, mes_param, monitor_filtro
             continue
         matricula = relatorio.get('matricula')
         if not matricula:
+            continue
+        if not matricula_corresponde_tipo(matricula, tipo_matricula):
             continue
         status = normalizar_status_monitoria(relatorio.get('status'))
         if not chave_status_resumo(status):
@@ -1818,6 +1832,7 @@ def montar_resumo_monitoria_monitores(dados, ano, mes, mes_param, monitor_filtro
         'resumo_motivos_falta': resumo_motivos_falta(motivos_falta),
         'relatorios_detalhados': sorted(relatorios_detalhados, key=lambda item: item['data'], reverse=True),
         'periodo_aplicado': periodo_aplicado,
+        'tipo_matricula': tipo_matricula,
         'total_lidos': dados['total_lidos'],
         'atualizado_em': dados['atualizado_em'],
         'cabecalhos_reconhecidos': dados.get('cabecalhos_reconhecidos', {}),
@@ -1848,6 +1863,7 @@ def get_resumo_monitoria_monitores():
     try:
         ano, mes, mes_param = parse_mes_monitoria(request.args.get('mes'))
         monitor_filtro, status_filtro = filtros_monitoria_request(usuario)
+        tipo_matricula = normalizar_tipo_matricula(request.args.get('tipo_matricula'))
         periodo_aplicado = parse_periodo_monitoria(
             ano,
             mes,
@@ -1867,10 +1883,22 @@ def get_resumo_monitoria_monitores():
                     monitor_filtro,
                     status_filtro,
                     periodo_mes,
+                    'todos',
                 )
                 if resumos_monitoria_equivalentes(historico, detalhado_mes):
                     if periodo_aplicado.get('tipo') == 'mes':
-                        return jsonify(detalhado_mes)
+                        if tipo_matricula == 'todos':
+                            return jsonify(detalhado_mes)
+                        return jsonify(montar_resumo_monitoria_monitores(
+                            dados,
+                            ano,
+                            mes,
+                            mes_param,
+                            monitor_filtro,
+                            status_filtro,
+                            periodo_mes,
+                            tipo_matricula,
+                        ))
                     return jsonify(montar_resumo_monitoria_monitores(
                         dados,
                         ano,
@@ -1879,6 +1907,7 @@ def get_resumo_monitoria_monitores():
                         monitor_filtro,
                         status_filtro,
                         periodo_aplicado,
+                        tipo_matricula,
                     ))
             except Exception as exc:
                 print(f'Não foi possível validar detalhes históricos de monitoria: {exc.__class__.__name__}')
@@ -1893,6 +1922,7 @@ def get_resumo_monitoria_monitores():
             monitor_filtro,
             status_filtro,
             periodo_aplicado,
+            tipo_matricula,
         ))
     except Exception as exc:
         print(f'Erro ao buscar resumo de monitoria por monitor: {exc}')
