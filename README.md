@@ -60,6 +60,10 @@ sistema_alunos/
 └── README.md
 ```
 
+## Aviso sobre dados
+
+Arquivos em `dados/` podem conter dados operacionais e não devem ser compartilhados fora do repositório privado. Futuramente, prefira manter um arquivo fictício como `dados/exemplo_alunos.xlsx` para demonstrações e testes sem dados reais.
+
 ## Variáveis de ambiente
 
 Nunca commite arquivos `.env`, credenciais, URLs privadas de banco, senhas ou o JSON da conta de serviço do Google. Use variáveis de ambiente locais e configure os valores diretamente nos provedores de deploy.
@@ -170,6 +174,7 @@ python scripts/corrigir_nomes.py
 - Sempre testar localmente antes de commitar.
 - Rodar build e lint antes do deploy.
 - Não expor credenciais em código, logs, commits ou documentação.
+- Futuramente, congelar versões Python com `pip freeze > requirements.lock.txt` para auditoria de dependências.
 - Acompanhar logs do Render e Netlify após deploys.
 - Validar mudanças sensíveis em autenticação, permissões e integrações antes de publicar.
 

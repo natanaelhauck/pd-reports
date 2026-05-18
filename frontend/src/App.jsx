@@ -457,7 +457,7 @@ export default function App() {
     : { background: '#fef2f2', color: '#991b1b', border: '1px solid #fecaca' };
 
   const buscarPerfilAluno = async (matricula) => {
-    const res = await axios.get(`${API_BASE_URL}/api/alunos/perfil/${encodeURIComponent(matricula)}`, { timeout: 12000 });
+    const res = await axios.get(`${API_BASE_URL}/api/alunos/perfil/${encodeURIComponent(matricula)}`, authConfig({ timeout: 12000 }));
     const dados = normalizarPerfil(res.data);
     setPerfil(dados);
     setPerfilTemp(dados);
@@ -517,7 +517,7 @@ export default function App() {
     setCarregandoHistorico(true);
     setMensagem(null);
     try {
-      const res = await axios.get(`${API_BASE_URL}/api/alunos/historico/${encodeURIComponent(matricula)}`, { timeout: 12000 });
+      const res = await axios.get(`${API_BASE_URL}/api/alunos/historico/${encodeURIComponent(matricula)}`, authConfig({ timeout: 12000 }));
       setHistorico(res.data);
     } catch (err) {
       setMensagem({ tipo: 'erro', texto: mensagemErroApi(err, 'Não foi possível carregar o histórico.') });
@@ -547,7 +547,7 @@ export default function App() {
     setBuscando(true);
     setMensagem(null);
     try {
-      const res = await axios.get(`${API_BASE_URL}/api/alunos`, { params: { q: termo }, timeout: 12000 });
+      const res = await axios.get(`${API_BASE_URL}/api/alunos`, authConfig({ params: { q: termo }, timeout: 12000 }));
       setAlunos(res.data);
       if (res.data.length === 0) {
         setAluno(null);
@@ -1853,7 +1853,7 @@ function RelatoriosMonitoria({ aluno, authHeaders }) {
       setErro('');
       setMensagemAtualizacao('');
       try {
-        const res = await axios.get(`${API_BASE_URL}/api/alunos/${encodeURIComponent(aluno.matricula)}/relatorios-monitoria`, { timeout: 20000 });
+        const res = await axios.get(`${API_BASE_URL}/api/alunos/${encodeURIComponent(aluno.matricula)}/relatorios-monitoria`, { headers: authHeaders, timeout: 20000 });
         if (!cancelado) setDados(res.data);
       } catch (err) {
         if (!cancelado) setErro(mensagemErroApi(err, 'Nao foi possivel carregar os relatorios de monitoria.'));
@@ -1866,7 +1866,7 @@ function RelatoriosMonitoria({ aluno, authHeaders }) {
       cancelado = true;
       clearTimeout(timer);
     };
-  }, [aluno?.matricula]);
+  }, [aluno?.matricula, authHeaders]);
 
   const atualizarAgora = async () => {
     if (!aluno?.matricula || carregando || atualizando) return;
@@ -1876,7 +1876,7 @@ function RelatoriosMonitoria({ aluno, authHeaders }) {
     setMensagemAtualizacao('');
     try {
       await axios.post(`${API_BASE_URL}/api/relatorios-monitoria/refresh`, {}, { headers: authHeaders, timeout: 12000 });
-      const res = await axios.get(`${API_BASE_URL}/api/alunos/${encodeURIComponent(aluno.matricula)}/relatorios-monitoria`, { timeout: 20000 });
+      const res = await axios.get(`${API_BASE_URL}/api/alunos/${encodeURIComponent(aluno.matricula)}/relatorios-monitoria`, { headers: authHeaders, timeout: 20000 });
       setDados(res.data);
       setMensagemAtualizacao('Relatórios atualizados com sucesso.');
     } catch (err) {

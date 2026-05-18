@@ -1601,6 +1601,9 @@ def login():
 
 @app.route('/api/alunos', methods=['GET'])
 def get_alunos():
+    _, erro = require_auth()
+    if erro:
+        return erro
     conn = None
     try:
         termo = (request.args.get('q') or request.args.get('busca') or '').strip()
@@ -1674,6 +1677,9 @@ def get_alunos():
 
 @app.route('/api/alunos/historico/<matricula>', methods=['GET'])
 def get_historico_aluno(matricula):
+    _, erro = require_auth()
+    if erro:
+        return erro
     conn = None
     try:
         conn = conectar_db()
@@ -1696,6 +1702,9 @@ def get_historico_aluno(matricula):
 
 @app.route('/api/alunos/<matricula>/relatorios-monitoria', methods=['GET'])
 def get_relatorios_monitoria_aluno(matricula):
+    _, erro = require_auth()
+    if erro:
+        return erro
     try:
         dados = buscar_relatorios_monitoria()
         matricula_normalizada = normalizar_matricula(matricula)
@@ -1930,6 +1939,9 @@ def get_resumo_monitoria_monitores():
 
 @app.route('/api/alunos/perfil/<matricula>', methods=['GET'])
 def get_perfil_aluno(matricula):
+    _, erro = require_auth()
+    if erro:
+        return erro
     conn = None
     try:
         conn = conectar_db()
@@ -2328,4 +2340,4 @@ def update_usuario_password():
 if __name__ == "__main__":
     criar_tabelas()
     port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=True)
+    app.run(host="0.0.0.0", port=port, debug=not IS_PRODUCTION)
