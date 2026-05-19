@@ -454,7 +454,9 @@ export default function App() {
 
   const estiloMensagem = mensagem?.tipo === 'sucesso'
     ? { background: '#ecfdf5', color: '#166534', border: '1px solid #bbf7d0' }
-    : { background: '#fef2f2', color: '#991b1b', border: '1px solid #fecaca' };
+    : mensagem?.tipo === 'aviso'
+      ? { background: '#fffbeb', color: '#92400e', border: '1px solid #fde68a' }
+      : { background: '#fef2f2', color: '#991b1b', border: '1px solid #fecaca' };
 
   const buscarPerfilAluno = async (matricula) => {
     const res = await axios.get(`${API_BASE_URL}/api/alunos/perfil/${encodeURIComponent(matricula)}`, authConfig({ timeout: 12000 }));
@@ -793,7 +795,9 @@ export default function App() {
       const res = await axios.post(`${API_BASE_URL}/api/alunos/update`, payload, authConfig({ timeout: 12000 }));
       atualizarAlunoLocal(res.data.aluno || payload);
       setEditMode(false);
-      setMensagem({ tipo: 'sucesso', texto: res.data.mensagem || 'Aluno atualizado com sucesso.' });
+      setMensagem(res.data.sync_warning
+        ? { tipo: 'aviso', texto: 'Salvo no sistema, mas a planilha não foi atualizada.' }
+        : { tipo: 'sucesso', texto: res.data.mensagem || 'Aluno atualizado com sucesso.' });
     } catch (err) {
       setMensagem({ tipo: 'erro', texto: mensagemErroApi(err, 'Erro ao salvar o aluno.') });
     } finally {

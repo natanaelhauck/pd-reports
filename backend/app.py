@@ -40,7 +40,7 @@ ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD')
 GOOGLE_SHEETS_ID = os.getenv('GOOGLE_SHEETS_ID')
 GOOGLE_SERVICE_ACCOUNT_JSON = os.getenv('GOOGLE_SERVICE_ACCOUNT_JSON')
 GOOGLE_SERVICE_ACCOUNT_FILE = os.getenv('GOOGLE_SERVICE_ACCOUNT_FILE', str(BASE_DIR / 'google-service-account.json'))
-GOOGLE_STUDENTS_SHEET_NAME = os.getenv('GOOGLE_STUDENTS_SHEET_NAME', 'Alunos')
+GOOGLE_STUDENTS_SHEET_NAME = os.getenv('GOOGLE_STUDENTS_SHEET_NAME') or 'Alunos'
 GOOGLE_STUDENTS_SHEET_SYNC = os.getenv('GOOGLE_STUDENTS_SHEET_SYNC', 'true').strip().lower() in {'true', '1', 'sim', 'yes'}
 FRONTEND_URL = os.getenv('FRONTEND_URL')
 allowed_origins = ['http://localhost:5173']
@@ -220,7 +220,12 @@ CAMPOS_BOOLEANOS_PERFIL = {
 }
 CAMPOS_INTEIROS_PERFIL = {'previsao_formacao_ano'}
 CAMPOS_PERFIL_ADMIN_ONLY = {'acompanhamento_psicologico', 'psicologo'}
+SHEETS_STUDENT_SYNC_WARNING = 'Dados salvos no sistema, mas não foi possível sincronizar com a planilha.'
+SHEETS_STUDENT_NOT_FOUND_WARNING = 'Dados salvos no sistema, mas o aluno não foi encontrado na planilha.'
+SHEETS_STUDENT_MISSING_COLUMNS_WARNING = 'Dados salvos no sistema, mas alguns campos não foram sincronizados porque as colunas não existem na planilha.'
+
 SHEETS_STUDENT_FIELD_HEADERS = {
+    'matricula': ['Matrícula', 'Matricula', 'PDITA', 'PDBD', 'PDID', 'RA'],
     'nome': ['Nome', 'Nome do aluno', 'Aluno'],
     'telefone': ['Telefone', 'Celular'],
     'email': ['Email', 'E-mail'],
@@ -752,13 +757,32 @@ def coluna_a1(indice_zero_based):
         letras = chr(65 + resto) + letras
     return letras
 
+def intervalo_a1(nome_aba, referencia=''):
+    aba = str(nome_aba or 'Alunos').replace("'", "''")
+    if referencia:
+        return f"'{aba}'!{referencia}"
+    return f"'{aba}'"
+
 def ler_aba_planilha(nome_aba):
     service = get_google_sheets_service()
     resultado = service.spreadsheets().values().get(
         spreadsheetId=GOOGLE_SHEETS_ID,
-        range=f"'{nome_aba}'",
+        range=intervalo_a1(nome_aba),
     ).execute()
     return resultado.get('values', [])
+
+def buscar_sheet_alunos():
+    service = get_google_sheets_service()
+    nome_aba = GOOGLE_STUDENTS_SHEET_NAME or 'Alunos'
+    resultado = service.spreadsheets().values().get(
+        spreadsheetId=GOOGLE_SHEETS_ID,
+        range=intervalo_a1(nome_aba),
+    ).execute()
+    return {
+        'service': service,
+        'nome_aba': nome_aba,
+        'valores': resultado.get('values', []),
+    }
 
 def mapa_cabecalhos(cabecalhos):
     mapa = {}
@@ -768,79 +792,202 @@ def mapa_cabecalhos(cabecalhos):
             mapa[chave] = indice
     return mapa
 
-def localizar_linha_por_matricula(valores, matricula):
+def localizar_colunas_campo(indices, campo):
+    colunas = []
+    for cabecalho in SHEETS_STUDENT_FIELD_HEADERS.get(campo, []):
+        indice = indices.get(chave_flexivel(cabecalho))
+        if indice is not None and indice not in colunas:
+            colunas.append(indice)
+    return colunas
+
+def localizar_coluna_campo(indices, campo):
+    colunas = localizar_colunas_campo(indices, campo)
+    return colunas[0] if colunas else None
+
+def mapear_colunas_alunos(cabecalhos):
+    indices = mapa_cabecalhos(cabecalhos)
+    mapeadas = {}
+    for campo in SHEETS_STUDENT_FIELD_HEADERS:
+        coluna = localizar_coluna_campo(indices, campo)
+        if coluna is not None:
+            mapeadas[campo] = coluna
+    return mapeadas
+
+def localizar_linha_aluno_por_matricula(matricula, valores=None):
+    if valores is None:
+        valores = buscar_sheet_alunos()['valores']
     if not valores:
-        return None, None, None
+        return {'linha': None, 'cabecalhos': [], 'colunas': {}, 'row': []}
+
     cabecalhos = [str(celula).strip() for celula in valores[0]]
     indices = mapa_cabecalhos(cabecalhos)
-    indice_matricula = None
-    for candidato in ['Matrícula', 'Matricula', 'PDITA', 'PDID', 'RA']:
-        indice_matricula = indices.get(chave_flexivel(candidato))
-        if indice_matricula is not None:
-            break
-    if indice_matricula is None:
-        return None, cabecalhos, indices
+    colunas = mapear_colunas_alunos(cabecalhos)
+    colunas_matricula = localizar_colunas_campo(indices, 'matricula')
+    if not colunas_matricula:
+        return {'linha': None, 'cabecalhos': cabecalhos, 'colunas': colunas, 'row': []}
 
     matricula_normalizada = normalizar_matricula(matricula)
     for row_index, row in enumerate(valores[1:], start=2):
-        valor = row[indice_matricula] if indice_matricula < len(row) else ''
-        if normalizar_matricula(valor) == matricula_normalizada:
-            return row_index, cabecalhos, indices
-    return None, cabecalhos, indices
+        for indice_matricula in colunas_matricula:
+            valor = row[indice_matricula] if indice_matricula < len(row) else ''
+            if normalizar_matricula(valor) == matricula_normalizada:
+                return {'linha': row_index, 'cabecalhos': cabecalhos, 'colunas': colunas, 'row': row}
+    return {'linha': None, 'cabecalhos': cabecalhos, 'colunas': colunas, 'row': []}
 
-def localizar_coluna_campo(indices, campo):
-    for cabecalho in SHEETS_STUDENT_FIELD_HEADERS.get(campo, []):
-        indice = indices.get(chave_flexivel(cabecalho))
-        if indice is not None:
-            return indice
-    return None
+def localizar_linha_por_matricula(valores, matricula):
+    localizacao = localizar_linha_aluno_por_matricula(matricula, valores)
+    return (
+        localizacao['linha'],
+        localizacao['cabecalhos'],
+        mapa_cabecalhos(localizacao['cabecalhos']),
+    )
+
+def valor_novo_alteracao_planilha(valores):
+    if isinstance(valores, (tuple, list)) and len(valores) >= 2:
+        return valores[1]
+    return valores
+
+def atualizar_campos_aluno_na_planilha(matricula, campos_alterados):
+    if not campos_alterados:
+        return {'ok': True, 'avisos': []}
+
+    if not GOOGLE_SHEETS_ID:
+        app.logger.warning('Google Sheets alunos sync ignorado: GOOGLE_SHEETS_ID ausente.')
+        return {
+            'ok': False,
+            'avisos': ['GOOGLE_SHEETS_ID não configurado.'],
+            'sync_warning': SHEETS_STUDENT_SYNC_WARNING,
+        }
+
+    nome_aba = GOOGLE_STUDENTS_SHEET_NAME or 'Alunos'
+    if chave_flexivel(nome_aba) == chave_flexivel(RELATORIOS_MONITORIA_ABA):
+        app.logger.warning('Google Sheets alunos sync bloqueado: aba configurada e a aba de monitoria.')
+        return {
+            'ok': False,
+            'avisos': ['Aba de alunos configurada como aba de monitoria.'],
+            'sync_warning': SHEETS_STUDENT_SYNC_WARNING,
+        }
+
+    try:
+        sheet = buscar_sheet_alunos()
+    except Exception as exc:
+        app.logger.warning('Google Sheets alunos sync falhou ao ler a aba geral: %s', exc.__class__.__name__)
+        return {
+            'ok': False,
+            'avisos': ['Falha ao acessar a aba geral de alunos.'],
+            'sync_warning': SHEETS_STUDENT_SYNC_WARNING,
+        }
+
+    valores = sheet['valores']
+    if not valores:
+        app.logger.warning('Google Sheets alunos sync ignorado: aba geral sem cabecalho.')
+        return {
+            'ok': False,
+            'avisos': ['Aba geral de alunos sem cabeçalho.'],
+            'sync_warning': SHEETS_STUDENT_SYNC_WARNING,
+        }
+
+    localizacao = localizar_linha_aluno_por_matricula(matricula, valores)
+    colunas = localizacao['colunas']
+    if 'matricula' not in colunas:
+        app.logger.warning('Google Sheets alunos sync ignorado: coluna de matricula ausente na aba geral.')
+        return {
+            'ok': False,
+            'avisos': ['Coluna de matrícula ausente na planilha.'],
+            'sync_warning': SHEETS_STUDENT_MISSING_COLUMNS_WARNING,
+        }
+
+    linha = localizacao['linha']
+    if not linha:
+        app.logger.warning('Google Sheets alunos sync ignorado: aluno nao encontrado na aba geral.')
+        return {
+            'ok': False,
+            'avisos': ['Aluno não encontrado na planilha.'],
+            'sync_warning': SHEETS_STUDENT_NOT_FOUND_WARNING,
+        }
+
+    avisos = []
+    atualizacoes = []
+    for campo, valores_alteracao in campos_alterados.items():
+        if campo not in SHEETS_STUDENT_FIELD_HEADERS or campo == 'matricula':
+            app.logger.warning('Google Sheets alunos sync ignorou campo sem mapeamento: %s', campo)
+            avisos.append(f'Campo {campo} sem mapeamento na planilha.')
+            continue
+
+        coluna = colunas.get(campo)
+        if coluna is None:
+            app.logger.warning('Google Sheets alunos sync ignorou campo sem coluna na aba geral: %s', campo)
+            avisos.append(f'Campo {campo} sem coluna na planilha.')
+            continue
+
+        valor_novo = valor_novo_alteracao_planilha(valores_alteracao)
+        atualizacoes.append({
+            'range': intervalo_a1(sheet['nome_aba'], f'{coluna_a1(coluna)}{linha}'),
+            'values': [[valor_novo or '']],
+        })
+
+    if atualizacoes:
+        try:
+            sheet['service'].spreadsheets().values().batchUpdate(
+                spreadsheetId=GOOGLE_SHEETS_ID,
+                body={
+                    'valueInputOption': 'USER_ENTERED',
+                    'data': atualizacoes,
+                },
+            ).execute()
+            limpar_cache_relatorios()
+        except Exception as exc:
+            app.logger.warning('Google Sheets alunos sync falhou ao atualizar celulas: %s', exc.__class__.__name__)
+            return {
+                'ok': False,
+                'avisos': ['Falha ao atualizar a planilha.'],
+                'sync_warning': SHEETS_STUDENT_SYNC_WARNING,
+            }
+
+    if avisos:
+        return {
+            'ok': False,
+            'avisos': avisos,
+            'sync_warning': SHEETS_STUDENT_MISSING_COLUMNS_WARNING,
+        }
+
+    return {'ok': True, 'avisos': []}
 
 def atualizar_campo_planilha_por_matricula(matricula, campo, valor, valor_esperado=None):
-    if not GOOGLE_SHEETS_ID or not GOOGLE_STUDENTS_SHEET_NAME:
-        return {'ok': False, 'aviso': 'Espelhamento Google Sheets não configurado.'}
+    resultado = atualizar_campos_aluno_na_planilha(matricula, {campo: (valor_esperado, valor)})
+    if resultado.get('ok'):
+        return {'ok': True}
+    avisos = resultado.get('avisos') or [resultado.get('sync_warning') or SHEETS_STUDENT_SYNC_WARNING]
+    return {'ok': False, 'aviso': avisos[0]}
 
-    valores = ler_aba_planilha(GOOGLE_STUDENTS_SHEET_NAME)
-    linha, _, indices = localizar_linha_por_matricula(valores, matricula)
-    if not linha:
-        return {'ok': False, 'aviso': 'Matrícula não localizada na aba de alunos da planilha.'}
+def sincronizar_aluno_planilha(matricula, alteracoes):
+    if not alteracoes or not GOOGLE_STUDENTS_SHEET_SYNC:
+        return {'sync_ok': True, 'avisos': []}
 
-    coluna = localizar_coluna_campo(indices, campo)
-    if coluna is None:
-        return {'ok': False, 'aviso': f'Campo {campo} sem coluna mapeada na planilha.'}
-
-    row = valores[linha - 1] if linha - 1 < len(valores) else []
-    valor_atual_sheet = row[coluna] if coluna < len(row) else ''
-    if (
-        valor_esperado is not None
-        and str(valor_atual_sheet or '') != str(valor_esperado or '')
-        and str(valor_atual_sheet or '') != str(valor or '')
-    ):
-        print(f'Divergência Google Sheets em {campo} para matrícula {matricula}; escrita ignorada.')
-        return {'ok': False, 'aviso': f'Divergência detectada na planilha para {campo}; valor não foi sobrescrito.'}
-
-    service = get_google_sheets_service()
-    intervalo = f"'{GOOGLE_STUDENTS_SHEET_NAME}'!{coluna_a1(coluna)}{linha}"
-    service.spreadsheets().values().update(
-        spreadsheetId=GOOGLE_SHEETS_ID,
-        range=intervalo,
-        valueInputOption='USER_ENTERED',
-        body={'values': [[valor or '']]},
-    ).execute()
-    limpar_cache_relatorios()
-    return {'ok': True}
+    try:
+        resultado = atualizar_campos_aluno_na_planilha(matricula, alteracoes)
+    except Exception as exc:
+        app.logger.warning('Google Sheets alunos sync falhou de forma inesperada: %s', exc.__class__.__name__)
+        resultado = {
+            'ok': False,
+            'avisos': ['Falha inesperada ao sincronizar a planilha.'],
+            'sync_warning': SHEETS_STUDENT_SYNC_WARNING,
+        }
+    resposta = {
+        'sync_ok': bool(resultado.get('ok')),
+        'avisos': resultado.get('avisos', []),
+    }
+    if not resultado.get('ok'):
+        resposta['sync_warning'] = resultado.get('sync_warning') or SHEETS_STUDENT_SYNC_WARNING
+    return resposta
 
 def espelhar_aluno_planilha(matricula, alteracoes):
-    avisos = []
-    for campo, valores in alteracoes.items():
-        valor_antigo, valor_novo = valores
-        try:
-            resultado = atualizar_campo_planilha_por_matricula(matricula, campo, valor_novo, valor_antigo)
-            if not resultado.get('ok') and resultado.get('aviso'):
-                avisos.append(resultado['aviso'])
-        except Exception as exc:
-            print(f'Erro ao espelhar aluno no Google Sheets: {exc.__class__.__name__}')
-            avisos.append('Não foi possível espelhar a alteração na planilha agora.')
-    return avisos
+    resultado = sincronizar_aluno_planilha(matricula, alteracoes)
+    if resultado.get('avisos'):
+        return resultado['avisos']
+    if resultado.get('sync_warning'):
+        return [resultado['sync_warning']]
+    return []
 
 def limpar_cache_relatorios():
     _relatorios_monitoria_cache.update({'expires_at': 0, 'data': None})
@@ -2072,14 +2219,18 @@ def update_aluno():
         ))
         aluno_atualizado = formatar_aluno(row_to_dict(cursor.fetchone()))
         conn.commit()
-        avisos = espelhar_aluno_planilha(matricula, alteracoes_sheets) if GOOGLE_STUDENTS_SHEET_SYNC and alteracoes_sheets else []
+        resultado_sync = sincronizar_aluno_planilha(matricula, alteracoes_sheets)
 
-        return jsonify({
+        resposta = {
             "status": "sucesso",
             "mensagem": "Aluno atualizado com sucesso.",
             "aluno": aluno_atualizado,
-            "avisos": avisos,
-        })
+            "sync_ok": resultado_sync.get('sync_ok', True),
+            "avisos": resultado_sync.get('avisos', []),
+        }
+        if resultado_sync.get('sync_warning'):
+            resposta["sync_warning"] = resultado_sync["sync_warning"]
+        return jsonify(resposta)
     except psycopg2.Error as exc:
         if conn:
             conn.rollback()
