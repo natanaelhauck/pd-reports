@@ -20,3 +20,8 @@ build/
 *.json
 !frontend/package.json
 !frontend/package-lock.json
+# Dados locais
+dados/alunos.xlsx
+dados/perfil_alunos.xlsx
+dados/*.xlsx
+!dados/exemplo_*.xlsx
