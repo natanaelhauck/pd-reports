@@ -796,7 +796,7 @@ export default function App() {
       atualizarAlunoLocal(res.data.aluno || payload);
       setEditMode(false);
       setMensagem(res.data.sync_warning
-        ? { tipo: 'aviso', texto: 'Salvo no sistema, mas a planilha não foi atualizada.' }
+        ? { tipo: 'aviso', texto: res.data.sync_warning }
         : { tipo: 'sucesso', texto: res.data.mensagem || 'Aluno atualizado com sucesso.' });
     } catch (err) {
       setMensagem({ tipo: 'erro', texto: mensagemErroApi(err, 'Erro ao salvar o aluno.') });

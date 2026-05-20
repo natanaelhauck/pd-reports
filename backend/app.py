@@ -15,6 +15,7 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from psycopg2.extras import RealDictCursor
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -92,7 +93,17 @@ MONITOR_POR_EMAIL = {
     'douglas.freitas@projetodesenvolve.com.br': 'Douglas',
     'gabriel.lopes@projetodesenvolve.com.br': 'Gabriel',
     'kellen.cruz@projetodesenvolve.com.br': 'Kellen',
+    'natanael.hauck@projetodesenvolve.com.br': 'Natanael',
     'natanaelhauck@projetodesenvolve.com.br': 'Natanael',
+}
+
+MONITOR_EMAIL_POR_NOME = {
+    'Alex': 'alex.fonseca@projetodesenvolve.com.br',
+    'André': 'andre.costa@projetodesenvolve.com.br',
+    'Douglas': 'douglas.freitas@projetodesenvolve.com.br',
+    'Gabriel': 'gabriel.lopes@projetodesenvolve.com.br',
+    'Kellen': 'kellen.cruz@projetodesenvolve.com.br',
+    'Natanael': 'natanael.hauck@projetodesenvolve.com.br',
 }
 
 MOTIVOS_FALTA_OFICIAIS = (
@@ -222,15 +233,18 @@ CAMPOS_INTEIROS_PERFIL = {'previsao_formacao_ano'}
 CAMPOS_PERFIL_ADMIN_ONLY = {'acompanhamento_psicologico', 'psicologo'}
 SHEETS_STUDENT_SYNC_WARNING = 'Dados salvos no sistema, mas não foi possível sincronizar com a planilha.'
 SHEETS_STUDENT_NOT_FOUND_WARNING = 'Dados salvos no sistema, mas o aluno não foi encontrado na planilha.'
-SHEETS_STUDENT_MISSING_COLUMNS_WARNING = 'Dados salvos no sistema, mas alguns campos não foram sincronizados porque as colunas não existem na planilha.'
+SHEETS_STUDENT_MISSING_MATRICULA_COLUMN_WARNING = 'Dados salvos no sistema, mas a coluna de matrícula não foi encontrada na planilha.'
+SHEETS_STUDENT_MISSING_FIELD_COLUMN_WARNING = 'Dados salvos no sistema, mas uma coluna do campo alterado não foi encontrada na planilha.'
+SHEETS_STUDENT_PERMISSION_WARNING = 'Dados salvos no sistema, mas não há permissão para atualizar a planilha.'
+SHEETS_STUDENT_GOOGLE_WARNING = 'Dados salvos no sistema, mas o Google Sheets não aceitou a atualização agora.'
 
 SHEETS_STUDENT_FIELD_HEADERS = {
-    'matricula': ['Matrícula', 'Matricula', 'PDITA', 'PDBD', 'PDID', 'RA'],
+    'matricula': ['PDITA', 'Matrícula', 'Matricula', 'PDID', 'RA'],
     'nome': ['Nome', 'Nome do aluno', 'Aluno'],
     'telefone': ['Telefone', 'Celular'],
     'email': ['Email', 'E-mail'],
     'nascimento': ['Nascimento', 'Data de nascimento'],
-    'monitor': ['Monitor', 'Agente', 'Agente de Sucesso'],
+    'monitor': ['Nome do Agente', 'Monitor', 'Agente', 'Agente de Sucesso'],
     'status': ['Status', 'Situação', 'Situacao'],
     'patrimonio': ['Patrimônio', 'Patrimonio'],
     'analise_perfil': ['analise_perfil', 'Análise de perfil', 'Analise de perfil'],
@@ -847,6 +861,26 @@ def valor_novo_alteracao_planilha(valores):
         return valores[1]
     return valores
 
+def valor_planilha_aluno(campo, valor):
+    if campo != 'monitor':
+        return valor
+
+    monitor_normalizado = normalizar_monitor(valor)
+    email = MONITOR_EMAIL_POR_NOME.get(monitor_normalizado)
+    if email:
+        return email
+
+    app.logger.warning('Google Sheets alunos sync: monitor sem mapeamento de email; valor original mantido.')
+    return valor
+
+def sync_warning_google_sheets(exc):
+    if isinstance(exc, HttpError):
+        status = getattr(getattr(exc, 'resp', None), 'status', None)
+        if status in {401, 403}:
+            return SHEETS_STUDENT_PERMISSION_WARNING
+        return SHEETS_STUDENT_GOOGLE_WARNING
+    return SHEETS_STUDENT_SYNC_WARNING
+
 def atualizar_campos_aluno_na_planilha(matricula, campos_alterados):
     if not campos_alterados:
         return {'ok': True, 'avisos': []}
@@ -875,7 +909,7 @@ def atualizar_campos_aluno_na_planilha(matricula, campos_alterados):
         return {
             'ok': False,
             'avisos': ['Falha ao acessar a aba geral de alunos.'],
-            'sync_warning': SHEETS_STUDENT_SYNC_WARNING,
+            'sync_warning': sync_warning_google_sheets(exc),
         }
 
     valores = sheet['valores']
@@ -894,7 +928,7 @@ def atualizar_campos_aluno_na_planilha(matricula, campos_alterados):
         return {
             'ok': False,
             'avisos': ['Coluna de matrícula ausente na planilha.'],
-            'sync_warning': SHEETS_STUDENT_MISSING_COLUMNS_WARNING,
+            'sync_warning': SHEETS_STUDENT_MISSING_MATRICULA_COLUMN_WARNING,
         }
 
     linha = localizacao['linha']
@@ -920,7 +954,7 @@ def atualizar_campos_aluno_na_planilha(matricula, campos_alterados):
             avisos.append(f'Campo {campo} sem coluna na planilha.')
             continue
 
-        valor_novo = valor_novo_alteracao_planilha(valores_alteracao)
+        valor_novo = valor_planilha_aluno(campo, valor_novo_alteracao_planilha(valores_alteracao))
         atualizacoes.append({
             'range': intervalo_a1(sheet['nome_aba'], f'{coluna_a1(coluna)}{linha}'),
             'values': [[valor_novo or '']],
@@ -941,14 +975,14 @@ def atualizar_campos_aluno_na_planilha(matricula, campos_alterados):
             return {
                 'ok': False,
                 'avisos': ['Falha ao atualizar a planilha.'],
-                'sync_warning': SHEETS_STUDENT_SYNC_WARNING,
+                'sync_warning': sync_warning_google_sheets(exc),
             }
 
     if avisos:
         return {
             'ok': False,
             'avisos': avisos,
-            'sync_warning': SHEETS_STUDENT_MISSING_COLUMNS_WARNING,
+            'sync_warning': SHEETS_STUDENT_MISSING_FIELD_COLUMN_WARNING,
         }
 
     return {'ok': True, 'avisos': []}
