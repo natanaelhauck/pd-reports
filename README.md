@@ -4,7 +4,7 @@ Sistema interno para gestão e acompanhamento de alunos, monitores, perfis, rela
 
 ## Links de produção
 
-- Frontend: https://pdreports.netlify.app
+- Frontend: https://pdreports.vercel.app
 - Backend: https://sistema-alunos-mwkw.onrender.com
 - Healthcheck: https://sistema-alunos-mwkw.onrender.com/api/health
 
@@ -16,7 +16,7 @@ Sistema interno para gestão e acompanhamento de alunos, monitores, perfis, rela
 - Vite
 - CSS
 - Lucide React
-- Netlify
+- Vercel
 
 ### Backend
 
@@ -31,6 +31,10 @@ Sistema interno para gestão e acompanhamento de alunos, monitores, perfis, rela
 ### Banco de dados
 
 - Neon PostgreSQL
+
+### Planilhas
+
+- Google Sheets
 
 ## Funcionalidades principais
 
@@ -48,6 +52,13 @@ Sistema interno para gestão e acompanhamento de alunos, monitores, perfis, rela
 - Modo claro/escuro
 
 ## Arquitetura
+
+O PD Reports usa a seguinte arquitetura em produção:
+
+```text
+Frontend (Vercel) -> Backend (Render) -> PostgreSQL
+                                      -> Google Sheets
+```
 
 O projeto está organizado em módulos separados:
 
@@ -75,13 +86,13 @@ DATABASE_URL=
 ADMIN_PASSWORD=
 GOOGLE_SHEETS_ID=
 GOOGLE_SERVICE_ACCOUNT_JSON=
-FRONTEND_URL=
+FRONTEND_URL=https://pdreports.vercel.app
 ```
 
 ### Frontend
 
 ```env
-VITE_API_URL=
+VITE_API_URL=https://sistema-alunos-mwkw.onrender.com
 ```
 
 ## Como rodar localmente
@@ -123,16 +134,17 @@ DATABASE_URL=
 ADMIN_PASSWORD=
 GOOGLE_SHEETS_ID=
 GOOGLE_SERVICE_ACCOUNT_JSON=
-FRONTEND_URL=https://pdreports.netlify.app
+FRONTEND_URL=https://pdreports.vercel.app
 ```
 
-### Netlify
+### Vercel
 
 Configuração do frontend:
 
-- Base directory: `frontend`
+- Framework Preset: Vite
+- Root Directory: `frontend`
 - Build command: `npm run build`
-- Publish directory: `frontend/dist`
+- Output Directory: `dist`
 
 Variável de ambiente:
 
@@ -151,6 +163,7 @@ Scripts existentes:
 - `criar_usuarios_monitores.py`
 - `importar_perfil_alunos.py`
 - `testar_permissoes.py`
+- `testar_sync_sheets.py`
 
 Exemplo de execução:
 
@@ -175,7 +188,7 @@ python scripts/corrigir_nomes.py
 - Rodar build e lint antes do deploy.
 - Não expor credenciais em código, logs, commits ou documentação.
 - Futuramente, congelar versões Python com `pip freeze > requirements.lock.txt` para auditoria de dependências.
-- Acompanhar logs do Render e Netlify após deploys.
+- Acompanhar logs do Render e Vercel após deploys.
 - Validar mudanças sensíveis em autenticação, permissões e integrações antes de publicar.
 
 ## Comandos de validação

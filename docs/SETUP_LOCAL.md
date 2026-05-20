@@ -53,7 +53,7 @@ Regras importantes:
 - `GOOGLE_SERVICE_ACCOUNT_JSON` precisa ficar em uma unica linha.
 - Dentro da `private_key`, as quebras de linha precisam estar como `\n`.
 - Para ambiente local, use `FRONTEND_URL=http://localhost:5173`.
-- Para producao no Render, use `FRONTEND_URL=https://pdreports.netlify.app`.
+- Para producao no Render, use `FRONTEND_URL=https://pdreports.vercel.app`.
 
 7. Rode o diagnostico:
 
