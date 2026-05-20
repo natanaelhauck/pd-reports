@@ -137,6 +137,12 @@ GOOGLE_SERVICE_ACCOUNT_JSON=
 FRONTEND_URL=https://pdreports.vercel.app
 ```
 
+Para a integração com Google Sheets funcionar em produção, a planilha precisa estar compartilhada como **Editor** com a conta de serviço:
+
+```text
+pd-reports-sheets@pd-reports.iam.gserviceaccount.com
+```
+
 ### Vercel
 
 Configuração do frontend:

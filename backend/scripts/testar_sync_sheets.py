@@ -150,7 +150,7 @@ def main():
     assert_equal(
         'coluna do campo ausente retorna warning especifico',
         resultado['sync_warning'],
-        app_module.SHEETS_STUDENT_MISSING_FIELD_COLUMN_WARNING,
+        app_module.SHEETS_STUDENT_MISSING_MONITOR_COLUMN_WARNING,
     )
     assert_equal('coluna ausente nao envia batchUpdate', service.values_api.batch_bodies, [])
 
@@ -181,6 +181,62 @@ def main():
         resultado['sync_warning'],
         app_module.SHEETS_STUDENT_PERMISSION_WARNING,
     )
+
+    instalar_sheet([
+        ['', '', 'Nome', 'PDITA', '', '', '', '', 'Nome do Agente'],
+        ['', '', 'Aluno Teste', 'PDBD149', '', '', '', '', ''],
+    ], exc=HttpError(FakeHttpResponse(400), b'{"error":{"message":"Unable to parse range: Alunos Inexistente"}}'))
+    resultado = app_module.sincronizar_aluno_planilha('PDBD149', {
+        'monitor': ('Alex', 'Natanael'),
+    })
+    assert_equal('aba inexistente nao quebra edicao', resultado['sync_ok'], False)
+    assert_equal(
+        'aba inexistente retorna warning especifico',
+        resultado['sync_warning'],
+        app_module.SHEETS_STUDENT_SHEET_NOT_FOUND_WARNING,
+    )
+
+    original_get_current_user = app_module.get_current_user
+    try:
+        app_module.get_current_user = lambda: {
+            'id': 1,
+            'nome': 'Admin',
+            'email': 'admin@example.com',
+            'role': 'admin',
+        }
+        instalar_sheet([
+            ['', '', 'Nome', 'PDITA', '', '', '', '', 'Nome do Agente'],
+            ['', '', 'Mikael Tiago Da Silva', 'PDBD149', '', '', '', '', 'alex.fonseca@projetodesenvolve.com.br'],
+        ])
+        response = app_module.app.test_client().get('/api/admin/sheets-sync-check?matricula=PDBD149')
+        assert_equal('diagnostico admin retorna 200', response.status_code, 200)
+        body = response.get_json()
+        assert_equal('diagnostico usa aba Alunos', body['sheet_name'], 'Alunos')
+        assert_equal('diagnostico normaliza matricula', body['matricula_normalizada'], 'PDBD149')
+        assert_equal('diagnostico encontra coluna PDITA', body['matricula_coluna'], 'PDITA')
+        assert_equal('diagnostico encontra linha do aluno', body['linha_encontrada'], 2)
+        assert_equal('diagnostico encontra Nome do Agente', body['coluna_monitor'], 'Nome do Agente')
+        assert_equal('diagnostico ok true', body['ok'], True)
+
+        response = app_module.app.test_client().get('/api/admin/sheets-sync-check?matricula=PDBD999')
+        body = response.get_json()
+        assert_equal('diagnostico aluno ausente ok false', body['ok'], False)
+        assert_equal(
+            'diagnostico aluno ausente warning especifico',
+            body['sync_warning'],
+            app_module.SHEETS_STUDENT_NOT_FOUND_WARNING,
+        )
+
+        app_module.get_current_user = lambda: {
+            'id': 2,
+            'nome': 'Monitor',
+            'email': 'monitor@example.com',
+            'role': 'monitor',
+        }
+        response = app_module.app.test_client().get('/api/admin/sheets-sync-check?matricula=PDBD149')
+        assert_equal('diagnostico exige admin', response.status_code, 403)
+    finally:
+        app_module.get_current_user = original_get_current_user
 
 
 if __name__ == '__main__':
