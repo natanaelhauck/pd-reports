@@ -1,25 +1,36 @@
+# Variáveis de ambiente
 backend/.env
 frontend/.env
+.env
+
+# Python
 backend/venv/
+venv/
 backend/__pycache__/
 backend/.pycache_compile/
 backend/.pytest_cache/
 __pycache__/
 .pytest_cache/
 *.pyc
+
+# Node
 node_modules/
 frontend/dist/
+dist/
+build/
+
+# Logs
 *.log
+
+# VSCode e IDE
+.vscode/
+.idea
+.DS_Store
+
+# Credenciais Google
 google-service-account.json
 backend/google-service-account.json
 
-venv/
-.env
-dist/
-build/
-*.json
-!frontend/package.json
-!frontend/package-lock.json
 # Dados locais
 dados/alunos.xlsx
 dados/perfil_alunos.xlsx

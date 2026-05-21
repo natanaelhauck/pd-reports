@@ -1,3 +1,7 @@
-# Docs
+# Documentação PD Reports
 
-Pasta reservada para documentação e materiais de apoio do PD Reports.
+Arquivos auxiliares do projeto:
+
+- SETUP_LOCAL.md → configuração local
+- images/ → screenshots do sistema
+- materiais de apoio
