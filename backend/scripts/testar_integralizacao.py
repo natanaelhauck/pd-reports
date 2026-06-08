@@ -190,6 +190,8 @@ def main():
 
         aluno = buscar_por_email(dados, 'aluno@example.com')
         assert_equal('busca por email normalizado', aluno['nome'], 'Aluno Normal')
+        assert_equal('data entrada curso iso', aluno['dataEntradaCurso'], '2024-11-04')
+        assert_equal('data entrada curso formatada', aluno['dataEntradaCursoFormatada'], '04/11/2024')
         assert_equal('desafio final vazio', aluno['desafioFinal'], False)
         assert_equal('percentual calculado', aluno['percentualIntegralizacao'], 50)
         assert_equal('meta diaria aplicavel', aluno['metaDiaria']['aplicavel'], True)
@@ -201,6 +203,7 @@ def main():
 
         final = buscar_por_email(dados, 'FINAL@example.com')
         assert_equal('desafio final sim', final['desafioFinal'], True)
+        assert_equal('data entrada vazia nao quebra', final['dataEntradaCursoFormatada'], '')
         assert_equal('desafio final conclui aluno', final['alunoConcluido'], True)
         assert_equal('desafio final percentual 100', final['percentualIntegralizacao'], 100)
         assert_equal('desafio final sem meta diaria obrigatoria', final['metaDiaria']['aplicavel'], False)

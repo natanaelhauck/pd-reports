@@ -1921,6 +1921,294 @@ button.monitoring-metric-card {
   font-weight: 700;
 }
 
+.consumption-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.consumption-panel.detail-mode {
+  max-width: 1180px;
+}
+
+.consumption-panel-head {
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--pd-border);
+}
+
+.consumption-summary {
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+}
+
+.consumption-controls {
+  padding: 10px;
+  border: 1px solid var(--pd-border);
+  border-radius: 12px;
+  background: var(--pd-subtle);
+}
+
+.course-hours-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.course-hours-card {
+  width: 100%;
+  text-align: left;
+  box-sizing: border-box;
+}
+
+button.course-hours-card {
+  font: inherit;
+}
+
+.course-hours-card.clickable {
+  cursor: pointer;
+}
+
+.course-hours-card.clickable:hover {
+  border-color: #93c5fd;
+  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.1);
+  transform: translateY(-1px);
+}
+
+.course-hours-card-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 18px;
+}
+
+.course-hours-card-title strong {
+  font-size: 17px;
+}
+
+.course-hours-percent {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+  min-width: 96px;
+}
+
+.course-hours-percent strong {
+  font-size: 32px;
+  line-height: 1;
+}
+
+.course-hours-percent span {
+  color: var(--pd-muted);
+  font-size: 11px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.course-hours-link-info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+}
+
+.course-hours-link-info span {
+  color: var(--pd-muted);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.course-back-button {
+  width: fit-content;
+  min-height: 38px;
+  border: 1px solid var(--pd-button-border);
+  border-radius: 9px;
+  padding: 8px 13px;
+  background: var(--pd-button-bg);
+  color: var(--pd-button-text);
+  font-size: 13px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.course-back-button:hover {
+  border-color: #94a3b8;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.1);
+}
+
+.consumption-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid var(--pd-border);
+  border-radius: 12px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--pd-surface) 94%, #2563eb 6%), var(--pd-surface));
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
+}
+
+.consumption-hero-main {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.consumption-hero-main h2 {
+  margin: 0 0 3px;
+  color: var(--pd-title);
+  font-size: 26px;
+  font-weight: 900;
+  line-height: 1.08;
+  overflow-wrap: anywhere;
+}
+
+.consumption-hero-main p {
+  color: var(--pd-muted);
+  font-size: 14px;
+  font-weight: 750;
+  overflow-wrap: anywhere;
+}
+
+.consumption-hero-meta {
+  display: grid;
+  gap: 2px;
+}
+
+.consumption-hero-meta span,
+.certificate-score span,
+.daily-goal-score span,
+.consumption-hero-score span {
+  color: var(--pd-muted);
+  font-size: 11px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.consumption-hero-meta strong {
+  color: var(--pd-title);
+  font-size: 15px;
+}
+
+.consumption-hero-score,
+.certificate-score,
+.daily-goal-score {
+  display: grid;
+  justify-items: end;
+  align-content: start;
+  gap: 3px;
+  text-align: right;
+}
+
+.consumption-hero-score strong {
+  font-size: 44px;
+  line-height: 1;
+  font-weight: 950;
+}
+
+.consumption-hero .course-progress-track {
+  grid-column: 1 / -1;
+  margin-top: 0;
+}
+
+.consumption-link-section {
+  padding: 12px;
+}
+
+.compact-stats {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 0;
+}
+
+.compact-stats .course-stat strong {
+  font-size: 16px;
+}
+
+.consumption-empty-inline strong {
+  display: block;
+  color: var(--pd-title);
+  font-size: 15px;
+}
+
+.consumption-empty-inline p {
+  margin-top: 3px;
+  color: var(--pd-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.certificates-head {
+  align-items: center;
+}
+
+.certificate-score strong,
+.daily-goal-score strong {
+  color: var(--pd-title);
+  font-size: 32px;
+  line-height: 1;
+  font-weight: 950;
+}
+
+.certificate-track .course-progress-fill {
+  background: #15803d;
+}
+
+.certificates-stats {
+  grid-template-columns: repeat(4, minmax(140px, 1fr));
+}
+
+.certificates-lists {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 14px;
+}
+
+.course-list-box {
+  max-height: 360px;
+  overflow: hidden;
+}
+
+.course-list-box.done {
+  border-color: #bbf7d0;
+}
+
+.course-list-box.progress {
+  border-color: #fde68a;
+}
+
+.course-list-box.muted {
+  border-color: #cbd5e1;
+}
+
+.course-list-box.risk {
+  border-color: #fecaca;
+}
+
+.course-list-box ul {
+  max-height: 290px;
+  padding-right: 4px;
+}
+
+.course-cert-badge.progress {
+  color: #92400e;
+  background: #fffbeb;
+  border-color: #fde68a;
+}
+
+.course-cert-badge.muted {
+  color: #475569;
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.course-cert-badge.risk {
+  color: #991b1b;
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.schedule-head {
+  align-items: center;
+}
+
+.schedule-stats {
+  grid-template-columns: repeat(3, minmax(150px, 1fr));
+}
+
 .theme-dark {
   color: #dbe4ef !important;
 }
@@ -2277,6 +2565,72 @@ body:has(.theme-dark) {
   background: #1f2937 !important;
 }
 
+.theme-dark .consumption-panel,
+.theme-dark .consumption-hero,
+.theme-dark .course-hours-card,
+.theme-dark .course-section,
+.theme-dark .course-list-box {
+  background: #111827;
+  border-color: #334155;
+  color: #dbe4ef;
+}
+
+.theme-dark .consumption-controls,
+.theme-dark .course-summary-grid > div,
+.theme-dark .course-stat,
+.theme-dark .course-week-grid > div,
+.theme-dark .course-list-box {
+  background: #172033;
+}
+
+.theme-dark .consumption-hero {
+  background: linear-gradient(180deg, rgba(59, 130, 246, 0.12), #111827);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.28);
+}
+
+.theme-dark .course-pill.success,
+.theme-dark .course-stat.done {
+  color: #bbf7d0;
+  background: rgba(22, 163, 74, 0.2);
+  border-color: rgba(134, 239, 172, 0.36);
+}
+
+.theme-dark .course-pill.final,
+.theme-dark .course-stat.progress,
+.theme-dark .course-cert-badge.progress {
+  color: #fde68a;
+  background: rgba(202, 138, 4, 0.2);
+  border-color: rgba(253, 230, 138, 0.38);
+}
+
+.theme-dark .course-pill.linked {
+  color: #bfdbfe;
+  background: rgba(59, 130, 246, 0.22);
+  border-color: rgba(147, 197, 253, 0.38);
+}
+
+.theme-dark .course-pill.warning,
+.theme-dark .course-stat.risk,
+.theme-dark .course-cert-badge.risk {
+  color: #fecaca;
+  background: rgba(220, 38, 38, 0.18);
+  border-color: rgba(248, 113, 113, 0.34);
+}
+
+.theme-dark .course-stat.muted,
+.theme-dark .course-cert-badge.muted {
+  color: #e2e8f0;
+  background: rgba(100, 116, 139, 0.18);
+  border-color: rgba(148, 163, 184, 0.32);
+}
+
+.theme-dark .course-cert-badge,
+.theme-dark .course-back-button {
+  background: #0b1220;
+  border-color: #334155;
+  color: #e5edf7;
+}
+
 #root {
   width: 100%;
   max-width: 100%;
@@ -2427,6 +2781,47 @@ code {
 
   .admin-grid {
     grid-template-columns: 1fr;
+  }
+
+  .consumption-summary,
+  .certificates-stats,
+  .schedule-stats,
+  .compact-stats,
+  .certificates-lists {
+    grid-template-columns: 1fr;
+  }
+
+  .course-hours-panel {
+    width: min(100%, calc(100vw - 28px));
+    padding: 14px;
+  }
+
+  .course-hours-card-main,
+  .consumption-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .course-hours-percent,
+  .consumption-hero-score,
+  .certificate-score,
+  .daily-goal-score {
+    justify-items: start;
+    text-align: left;
+  }
+
+  .consumption-controls,
+  .course-dashboard-controls {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .course-dashboard-controls input,
+  .course-tab-list {
+    width: 100%;
+  }
+
+  .course-tab-list {
+    box-sizing: border-box;
   }
 
   .monitoring-placeholder-grid {

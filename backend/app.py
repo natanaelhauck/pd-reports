@@ -1751,17 +1751,16 @@ def integralizacao_config_env():
 def resposta_erro_integralizacao(exc):
     if isinstance(exc, IntegralizacaoArquivoNaoEncontrado):
         return jsonify({
-            'erro': 'Planilha de integralização não encontrada. Configure INTEGRALIZACAO_XLSX_PATH e coloque o arquivo local fora do Git.',
-            'detalhe': str(exc),
+            'erro': 'Planilha de consumo não encontrada.',
         }), 404
     if isinstance(exc, IntegralizacaoConfigInvalida):
         return jsonify({'erro': str(exc)}), 400
     if isinstance(exc, IntegralizacaoPlanilhaInvalida):
         return jsonify({'erro': str(exc)}), 422
     if isinstance(exc, IntegralizacaoError):
-        return jsonify({'erro': 'Não foi possível carregar os dados de integralização.'}), 500
-    app.logger.exception('Erro inesperado na integração de integralização')
-    return jsonify({'erro': 'Erro inesperado ao carregar integralização.'}), 500
+        return jsonify({'erro': 'Não foi possível carregar os dados de consumo.'}), 500
+    app.logger.exception('Erro inesperado na integração de consumo')
+    return jsonify({'erro': 'Erro inesperado ao carregar consumo.'}), 500
 
 def carregar_alunos_pd_para_integralizacao(cursor):
     cursor.execute('''
@@ -1770,6 +1769,50 @@ def carregar_alunos_pd_para_integralizacao(cursor):
         ORDER BY nome
     ''')
     return [row_to_dict(row) for row in cursor.fetchall()]
+
+def mapa_consumo_por_email():
+    try:
+        dados = carregar_integralizacao(**integralizacao_config_env())
+    except IntegralizacaoError as exc:
+        app.logger.warning('Dados de consumo indisponiveis para enriquecer alunos: %s', exc.__class__.__name__)
+        return {}
+    except Exception as exc:
+        app.logger.warning('Nao foi possivel enriquecer alunos com consumo: %s', exc.__class__.__name__)
+        return {}
+
+    return {
+        aluno.get('emailNormalizado'): {
+            'dataEntradaCurso': aluno.get('dataEntradaCurso') or '',
+            'dataEntradaCursoFormatada': aluno.get('dataEntradaCursoFormatada') or '',
+        }
+        for aluno in dados.get('alunos', [])
+        if aluno.get('emailNormalizado')
+    }
+
+def anexar_consumo_alunos(alunos):
+    mapa = mapa_consumo_por_email() if alunos else {}
+    for aluno in alunos:
+        consumo = mapa.get(normalizar_email_integralizacao(aluno.get('email'))) or {}
+        aluno['dataEntradaCurso'] = consumo.get('dataEntradaCurso') or ''
+        aluno['dataEntradaCursoFormatada'] = consumo.get('dataEntradaCursoFormatada') or ''
+    return alunos
+
+def formatar_alunos_com_consumo(rows):
+    return anexar_consumo_alunos([formatar_aluno(row_to_dict(row)) for row in rows])
+
+def fonte_consumo_publica(fonte):
+    fonte = fonte or {}
+    campos_publicos = (
+        'tipo',
+        'aba',
+        'horasTotaisCurso',
+        'prazoFinal',
+        'prazoFinalFormatado',
+        'totalLinhas',
+        'totalAlunos',
+        'atualizadoEm',
+    )
+    return {campo: fonte.get(campo) for campo in campos_publicos if campo in fonte}
 
 def usuario_pode_ver_aluno_pd(usuario, aluno):
     role = usuario.get('role')
@@ -2133,7 +2176,7 @@ def get_alunos():
                         ORDER BY nome
                         LIMIT 50
                     ''', (filtro,))
-                    alunos = [formatar_aluno(row_to_dict(row)) for row in cursor.fetchall()]
+                    alunos = formatar_alunos_com_consumo(cursor.fetchall())
                     return jsonify(alunos)
 
                 if tipo_busca == 'identificador':
@@ -2145,7 +2188,7 @@ def get_alunos():
                         ORDER BY nome
                         LIMIT 50
                     ''', (filtro, filtro, filtro))
-                    alunos = [formatar_aluno(row_to_dict(row)) for row in cursor.fetchall()]
+                    alunos = formatar_alunos_com_consumo(cursor.fetchall())
                     return jsonify(alunos)
 
                 cursor.execute('''
@@ -2172,7 +2215,7 @@ def get_alunos():
                     matriculas_adicionadas.add(matricula)
                 if len(alunos_filtrados) >= 50:
                     break
-            return jsonify(alunos_filtrados)
+            return jsonify(anexar_consumo_alunos(alunos_filtrados))
         else:
             return jsonify([])
     except psycopg2.Error as exc:
@@ -2200,7 +2243,7 @@ def get_integralizacao():
         return jsonify({
             'alunos': alunos_visiveis,
             'resumo': resumo,
-            'fonte': dados_integralizacao.get('fonte', {}),
+            'fonte': fonte_consumo_publica(dados_integralizacao.get('fonte')),
             'permissoes': {
                 'podeVerNaoVinculados': usuario.get('role') in {'admin', 'psicologa'},
             },
@@ -2236,7 +2279,7 @@ def get_integralizacao_aluno(matricula):
         if not aluno_pd:
             return jsonify({'erro': 'Aluno não encontrado para a matrícula informada.'}), 404
         if not usuario_pode_ver_aluno_pd(usuario, aluno_pd):
-            return jsonify({'erro': 'Você não tem permissão para ver a integralização deste aluno.'}), 403
+            return jsonify({'erro': 'Você não tem permissão para ver o consumo deste aluno.'}), 403
 
         aluno_pd_payload = aluno_pd_resumo(aluno_pd)
         email = normalizar_email_integralizacao(aluno_pd.get('email'))
@@ -2252,10 +2295,10 @@ def get_integralizacao_aluno(matricula):
         if not aluno_integralizacao:
             return jsonify({
                 'encontrado': False,
-                'mensagem': 'Sem dados de integralização para este e-mail.',
+                'mensagem': 'Sem dados de consumo para este e-mail.',
                 'alunoPd': aluno_pd_payload,
                 'emailConsultado': email,
-                'fonte': dados_integralizacao.get('fonte', {}),
+                'fonte': fonte_consumo_publica(dados_integralizacao.get('fonte')),
             })
 
         aluno_integralizacao['vinculado'] = True
@@ -2263,7 +2306,7 @@ def get_integralizacao_aluno(matricula):
         return jsonify({
             'encontrado': True,
             'aluno': aluno_integralizacao,
-            'fonte': dados_integralizacao.get('fonte', {}),
+            'fonte': fonte_consumo_publica(dados_integralizacao.get('fonte')),
         })
     except psycopg2.Error as exc:
         return erro_banco(exc)

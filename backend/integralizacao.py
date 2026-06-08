@@ -392,13 +392,13 @@ def calcular_meta_diaria(horas_vistas, horas_totais, prazo_final, desafio_final=
         return base
 
     if aluno_concluido:
-        base["mensagem"] = "Aluno já atingiu 100% de integralização."
+        base["mensagem"] = "Aluno já atingiu 100% de consumo."
         base["dataPrevistaConclusao"] = hoje.isoformat()
         base["dataPrevistaConclusaoFormatada"] = formatar_data_br_date(hoje)
         return base
 
     if prazo_final < hoje:
-        base["mensagem"] = "Prazo final de integralização já passou."
+        base["mensagem"] = "Prazo final de consumo já passou."
         return base
 
     dias_uteis = count_business_days(hoje, prazo_final)
@@ -446,6 +446,7 @@ def montar_aluno_integralizacao(cells, config, hoje=None):
         return None
 
     horas_vistas = numero_seguro(cells.get("horasVistas"))
+    data_entrada = parse_data_excel(cells.get("dataEntrada"))
     desafio_final = chave_campo(cells.get("desafioFinal")) == "sim"
     percentual = percentual_integralizacao(horas_vistas, config["horas_totais"], desafio_final)
     aluno_concluido = bool(desafio_final or percentual >= 100)
@@ -464,7 +465,9 @@ def montar_aluno_integralizacao(cells, config, hoje=None):
         "emailNormalizado": email_normalizado,
         "alunoSlug": texto(cells.get("aluno")),
         "horasVistas": horas_vistas,
-        "dataIngresso": formatar_data_br(cells.get("dataEntrada")),
+        "dataIngresso": formatar_data_br_date(data_entrada),
+        "dataEntradaCurso": formatar_data_iso(data_entrada),
+        "dataEntradaCursoFormatada": formatar_data_br_date(data_entrada),
         "decisao": decisao,
         "ativo": chave_campo(decisao) == "manter",
         "pdita": texto(cells.get("pdita")),
@@ -482,25 +485,25 @@ def ler_planilha_integralizacao(config, hoje=None):
     xlsx_path = config["xlsx_path"]
     if not xlsx_path.is_file():
         raise IntegralizacaoArquivoNaoEncontrado(
-            f"Planilha de integralização não encontrada: {config['xlsx_path_configurado']}"
+            f"Planilha de consumo não encontrada: {config['xlsx_path_configurado']}"
         )
 
     try:
         workbook = load_workbook(xlsx_path, read_only=True, data_only=True)
     except Exception as exc:
-        raise IntegralizacaoPlanilhaInvalida("Não foi possível abrir a planilha de integralização.") from exc
+        raise IntegralizacaoPlanilhaInvalida("Não foi possível abrir a planilha de consumo.") from exc
 
     if config["sheet_name"] not in workbook.sheetnames:
         workbook.close()
         raise IntegralizacaoPlanilhaInvalida(
-            f"Aba \"{config['sheet_name']}\" não encontrada na planilha de integralização."
+            f"Aba \"{config['sheet_name']}\" não encontrada na planilha de consumo."
         )
 
     sheet = workbook[config["sheet_name"]]
     rows = list(sheet.iter_rows(values_only=True))
     workbook.close()
     if not rows:
-        raise IntegralizacaoPlanilhaInvalida("A planilha de integralização está vazia.")
+        raise IntegralizacaoPlanilhaInvalida("A planilha de consumo está vazia.")
 
     headers = [texto(item) for item in rows[0]]
     indices = header_index(headers)
@@ -523,7 +526,7 @@ def ler_planilha_integralizacao(config, hoje=None):
         "cursosDetalhesJson": localizar_coluna(indices, "Cursos detalhes JSON"),
     }
     if colunas["email"] is None:
-        raise IntegralizacaoPlanilhaInvalida("Coluna Email não encontrada na aba de integralização.")
+        raise IntegralizacaoPlanilhaInvalida("Coluna Email não encontrada na aba de consumo.")
 
     alunos = []
     emails_vistos = set()

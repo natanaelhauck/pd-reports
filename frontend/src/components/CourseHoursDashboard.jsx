@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { CourseHoursStudentCard } from './CourseHoursStudentCard.jsx';
+import { CourseHoursStudentDetails } from './CourseHoursStudentDetails.jsx';
 
 const TABS = [
   ['ativos', 'Ativos'],
@@ -9,12 +10,20 @@ const TABS = [
   ['naoVinculados', 'Não vinculados'],
 ];
 
+const formatarAtualizacao = (valor) => {
+  if (!valor) return '';
+  const data = new Date(valor);
+  if (Number.isNaN(data.getTime())) return '';
+  return data.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+};
+
 export function CourseHoursDashboard({ apiBaseUrl, authHeaders }) {
   const [dados, setDados] = useState(null);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState('');
   const [tab, setTab] = useState('ativos');
   const [filtro, setFiltro] = useState('');
+  const [alunoSelecionado, setAlunoSelecionado] = useState(null);
 
   const carregar = async () => {
     setCarregando(true);
@@ -22,8 +31,12 @@ export function CourseHoursDashboard({ apiBaseUrl, authHeaders }) {
     try {
       const res = await axios.get(`${apiBaseUrl}/api/integralizacao`, { headers: authHeaders, timeout: 25000 });
       setDados(res.data);
+      if (alunoSelecionado) {
+        const atualizado = (res.data.alunos || []).find((aluno) => aluno.emailNormalizado === alunoSelecionado.emailNormalizado);
+        if (atualizado) setAlunoSelecionado(atualizado);
+      }
     } catch (err) {
-      setErro(err.response?.data?.erro || 'Não foi possível carregar a integralização.');
+      setErro(err.response?.data?.erro || 'Não foi possível carregar os dados de consumo.');
     } finally {
       setCarregando(false);
     }
@@ -36,6 +49,11 @@ export function CourseHoursDashboard({ apiBaseUrl, authHeaders }) {
   const alunos = dados?.alunos || [];
   const podeVerNaoVinculados = dados?.permissoes?.podeVerNaoVinculados;
   const tabsVisiveis = TABS.filter(([key]) => key !== 'naoVinculados' || podeVerNaoVinculados);
+  const atualizadoEm = formatarAtualizacao(dados?.fonte?.atualizadoEm);
+
+  useEffect(() => {
+    if (tab === 'naoVinculados' && !podeVerNaoVinculados) setTab('ativos');
+  }, [tab, podeVerNaoVinculados]);
 
   const counts = useMemo(() => ({
     ativos: alunos.filter((aluno) => aluno.ativo).length,
@@ -58,17 +76,24 @@ export function CourseHoursDashboard({ apiBaseUrl, authHeaders }) {
       .sort((a, b) => Number(b.percentualIntegralizacao || 0) - Number(a.percentualIntegralizacao || 0));
   }, [alunos, filtro, tab]);
 
+  if (alunoSelecionado) {
+    return (
+      <section className="course-hours-panel consumption-panel detail-mode">
+        <CourseHoursStudentDetails
+          alunoConsumo={alunoSelecionado}
+          onBack={() => setAlunoSelecionado(null)}
+        />
+      </section>
+    );
+  }
+
   return (
-    <section className="course-hours-panel">
-      <div className="course-hours-panel-head">
+    <section className="course-hours-panel consumption-panel">
+      <div className="course-hours-panel-head consumption-panel-head">
         <div>
-          <h2>Integralização</h2>
-          <p>Dados de horas, certificados e conclusão lidos da planilha local de integralização.</p>
-          {dados?.fonte && (
-            <span>
-              Fonte: {dados.fonte.aba} · {dados.fonte.caminhoConfigurado}
-            </span>
-          )}
+          <h2>Consumo</h2>
+          <p>Acompanhamento de horas, certificados e conclusão dos alunos.</p>
+          {atualizadoEm && <span>Atualizado em {atualizadoEm}</span>}
         </div>
         <button className="ui-button monitoring-refresh-button" type="button" onClick={carregar} disabled={carregando}>
           {carregando ? 'Atualizando...' : 'Atualizar'}
@@ -76,18 +101,18 @@ export function CourseHoursDashboard({ apiBaseUrl, authHeaders }) {
       </div>
 
       {erro && <p className="monitoring-state error">{erro}</p>}
-      {carregando && !dados && <p className="monitoring-state">Carregando integralização...</p>}
+      {carregando && !dados && <p className="monitoring-state">Carregando consumo...</p>}
 
       {dados && (
         <>
-          <div className="course-summary-grid">
+          <div className="course-summary-grid consumption-summary">
             <div><span>Total</span><strong>{dados.resumo?.total || 0}</strong></div>
             <div><span>Ativos</span><strong>{dados.resumo?.ativos || 0}</strong></div>
             <div><span>Concluídos</span><strong>{dados.resumo?.concluidos || 0}</strong></div>
             {podeVerNaoVinculados && <div><span>Não vinculados</span><strong>{dados.resumo?.naoVinculados || 0}</strong></div>}
           </div>
 
-          <div className="course-dashboard-controls">
+          <div className="course-dashboard-controls consumption-controls">
             <div className="course-tab-list">
               {tabsVisiveis.map(([key, label]) => (
                 <button
@@ -104,16 +129,20 @@ export function CourseHoursDashboard({ apiBaseUrl, authHeaders }) {
             <input
               value={filtro}
               onChange={(e) => setFiltro(e.target.value)}
-              placeholder="Filtrar por nome ou e-mail"
+              placeholder="Buscar por nome ou e-mail"
             />
           </div>
 
           {filtrados.length === 0 ? (
             <p className="monitoring-state">Nenhum aluno encontrado para os filtros selecionados.</p>
           ) : (
-            <div className="course-hours-grid">
+            <div className="course-hours-list">
               {filtrados.map((aluno) => (
-                <CourseHoursStudentCard key={`${aluno.emailNormalizado}-${aluno.alunoPd?.matricula || 'sem-vinculo'}`} aluno={aluno} />
+                <CourseHoursStudentCard
+                  key={`${aluno.emailNormalizado}-${aluno.alunoPd?.matricula || 'sem-vinculo'}`}
+                  aluno={aluno}
+                  onClick={() => setAlunoSelecionado(aluno)}
+                />
               ))}
             </div>
           )}

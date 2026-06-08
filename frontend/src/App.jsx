@@ -9,7 +9,7 @@ const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').r
 const MONITORES = ['Alex', 'André', 'Douglas', 'Gabriel', 'Kellen', 'Natanael'];
 const MONITORES_DASHBOARD = ['Alex', 'André', 'Douglas', 'Gabriel', 'Kellen', 'Natanael'];
 const STATUS_OPTIONS = ['MANTER', 'EM ANÁLISE', 'REMOVIDO', 'DESLIGADO'];
-const TABS = ['Dados principais', 'Perfil do aluno', 'Relatórios Monitoria', 'Integralização', 'Histórico'];
+const TABS = ['Dados principais', 'Perfil do aluno', 'Relatórios Monitoria', 'Consumo', 'Histórico'];
 const MONITORIA_COLUNAS = [
   ['presente', 'Presente'],
   ['falta', 'Falta'],
@@ -860,7 +860,12 @@ export default function App() {
     try {
       const payload = { ...temp, monitor: normalizarMonitor(temp.monitor), status: normalizarStatus(temp.status) };
       const res = await axios.post(`${API_BASE_URL}/api/alunos/update`, payload, authConfig({ timeout: 12000 }));
-      atualizarAlunoLocal(res.data.aluno || payload);
+      atualizarAlunoLocal({
+        ...aluno,
+        ...(res.data.aluno || payload),
+        dataEntradaCurso: aluno?.dataEntradaCurso || '',
+        dataEntradaCursoFormatada: aluno?.dataEntradaCursoFormatada || '',
+      });
       setEditMode(false);
       setMensagem(res.data.sync_warning
         ? { tipo: 'aviso', texto: res.data.sync_warning }
@@ -937,7 +942,7 @@ export default function App() {
 
       <div className="main-actions">
         <button className="ui-button" type="button" onClick={abrirMonitores} style={styles.neutralBtn}><Users size={17} /> Monitores</button>
-        <button className="ui-button" type="button" onClick={abrirIntegralizacao} style={styles.neutralBtn}><GraduationCap size={17} /> Integralização</button>
+        <button className="ui-button" type="button" onClick={abrirIntegralizacao} style={styles.neutralBtn}><GraduationCap size={17} /> Consumo</button>
         {isAdmin && (
           <>
             <button className="ui-button" type="button" onClick={abrirNovoAluno} style={styles.neutralBtn}><Plus size={17} /> Novo aluno</button>
@@ -1168,7 +1173,7 @@ export default function App() {
             <RelatoriosMonitoria aluno={aluno} authHeaders={authHeaders} />
           )}
 
-          {activeTab === 'Integralização' && (
+          {activeTab === 'Consumo' && (
             <CourseHoursStudentDetails aluno={aluno} apiBaseUrl={API_BASE_URL} authHeaders={authHeaders} />
           )}
         </div>
@@ -1219,6 +1224,7 @@ function DadosPrincipais({ aluno, temp, setTemp, editMode, setEditMode, salvar, 
         <InfoItem icon={<Hash size={18} color={corStatus} />} label="Matrícula" value={aluno.matricula} />
         <FieldItem icon={<Phone size={18} color={corStatus} />} label="Telefone" editMode={editMode} value={temp.telefone} display={aluno.telefone} onChange={(v) => setTemp({ ...temp, telefone: v })} />
         <FieldItem full icon={<Mail size={18} color={corStatus} />} label="E-mail" editMode={editMode} value={temp.email} display={aluno.email} onChange={(v) => setTemp({ ...temp, email: v })} />
+        <InfoItem icon={<GraduationCap size={18} color={corStatus} />} label="Data de entrada no curso" value={aluno.dataEntradaCursoFormatada || 'Não informado'} />
         <FieldItem icon={<Calendar size={18} color={corStatus} />} label="Nascimento e Idade" type="date" editMode={editMode} value={temp.nascimento} display={`${aluno.nascimento_formatado} ${aluno.idade !== '-' ? `(${aluno.idade} anos)` : ''}`} onChange={(v) => setTemp({ ...temp, nascimento: v })} />
         <FieldItem icon={<Laptop size={18} color={corStatus} />} label="Patrimônio" editMode={editMode} value={temp.patrimonio} display={aluno.patrimonio || 'Não informado'} onChange={(v) => setTemp({ ...temp, patrimonio: v })} />
         <div style={styles.infoItem}>

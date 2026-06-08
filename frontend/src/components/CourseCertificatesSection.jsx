@@ -3,6 +3,11 @@ const fmtPct = (value) => {
   return `${Math.max(0, Math.min(100, numero)).toFixed(numero < 1 ? 2 : 1)}%`;
 };
 
+const statusKey = (status) => String(status || '')
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .toLowerCase();
+
 function CourseStat({ label, value, tone }) {
   return (
     <div className={`course-stat ${tone || ''}`}>
@@ -12,10 +17,10 @@ function CourseStat({ label, value, tone }) {
   );
 }
 
-function CourseList({ title, courses }) {
+function CourseList({ title, courses, tone }) {
   const itens = courses || [];
   return (
-    <div className="course-list-box">
+    <div className={`course-list-box ${tone || ''}`}>
       <div className="course-list-title">
         <strong>{title}</strong>
         <span>{itens.length}</span>
@@ -27,12 +32,12 @@ function CourseList({ title, courses }) {
           {itens.map((course) => {
             const pct = Math.max(0, Math.min(100, Number(course.percentual || 0)));
             return (
-              <li key={course.courseId || course.curso}>
+              <li key={`${course.courseId || course.curso}-${course.status || ''}`}>
                 <div>
                   <strong>{course.curso || 'Curso sem nome'}</strong>
                   <span>{course.status || 'Não informado'}</span>
                 </div>
-                <span className={course.certificadoGerado ? 'course-cert-badge ok' : 'course-cert-badge'}>
+                <span className={course.certificadoGerado ? 'course-cert-badge ok' : `course-cert-badge ${tone || ''}`}>
                   {course.certificadoGerado ? 'Certificado' : fmtPct(pct)}
                 </span>
               </li>
@@ -46,40 +51,48 @@ function CourseList({ title, courses }) {
 
 export function CourseCertificatesSection({ certificados }) {
   const dados = certificados || {};
-  const grupos = dados.grupos || {};
-  const totalCursos = Number(dados.cursosConcluidos || 0)
-    + Number(dados.cursosEmAndamento || 0)
-    + Number(dados.cursosNaoIniciados || 0);
+  const cursos = dados.cursos || [];
   const certificadosGerados = Number(dados.certificadosGerados || 0);
+  const totalCursos = cursos.length || (
+    Number(dados.cursosConcluidos || 0)
+    + Number(dados.cursosEmAndamento || 0)
+    + Number(dados.cursosNaoIniciados || 0)
+  );
   const certificadoPct = totalCursos > 0 ? Math.min(100, (certificadosGerados / totalCursos) * 100) : 0;
+  const comCertificado = cursos.filter((curso) => curso.certificadoGerado);
+  const emAndamentoSemCertificado = cursos.filter((curso) => !curso.certificadoGerado && statusKey(curso.status).includes('andamento'));
+  const naoIniciados = cursos.filter((curso) => statusKey(curso.status).includes('nao iniciado'));
+  const semCertificado = cursos.filter((curso) => !curso.certificadoGerado);
 
   return (
-    <section className="course-section">
-      <div className="course-section-head">
+    <section className="course-section certificates-section">
+      <div className="course-section-head certificates-head">
         <div>
           <h3>Certificados e cursos</h3>
-          <p>{certificadosGerados} certificados gerados de {totalCursos} cursos mapeados.</p>
+          <p>Progresso de certificados gerados nos cursos mapeados.</p>
         </div>
-        <strong>{fmtPct(certificadoPct)}</strong>
+        <div className="certificate-score">
+          <strong>{certificadosGerados}/{totalCursos}</strong>
+          <span>certificados</span>
+        </div>
       </div>
 
-      <div className="course-progress-track large">
+      <div className="course-progress-track large certificate-track">
         <div className="course-progress-fill" style={{ width: `${certificadoPct}%` }} />
       </div>
 
-      <div className="course-stats-grid">
+      <div className="course-stats-grid certificates-stats">
         <CourseStat label="Concluídos" value={dados.cursosConcluidos || 0} tone="done" />
         <CourseStat label="Em andamento" value={dados.cursosEmAndamento || 0} tone="progress" />
         <CourseStat label="Não iniciados" value={dados.cursosNaoIniciados || 0} tone="muted" />
-        <CourseStat label="Sem certificado" value={Math.max(0, totalCursos - certificadosGerados)} tone="risk" />
+        <CourseStat label="Sem certificado" value={semCertificado.length} tone="risk" />
       </div>
 
-      <div className="course-lists-grid">
-        <CourseList title="Concluídos" courses={grupos.concluidos} />
-        <CourseList title="Em andamento" courses={grupos.emAndamento} />
-        <CourseList title="Não iniciados" courses={grupos.naoIniciados} />
-        <CourseList title="Com certificado" courses={grupos.comCertificado} />
-        <CourseList title="Sem certificado" courses={grupos.semCertificado} />
+      <div className="course-lists-grid certificates-lists">
+        <CourseList title="Com certificado" courses={comCertificado} tone="done" />
+        <CourseList title="Em andamento sem certificado" courses={emAndamentoSemCertificado} tone="progress" />
+        <CourseList title="Não iniciados" courses={naoIniciados} tone="muted" />
+        <CourseList title="Sem certificado" courses={semCertificado} tone="risk" />
       </div>
     </section>
   );

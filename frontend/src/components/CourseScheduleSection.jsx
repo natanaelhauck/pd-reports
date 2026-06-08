@@ -23,10 +23,14 @@ export function CourseScheduleSection({ aluno }) {
   if (!meta.aplicavel) {
     return (
       <section className={concluido ? 'course-section course-complete' : 'course-section'}>
-        <div className="course-section-head">
+        <div className="course-section-head schedule-head">
           <div>
-            <h3>{concluido ? 'Integralização concluída' : 'Meta diária'}</h3>
-            <p>{meta.mensagem || 'Não há meta diária disponível para este aluno.'}</p>
+            <h3>{concluido ? 'Consumo concluído' : 'Meta diária'}</h3>
+            <p>
+              {aluno?.desafioFinal
+                ? 'Aluno concluiu o curso pelo Desafio Final. A meta diária não se aplica.'
+                : (meta.mensagem || 'Não há meta diária disponível para este aluno.')}
+            </p>
           </div>
           {concluido && <strong>100%</strong>}
         </div>
@@ -35,25 +39,28 @@ export function CourseScheduleSection({ aluno }) {
   }
 
   return (
-    <section className="course-section">
-      <div className="course-section-head">
+    <section className="course-section schedule-section">
+      <div className="course-section-head schedule-head">
         <div>
           <h3>Meta diária</h3>
           <p>
-            Faltam {fmtHM(meta.horasRestantesCurso)} de curso até {meta.prazoFinalFormatado}.
-            Mínimo de {meta.minMinutosPorDia} min por dia útil.
+            Faltam {fmtHM(meta.horasRestantesCurso)} até {meta.prazoFinalFormatado}.
+            Ritmo mínimo de {meta.minMinutosPorDia} min por dia útil.
           </p>
         </div>
-        <strong>{fmtHM(meta.horasPorDia)}</strong>
+        <div className="daily-goal-score">
+          <strong>{fmtHM(meta.horasPorDia)}</strong>
+          <span>por dia útil</span>
+        </div>
       </div>
 
-      <div className="course-stats-grid">
+      <div className="course-stats-grid schedule-stats">
         <div className="course-stat progress">
           <span>Dias úteis restantes</span>
           <strong>{meta.diasUteisRestantes}</strong>
         </div>
         <div className="course-stat done">
-          <span>Data prevista</span>
+          <span>Previsão de conclusão</span>
           <strong>{meta.dataPrevistaConclusaoFormatada || '-'}</strong>
         </div>
         <div className="course-stat muted">
