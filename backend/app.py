@@ -365,6 +365,14 @@ def normalizar_valor_perfil(campo, valor):
         return parse_bool(valor)
     if campo in CAMPOS_INTEIROS_PERFIL:
         return parse_int(valor)
+    if campo == 'filhos_descricao' and isinstance(valor, (list, tuple)):
+        return json.dumps([
+            {
+                'nome': str(filho.get('nome') or '') if isinstance(filho, dict) else '',
+                'idade': str(filho.get('idade') or '') if isinstance(filho, dict) else '',
+            }
+            for filho in valor
+        ], ensure_ascii=False)
     return '' if valor is None else str(valor)
 
 def perfil_vazio(matricula):
@@ -374,9 +382,11 @@ def formatar_perfil(perfil, matricula):
     if not perfil:
         return perfil_vazio(matricula)
     dados = row_to_dict(perfil)
+    formatado = {'matricula': dados.get('matricula') or matricula}
     for campo in CAMPOS_PERFIL:
-        dados.setdefault(campo, None if campo in CAMPOS_BOOLEANOS_PERFIL or campo in CAMPOS_INTEIROS_PERFIL else '')
-    return dados
+        padrao = None if campo in CAMPOS_BOOLEANOS_PERFIL or campo in CAMPOS_INTEIROS_PERFIL else ''
+        formatado[campo] = dados.get(campo, padrao)
+    return formatado
 
 def normalizar_payload_perfil(dados):
     dados = dados or {}
@@ -384,6 +394,8 @@ def normalizar_payload_perfil(dados):
     if perfil.get('trabalha') is not True:
         perfil['trabalho_descricao'] = ''
         perfil['turno_trabalho'] = ''
+    if perfil.get('tem_filhos') is not True:
+        perfil['filhos_descricao'] = ''
     return perfil
 
 def salvar_perfil_aluno(cursor, matricula, perfil):

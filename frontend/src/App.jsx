@@ -61,6 +61,7 @@ const PERFIL_CADASTRO_INICIAL = () => {
   delete perfil.matricula;
   return perfil;
 };
+const CAMPOS_PERFIL_FORM = Object.keys(PERFIL_CADASTRO_INICIAL());
 
 const STATUS_COLORS = {
   MANTER: '#1f9d55',
@@ -146,7 +147,23 @@ const criarTempSeguro = (aluno = {}) => ({
   status: normalizarStatus(aluno.status),
 });
 
-const normalizarPerfil = (perfil = {}) => ({ ...PERFIL_INICIAL(perfil.matricula), ...perfil });
+const normalizarPerfil = (perfil = {}) => {
+  const normalizado = PERFIL_INICIAL(perfil.matricula);
+  CAMPOS_PERFIL_FORM.forEach((campo) => {
+    if (Object.prototype.hasOwnProperty.call(perfil, campo)) {
+      normalizado[campo] = perfil[campo];
+    }
+  });
+  return normalizado;
+};
+
+const montarPayloadPerfil = (perfil = {}, matricula = '') => {
+  const normalizado = normalizarPerfil({ ...perfil, matricula });
+  return {
+    matricula: normalizado.matricula,
+    ...Object.fromEntries(CAMPOS_PERFIL_FORM.map((campo) => [campo, normalizado[campo]])),
+  };
+};
 const MENSAGEM_BACKEND_INICIANDO = 'O servidor está iniciando. Aguarde alguns segundos e clique em Atualizar novamente.';
 const erroDeConexao = (err) => (
   !err.response
@@ -499,7 +516,7 @@ export default function App() {
     setSalvandoPerfil(true);
     setMensagem(null);
     try {
-      const payload = { ...perfilTemp, matricula: aluno.matricula };
+      const payload = montarPayloadPerfil(perfilTemp, aluno.matricula);
       const res = await axios.post(`${API_BASE_URL}/api/alunos/perfil/update`, payload, authConfig({ timeout: 12000 }));
       const atualizado = normalizarPerfil(res.data.perfil);
       setPerfil(atualizado);

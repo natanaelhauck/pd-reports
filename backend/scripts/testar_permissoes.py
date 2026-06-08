@@ -129,6 +129,58 @@ def assert_monitor_edita_perfil(client):
     print(f'OK - monitor editando perfil recebe 200: {response.status_code}')
 
 
+def assert_edicao_filhos_perfil(client):
+    casos = [
+        ('nome do filho', True, '[{"nome":"Ana","idade":"5"}]'),
+        ('idade do filho', True, '[{"nome":"Ana","idade":"6"}]'),
+        ('quantidade de filhos', True, '[{"nome":"Ana","idade":"6"},{"nome":"Bruno","idade":"2"}]'),
+        ('perfil sem filhos', False, '[{"nome":"Ana","idade":"6"}]'),
+    ]
+
+    for descricao, tem_filhos, filhos_descricao in casos:
+        response = client.post('/api/alunos/perfil/update', json={
+            'matricula': 'PD001',
+            'tem_filhos': tem_filhos,
+            'filhos_descricao': filhos_descricao,
+        })
+        assert response.status_code == 200, (
+            f'{descricao}: esperado 200, recebido {response.status_code} - {response.get_json()}'
+        )
+        perfil = response.get_json()['perfil']
+        assert perfil['tem_filhos'] is tem_filhos
+        if tem_filhos:
+            assert perfil['filhos_descricao'] == filhos_descricao
+        else:
+            assert perfil['filhos_descricao'] == ''
+        print(f'OK - salvando {descricao}: {response.status_code}')
+
+
+def assert_payload_invalido_continua_bloqueado(client):
+    response = client.post('/api/alunos/perfil/update', json={
+        'matricula': 'PD001',
+        'tem_filhos': True,
+        'filhos_descricao': '[]',
+        'campo_invalido': 'nao deve passar',
+    })
+    assert response.status_code == 400, (
+        f'payload invalido: esperado 400, recebido {response.status_code} - {response.get_json()}'
+    )
+    assert 'campo_invalido' in response.get_json()['campos']
+    print(f'OK - payload invalido continua bloqueado: {response.status_code}')
+
+
+def assert_formatar_perfil_remove_colunas_fora_contrato():
+    perfil = app_module.formatar_perfil({
+        'matricula': 'PD001',
+        'tem_filhos': True,
+        'filhos_descricao': '[{"nome":"Ana","idade":"5"}]',
+        'atualizado_em': '2026-06-08 10:00:00',
+    }, 'PD001')
+    assert 'atualizado_em' not in perfil
+    assert set(perfil.keys()) == {'matricula', *app_module.CAMPOS_PERFIL}
+    print('OK - perfil formatado remove colunas fora do contrato')
+
+
 def assert_monitor_nao_cria_admin(client):
     response = client.post('/api/usuarios/create', json={
         'nome': 'Admin Indevido',
@@ -161,6 +213,9 @@ def main():
 
         instalar_db(target_role='monitor', admin_count=2)
         assert_monitor_edita_perfil(client)
+        assert_edicao_filhos_perfil(client)
+        assert_payload_invalido_continua_bloqueado(client)
+        assert_formatar_perfil_remove_colunas_fora_contrato()
 
         instalar_usuario({'id': 11, 'nome': 'Isabela', 'email': 'isabela@example.com', 'role': 'psicologa'})
         assert_status(client, 'psicologa tentando editar role recebe 403', 403)
