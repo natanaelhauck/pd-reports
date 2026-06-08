@@ -49,27 +49,28 @@ function CourseList({ title, courses, tone }) {
   );
 }
 
-export function CourseCertificatesSection({ certificados }) {
+export function CourseCertificatesSection({ certificados, aluno }) {
   const dados = certificados || {};
   const cursos = dados.cursos || [];
+  const concluidoPorDesafioFinal = Boolean(aluno?.desafioFinal);
   const certificadosGerados = Number(dados.certificadosGerados || 0);
-  const totalCursos = cursos.length || (
+  const totalCursos = Number(dados.totalCursosCertificaveis || 0) || cursos.length || (
     Number(dados.cursosConcluidos || 0)
     + Number(dados.cursosEmAndamento || 0)
     + Number(dados.cursosNaoIniciados || 0)
   );
   const certificadoPct = totalCursos > 0 ? Math.min(100, (certificadosGerados / totalCursos) * 100) : 0;
   const comCertificado = cursos.filter((curso) => curso.certificadoGerado);
-  const emAndamentoSemCertificado = cursos.filter((curso) => !curso.certificadoGerado && statusKey(curso.status).includes('andamento'));
-  const naoIniciados = cursos.filter((curso) => statusKey(curso.status).includes('nao iniciado'));
   const semCertificado = cursos.filter((curso) => !curso.certificadoGerado);
+  const semCertificadoTotal = Math.max(0, totalCursos - certificadosGerados);
+  const emAndamentoSemCertificado = semCertificado;
 
   return (
     <section className="course-section certificates-section">
       <div className="course-section-head certificates-head">
         <div>
           <h3>Certificados e cursos</h3>
-          <p>Progresso de certificados gerados nos cursos mapeados.</p>
+          <p>{concluidoPorDesafioFinal ? 'Conclusão reconhecida pelo Desafio Final.' : 'Progresso de certificados gerados nos cursos mapeados.'}</p>
         </div>
         <div className="certificate-score">
           <strong>{certificadosGerados}/{totalCursos}</strong>
@@ -85,14 +86,14 @@ export function CourseCertificatesSection({ certificados }) {
         <CourseStat label="Concluídos" value={dados.cursosConcluidos || 0} tone="done" />
         <CourseStat label="Em andamento" value={dados.cursosEmAndamento || 0} tone="progress" />
         <CourseStat label="Não iniciados" value={dados.cursosNaoIniciados || 0} tone="muted" />
-        <CourseStat label="Sem certificado" value={semCertificado.length} tone="risk" />
+        <CourseStat label="Sem certificado" value={semCertificadoTotal} tone="risk" />
       </div>
 
       <div className="course-lists-grid certificates-lists">
         <CourseList title="Com certificado" courses={comCertificado} tone="done" />
-        <CourseList title="Em andamento sem certificado" courses={emAndamentoSemCertificado} tone="progress" />
-        <CourseList title="Não iniciados" courses={naoIniciados} tone="muted" />
-        <CourseList title="Sem certificado" courses={semCertificado} tone="risk" />
+        {!concluidoPorDesafioFinal && (
+          <CourseList title="Em andamento / sem certificado" courses={emAndamentoSemCertificado} tone="progress" />
+        )}
       </div>
     </section>
   );

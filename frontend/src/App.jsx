@@ -282,6 +282,7 @@ const PERFIS_USUARIO = [
   ['monitor', 'Monitor'],
   ['admin', 'Admin'],
   ['psicologa', 'Psicóloga'],
+  ['prefeitura_itabira', 'Prefeitura Itabira'],
 ];
 
 const parseFilhos = (valor) => {
@@ -332,6 +333,7 @@ const formatarUsuario = (usuario) => {
   const perfil = String(usuario.role || '').trim().toLowerCase();
   const email = String(usuario.email || '').trim().toLowerCase();
   let nome = String(usuario.nome || usuario.email || '').trim();
+  if (perfil === 'prefeitura_itabira') return nome || 'Itabira - Prefeitura';
   if (perfil === 'admin' && nome.toLowerCase() === 'admin') nome = 'Natanael';
   if (!nome && email === 'natanaelhauck@projetodesenvolve.com.br') nome = 'Natanael';
   const perfilLabel = rotuloPerfilUsuario({ ...usuario, nome });
@@ -343,6 +345,7 @@ const rotuloPerfilUsuario = (usuario) => {
   const nome = String(usuario?.nome || '').trim().toLowerCase();
   if (perfil === 'admin') return 'Admin';
   if (perfil === 'psicologa') return 'Psicóloga';
+  if (perfil === 'prefeitura_itabira') return 'Prefeitura Itabira';
   if (perfil === 'monitor' && nome.startsWith('kellen')) return 'Monitora';
   if (perfil === 'monitor') return 'Monitor';
   return perfil ? perfil.charAt(0).toUpperCase() + perfil.slice(1) : '';
@@ -453,6 +456,7 @@ export default function App() {
   const [salvandoUsuario, setSalvandoUsuario] = useState(false);
   const cardRef = useRef(null);
   const isAdmin = usuario?.role === 'admin';
+  const isPrefeituraItabira = usuario?.role === 'prefeitura_itabira';
   const autenticado = Boolean(usuario?.token);
   const authHeaders = useMemo(() => (
     usuario?.token ? { Authorization: `Bearer ${usuario.token}` } : {}
@@ -951,13 +955,15 @@ export default function App() {
         )}
       </div>
 
-      <form className="search-form" onSubmit={buscar} style={styles.searchBox}>
-        <Search className="search-icon" size={20} color="#64748b" />
-        <input style={styles.searchInput} placeholder="Buscar por nome, matrícula, e-mail ou telefone..." value={busca} onChange={(e) => setBusca(e.target.value)} autoComplete="off" />
-        <button className="ui-button" type="submit" disabled={buscando} style={{ ...styles.primaryBtn, opacity: buscando ? 0.75 : 1 }}>
-          {buscando ? 'Buscando...' : 'Buscar'}
-        </button>
-      </form>
+      {!isPrefeituraItabira && (
+        <form className="search-form" onSubmit={buscar} style={styles.searchBox}>
+          <Search className="search-icon" size={20} color="#64748b" />
+          <input style={styles.searchInput} placeholder="Buscar por nome, matrícula, e-mail ou telefone..." value={busca} onChange={(e) => setBusca(e.target.value)} autoComplete="off" />
+          <button className="ui-button" type="submit" disabled={buscando} style={{ ...styles.primaryBtn, opacity: buscando ? 0.75 : 1 }}>
+            {buscando ? 'Buscando...' : 'Buscar'}
+          </button>
+        </form>
+      )}
 
       {mensagem && <div style={{ ...styles.message, ...estiloMensagem }}>{mensagem.texto}</div>}
 
@@ -1120,7 +1126,7 @@ export default function App() {
         </section>
       )}
 
-      {aluno && (
+      {!isPrefeituraItabira && aluno && (
         <div ref={cardRef} className="student-card" style={{ ...styles.card, '--student-status-color': corStatus, borderLeft: `8px solid ${corStatus}`, marginBottom: '18px' }}>
           <button className="ui-button card-close" type="button" onClick={fecharAlunoSelecionado} aria-label="Fechar aluno selecionado" style={styles.iconBtn}><X size={17} /></button>
           <div className="student-card-header" style={styles.cardHeader}>
@@ -1179,7 +1185,7 @@ export default function App() {
         </div>
       )}
 
-      {!mostrarMonitores && !mostrarIntegralizacao && buscaRealizada && resultadosVisiveis.length > 0 && (
+      {!isPrefeituraItabira && !mostrarMonitores && !mostrarIntegralizacao && buscaRealizada && resultadosVisiveis.length > 0 && (
         <>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
             <h2 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--pd-title)', margin: 0 }}>Resultados</h2>
@@ -1224,7 +1230,7 @@ function DadosPrincipais({ aluno, temp, setTemp, editMode, setEditMode, salvar, 
         <InfoItem icon={<Hash size={18} color={corStatus} />} label="Matrícula" value={aluno.matricula} />
         <FieldItem icon={<Phone size={18} color={corStatus} />} label="Telefone" editMode={editMode} value={temp.telefone} display={aluno.telefone} onChange={(v) => setTemp({ ...temp, telefone: v })} />
         <FieldItem full icon={<Mail size={18} color={corStatus} />} label="E-mail" editMode={editMode} value={temp.email} display={aluno.email} onChange={(v) => setTemp({ ...temp, email: v })} />
-        <InfoItem icon={<GraduationCap size={18} color={corStatus} />} label="Data de entrada no curso" value={aluno.dataEntradaCursoFormatada || 'Não informado'} />
+        <InfoItem icon={<GraduationCap size={18} color={corStatus} />} label="Ingresso" value={aluno.dataEntradaCursoFormatada || 'Não informado'} />
         <FieldItem icon={<Calendar size={18} color={corStatus} />} label="Nascimento e Idade" type="date" editMode={editMode} value={temp.nascimento} display={`${aluno.nascimento_formatado} ${aluno.idade !== '-' ? `(${aluno.idade} anos)` : ''}`} onChange={(v) => setTemp({ ...temp, nascimento: v })} />
         <FieldItem icon={<Laptop size={18} color={corStatus} />} label="Patrimônio" editMode={editMode} value={temp.patrimonio} display={aluno.patrimonio || 'Não informado'} onChange={(v) => setTemp({ ...temp, patrimonio: v })} />
         <div style={styles.infoItem}>
@@ -1460,8 +1466,9 @@ function MonitoresDashboard({ usuario, authHeaders }) {
   const [mensagemAtualizacao, setMensagemAtualizacao] = useState('');
 
   const isAdmin = usuario?.role === 'admin';
+  const isPrefeituraItabira = usuario?.role === 'prefeitura_itabira';
   const monitorUsuario = monitorDoUsuario(usuario);
-  const monitorEfetivo = isAdmin ? monitorFiltro : monitorUsuario;
+  const monitorEfetivo = usuario?.role === 'monitor' ? monitorUsuario : (isAdmin ? monitorFiltro : '');
   const semanasPeriodo = useMemo(() => semanasUteisMonitoriaMes(mes), [mes]);
   const periodoOptions = useMemo(() => ([
     ['mes', 'Mês inteiro'],
@@ -1477,11 +1484,11 @@ function MonitoresDashboard({ usuario, authHeaders }) {
       monitor: monitorEfetivo || 'Todos',
       status: statusFiltro || 'Todos',
       periodo: periodoFiltroEfetivo,
-      tipo_matricula: tipoMatriculaFiltro,
+      tipo_matricula: isPrefeituraItabira ? 'pdita' : tipoMatriculaFiltro,
     };
     if (periodoFiltroEfetivo === 'dia') params.data_periodo = dataPeriodoEfetiva;
     return params;
-  }, [mes, monitorEfetivo, statusFiltro, periodoFiltroEfetivo, tipoMatriculaFiltro, dataPeriodoEfetiva]);
+  }, [mes, monitorEfetivo, statusFiltro, periodoFiltroEfetivo, tipoMatriculaFiltro, dataPeriodoEfetiva, isPrefeituraItabira]);
 
   useEffect(() => {
     let cancelado = false;
@@ -1565,13 +1572,19 @@ function MonitoresDashboard({ usuario, authHeaders }) {
           <ProfileField label="Mês" type="month" value={mes} onChange={setMes} />
           {isAdmin ? (
             <ProfileSelect label="Monitor" value={monitorFiltro} onChange={setMonitorFiltro} options={[['', 'Todos'], ...MONITORES_DASHBOARD.map((monitor) => [monitor, monitor])]} />
+          ) : isPrefeituraItabira ? (
+            <ProfileField label="Monitor" value="Todos" disabled onChange={() => {}} />
           ) : (
             <ProfileField label="Monitor" value={monitorUsuario || 'Monitor'} disabled onChange={() => {}} />
           )}
           <ProfileSelect label="Status" value={statusFiltro} onChange={setStatusFiltro} options={STATUS_MONITORIA_FILTROS} />
           <ProfileSelect label="Período" value={periodoFiltroEfetivo} onChange={setPeriodoFiltro} options={periodoOptions} />
           {periodoFiltroEfetivo === 'dia' && <ProfileField label="Data" type="date" value={dataPeriodoEfetiva} onChange={setDataPeriodo} />}
-          <ProfileSelect label="Cidade - Matrícula" value={tipoMatriculaFiltro} onChange={setTipoMatriculaFiltro} options={TIPO_MATRICULA_FILTROS} />
+          {isPrefeituraItabira ? (
+            <ProfileField label="Cidade - Matrícula" value="Itabira - PDITA" disabled onChange={() => {}} />
+          ) : (
+            <ProfileSelect label="Cidade - Matrícula" value={tipoMatriculaFiltro} onChange={setTipoMatriculaFiltro} options={TIPO_MATRICULA_FILTROS} />
+          )}
           <button className={carregando ? 'ui-button monitoring-refresh-button is-loading' : 'ui-button monitoring-refresh-button'} type="button" onClick={atualizarAgora} disabled={carregando}>
             {carregando ? 'Atualizando...' : 'Atualizar'}
           </button>

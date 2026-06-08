@@ -17,6 +17,8 @@ DEFAULT_SHEET_NAME = "Resultado"
 DEFAULT_HORAS_TOTAIS = 154
 DEFAULT_PRAZO_FINAL = "2026-11-30"
 DEFAULT_CACHE_TTL_SECONDS = 60
+TOTAL_CURSOS_CERTIFICAVEIS = 22
+CURSO_REMOVIDO_CERTIFICADOS = "intensivao desenvolve"
 MIN_MINUTOS_DIA = 30
 MIN_HORAS_DIA = MIN_MINUTOS_DIA / 60
 EXCEL_EPOCH = datetime(1899, 12, 30)
@@ -265,6 +267,32 @@ def limpar_curso(raw):
     }
 
 
+def curso_removido_certificados(curso):
+    nome = curso.get("curso") if isinstance(curso, dict) else curso
+    return CURSO_REMOVIDO_CERTIFICADOS in chave_campo(nome)
+
+
+def remover_curso_de_lista(valor):
+    return "; ".join(
+        item
+        for item in (texto(parte) for parte in texto(valor).split(";"))
+        if item and CURSO_REMOVIDO_CERTIFICADOS not in chave_campo(item)
+    )
+
+
+def curso_concluido(curso):
+    status = chave_campo(curso.get("status"))
+    return status == "concluido" or curso.get("percentual", 0) >= 100
+
+
+def curso_em_andamento(curso):
+    return chave_campo(curso.get("status")) == "em andamento"
+
+
+def curso_nao_iniciado(curso):
+    return chave_campo(curso.get("status")) == "nao iniciado"
+
+
 def parse_cursos_json(valor):
     raw = texto(valor)
     if not raw:
@@ -278,7 +306,7 @@ def parse_cursos_json(valor):
     cursos = []
     for item in dados:
         curso = limpar_curso(item)
-        if curso:
+        if curso and not curso_removido_certificados(curso):
             cursos.append(curso)
     return cursos
 
@@ -291,17 +319,16 @@ def agrupar_cursos(cursos):
     sem_certificado = []
 
     for curso in cursos:
-        status = chave_campo(curso.get("status"))
         if curso.get("certificadoGerado"):
             com_certificado.append(curso)
         else:
             sem_certificado.append(curso)
 
-        if status == "concluido" or curso.get("percentual", 0) >= 100:
+        if curso_concluido(curso):
             concluidos.append(curso)
-        elif status == "em andamento":
+        elif curso_em_andamento(curso):
             em_andamento.append(curso)
-        elif status == "nao iniciado":
+        elif curso_nao_iniciado(curso):
             nao_iniciados.append(curso)
 
     return {
@@ -313,16 +340,40 @@ def agrupar_cursos(cursos):
     }
 
 
-def build_certificados(cells):
+def build_certificados(cells, concluido_ou_desafio_final=False):
     cursos = parse_cursos_json(cells.get("cursosDetalhesJson"))
+    if concluido_ou_desafio_final:
+        cursos = [
+            {
+                **curso,
+                "status": "Concluído",
+                "percentual": 100,
+                "certificadoGerado": True,
+            }
+            for curso in cursos
+        ]
+        grupos = agrupar_cursos(cursos)
+        return {
+            "totalCursosCertificaveis": TOTAL_CURSOS_CERTIFICAVEIS,
+            "cursosConcluidos": TOTAL_CURSOS_CERTIFICAVEIS,
+            "certificadosGerados": TOTAL_CURSOS_CERTIFICAVEIS,
+            "cursosEmAndamento": 0,
+            "cursosNaoIniciados": 0,
+            "cursosComCertificado": "; ".join(f"{curso.get('curso')} (100%)" for curso in cursos),
+            "cursosSemCertificado": "",
+            "cursos": cursos,
+            "grupos": grupos,
+        }
+
     grupos = agrupar_cursos(cursos)
     return {
-        "cursosConcluidos": numero_seguro(cells.get("cursosConcluidos")),
-        "certificadosGerados": numero_seguro(cells.get("certificadosGerados")),
-        "cursosEmAndamento": numero_seguro(cells.get("cursosEmAndamento")),
-        "cursosNaoIniciados": numero_seguro(cells.get("cursosNaoIniciados")),
-        "cursosComCertificado": texto(cells.get("cursosComCertificado")),
-        "cursosSemCertificado": texto(cells.get("cursosSemCertificado")),
+        "totalCursosCertificaveis": TOTAL_CURSOS_CERTIFICAVEIS,
+        "cursosConcluidos": len(grupos["concluidos"]),
+        "certificadosGerados": len(grupos["comCertificado"]),
+        "cursosEmAndamento": len(grupos["emAndamento"]),
+        "cursosNaoIniciados": len(grupos["naoIniciados"]),
+        "cursosComCertificado": remover_curso_de_lista(cells.get("cursosComCertificado")),
+        "cursosSemCertificado": remover_curso_de_lista(cells.get("cursosSemCertificado")),
         "cursos": cursos,
         "grupos": grupos,
     }
@@ -476,7 +527,7 @@ def montar_aluno_integralizacao(cells, config, hoje=None):
         "alunoConcluido": aluno_concluido,
         "horasTotaisCurso": config["horas_totais"],
         "percentualIntegralizacao": percentual,
-        "certificados": build_certificados(cells),
+        "certificados": build_certificados(cells, aluno_concluido),
         "metaDiaria": meta_diaria,
     }
 

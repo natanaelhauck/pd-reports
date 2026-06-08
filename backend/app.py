@@ -76,7 +76,10 @@ INTEGRALIZACAO_SHEET_NAME = os.getenv('INTEGRALIZACAO_SHEET_NAME', 'Resultado')
 INTEGRALIZACAO_HORAS_TOTAIS = os.getenv('INTEGRALIZACAO_HORAS_TOTAIS', '154')
 INTEGRALIZACAO_PRAZO_FINAL = os.getenv('INTEGRALIZACAO_PRAZO_FINAL', '2026-11-30')
 INTEGRALIZACAO_CACHE_TTL_SECONDS = os.getenv('INTEGRALIZACAO_CACHE_TTL_SECONDS', '60')
-USUARIO_ROLES_VALIDOS = {'admin', 'monitor', 'psicologa'}
+PREFEITURA_ITABIRA_ROLE = 'prefeitura_itabira'
+PREFEITURA_ITABIRA_EMAIL = os.getenv('PREFEITURA_ITABIRA_EMAIL', 'prefeitura.itabira@pdreports.local')
+PREFEITURA_ITABIRA_PASSWORD_HASH = os.getenv('PREFEITURA_ITABIRA_PASSWORD_HASH')
+USUARIO_ROLES_VALIDOS = {'admin', 'monitor', 'psicologa', PREFEITURA_ITABIRA_ROLE}
 AUTH_TOKEN_MAX_AGE_SECONDS = 60 * 60 * 12
 APP_TIMEZONE_NAME = os.getenv('APP_TIMEZONE', 'America/Sao_Paulo')
 try:
@@ -1548,6 +1551,32 @@ def matricula_corresponde_tipo(matricula, tipo_matricula):
         return True
     return normalizar_matricula(matricula).upper().startswith(tipo.upper())
 
+def usuario_eh_prefeitura_itabira(usuario):
+    return (usuario or {}).get('role') == PREFEITURA_ITABIRA_ROLE
+
+def usuario_tipo_matricula_obrigatorio(usuario):
+    if usuario_eh_prefeitura_itabira(usuario):
+        return 'pdita'
+    return None
+
+def tipo_matricula_para_usuario(usuario, valor):
+    tipo_obrigatorio = usuario_tipo_matricula_obrigatorio(usuario)
+    return tipo_obrigatorio or normalizar_tipo_matricula(valor)
+
+def usuario_pode_ver_matricula(usuario, matricula):
+    tipo_obrigatorio = usuario_tipo_matricula_obrigatorio(usuario)
+    if not tipo_obrigatorio:
+        return True
+    return matricula_corresponde_tipo(matricula, tipo_obrigatorio)
+
+def filtrar_alunos_por_usuario(alunos, usuario):
+    if not usuario_tipo_matricula_obrigatorio(usuario):
+        return alunos
+    return [
+        aluno for aluno in alunos
+        if usuario_pode_ver_matricula(usuario, aluno.get('matricula'))
+    ]
+
 def parse_mes_monitoria(valor):
     texto = str(valor or '').strip()
     if not re.fullmatch(r'\d{4}-\d{2}', texto):
@@ -1818,6 +1847,8 @@ def usuario_pode_ver_aluno_pd(usuario, aluno):
     role = usuario.get('role')
     if role in {'admin', 'psicologa'}:
         return True
+    if role == PREFEITURA_ITABIRA_ROLE:
+        return usuario_pode_ver_matricula(usuario, aluno.get('matricula'))
     if role == 'monitor':
         monitor_usuario = monitor_do_usuario(usuario)
         return bool(monitor_usuario and normalizar_monitor(aluno.get('monitor')) == monitor_usuario)
@@ -1827,6 +1858,11 @@ def filtrar_integralizacao_por_usuario(alunos, usuario):
     role = usuario.get('role')
     if role in {'admin', 'psicologa'}:
         return alunos
+    if role == PREFEITURA_ITABIRA_ROLE:
+        return [
+            aluno for aluno in alunos
+            if usuario_pode_ver_matricula(usuario, (aluno.get('alunoPd') or {}).get('matricula') or aluno.get('pdita'))
+        ]
     if role != 'monitor':
         return []
 
@@ -1892,7 +1928,7 @@ def criar_admin_inicial(cursor):
     ''', ('Admin', ADMIN_EMAIL.strip().lower(), generate_password_hash(ADMIN_PASSWORD), 'admin'))
     print(f'Admin inicial criado: {ADMIN_EMAIL.strip().lower()}')
 
-def garantir_usuario_padrao(cursor, nome, email, role):
+def garantir_usuario_padrao(cursor, nome, email, role, senha_hash=None):
     cursor.execute(
         'SELECT id FROM usuarios WHERE lower(email)=lower(%s) OR lower(nome)=lower(%s) LIMIT 1',
         (email, nome),
@@ -1900,7 +1936,7 @@ def garantir_usuario_padrao(cursor, nome, email, role):
     usuario = cursor.fetchone()
     if usuario:
         cursor.execute(
-            'UPDATE usuarios SET nome=%s, role=%s WHERE id=%s',
+            'UPDATE usuarios SET nome=%s, role=%s, ativo=TRUE WHERE id=%s',
             (nome, role, usuario['id']),
         )
         return
@@ -1908,11 +1944,28 @@ def garantir_usuario_padrao(cursor, nome, email, role):
     cursor.execute('''
         INSERT INTO usuarios (nome, email, senha_hash, role, ativo)
         VALUES (%s, %s, %s, %s, TRUE)
-    ''', (nome, email, generate_password_hash(ADMIN_PASSWORD), role))
+    ''', (nome, email, senha_hash or generate_password_hash(ADMIN_PASSWORD), role))
 
 def garantir_usuarios_padrao(cursor):
     garantir_usuario_padrao(cursor, 'Yuka', 'yuka@projetodesenvolve.com.br', 'admin')
     garantir_usuario_padrao(cursor, 'Isabela', 'isabela@projetodesenvolve.com.br', 'psicologa')
+    if PREFEITURA_ITABIRA_PASSWORD_HASH:
+        garantir_usuario_padrao(
+            cursor,
+            'Itabira - Prefeitura',
+            PREFEITURA_ITABIRA_EMAIL,
+            PREFEITURA_ITABIRA_ROLE,
+            PREFEITURA_ITABIRA_PASSWORD_HASH,
+        )
+    else:
+        cursor.execute(
+            '''
+            UPDATE usuarios
+            SET nome=%s, role=%s, ativo=TRUE
+            WHERE lower(email)=lower(%s) OR lower(nome)=lower(%s)
+            ''',
+            ('Itabira - Prefeitura', PREFEITURA_ITABIRA_ROLE, PREFEITURA_ITABIRA_EMAIL, 'Itabira - Prefeitura'),
+        )
 
 def criar_tabelas():
     conn = conectar_db()
@@ -2150,7 +2203,7 @@ def update_minha_senha():
 
 @app.route('/api/alunos', methods=['GET'])
 def get_alunos():
-    _, erro = require_auth()
+    usuario, erro = require_auth()
     if erro:
         return erro
     conn = None
@@ -2176,7 +2229,7 @@ def get_alunos():
                         ORDER BY nome
                         LIMIT 50
                     ''', (filtro,))
-                    alunos = formatar_alunos_com_consumo(cursor.fetchall())
+                    alunos = filtrar_alunos_por_usuario(formatar_alunos_com_consumo(cursor.fetchall()), usuario)
                     return jsonify(alunos)
 
                 if tipo_busca == 'identificador':
@@ -2188,7 +2241,7 @@ def get_alunos():
                         ORDER BY nome
                         LIMIT 50
                     ''', (filtro, filtro, filtro))
-                    alunos = formatar_alunos_com_consumo(cursor.fetchall())
+                    alunos = filtrar_alunos_por_usuario(formatar_alunos_com_consumo(cursor.fetchall()), usuario)
                     return jsonify(alunos)
 
                 cursor.execute('''
@@ -2215,7 +2268,7 @@ def get_alunos():
                     matriculas_adicionadas.add(matricula)
                 if len(alunos_filtrados) >= 50:
                     break
-            return jsonify(anexar_consumo_alunos(alunos_filtrados))
+            return jsonify(filtrar_alunos_por_usuario(anexar_consumo_alunos(alunos_filtrados), usuario))
         else:
             return jsonify([])
     except psycopg2.Error as exc:
@@ -2226,7 +2279,7 @@ def get_alunos():
 
 @app.route('/api/integralizacao', methods=['GET'])
 def get_integralizacao():
-    usuario, erro = require_roles('admin', 'monitor', 'psicologa')
+    usuario, erro = require_roles('admin', 'monitor', 'psicologa', PREFEITURA_ITABIRA_ROLE)
     if erro:
         return erro
 
@@ -2262,7 +2315,7 @@ def get_integralizacao():
 
 @app.route('/api/alunos/<matricula>/integralizacao', methods=['GET'])
 def get_integralizacao_aluno(matricula):
-    usuario, erro = require_roles('admin', 'monitor', 'psicologa')
+    usuario, erro = require_roles('admin', 'monitor', 'psicologa', PREFEITURA_ITABIRA_ROLE)
     if erro:
         return erro
 
@@ -2318,9 +2371,11 @@ def get_integralizacao_aluno(matricula):
 
 @app.route('/api/alunos/historico/<matricula>', methods=['GET'])
 def get_historico_aluno(matricula):
-    _, erro = require_auth()
+    usuario, erro = require_auth()
     if erro:
         return erro
+    if not usuario_pode_ver_matricula(usuario, matricula):
+        return jsonify({'erro': 'Você não tem permissão para ver este aluno.'}), 403
     conn = None
     try:
         conn = conectar_db()
@@ -2343,9 +2398,11 @@ def get_historico_aluno(matricula):
 
 @app.route('/api/alunos/<matricula>/relatorios-monitoria', methods=['GET'])
 def get_relatorios_monitoria_aluno(matricula):
-    _, erro = require_auth()
+    usuario, erro = require_auth()
     if erro:
         return erro
+    if not usuario_pode_ver_matricula(usuario, matricula):
+        return jsonify({'erro': 'Você não tem permissão para ver este aluno.'}), 403
     try:
         dados = buscar_relatorios_monitoria()
         matricula_normalizada = normalizar_matricula(matricula)
@@ -2379,7 +2436,7 @@ def refresh_relatorios_monitoria():
 
 @app.route('/api/sync/refresh', methods=['POST'])
 def sync_refresh():
-    _, erro = require_roles('admin', 'monitor', 'psicologa')
+    _, erro = require_roles('admin', 'monitor', 'psicologa', PREFEITURA_ITABIRA_ROLE)
     if erro:
         return erro
     limpar_cache_relatorios()
@@ -2575,7 +2632,7 @@ def get_resumo_monitoria_monitores():
     try:
         ano, mes, mes_param = parse_mes_monitoria(request.args.get('mes'))
         monitor_filtro, status_filtro = filtros_monitoria_request(usuario)
-        tipo_matricula = normalizar_tipo_matricula(request.args.get('tipo_matricula'))
+        tipo_matricula = tipo_matricula_para_usuario(usuario, request.args.get('tipo_matricula'))
         periodo_aplicado = parse_periodo_monitoria(
             ano,
             mes,
@@ -2583,7 +2640,7 @@ def get_resumo_monitoria_monitores():
             request.args.get('data_periodo') or request.args.get('data'),
         )
         periodo_mes = parse_periodo_monitoria(ano, mes)
-        historico = consolidado_historico_monitoria(mes_param, monitor_filtro, status_filtro, periodo_mes)
+        historico = None if usuario_eh_prefeitura_itabira(usuario) else consolidado_historico_monitoria(mes_param, monitor_filtro, status_filtro, periodo_mes)
         if historico:
             try:
                 dados = buscar_relatorios_monitoria()
@@ -2642,9 +2699,11 @@ def get_resumo_monitoria_monitores():
 
 @app.route('/api/alunos/perfil/<matricula>', methods=['GET'])
 def get_perfil_aluno(matricula):
-    _, erro = require_auth()
+    usuario, erro = require_auth()
     if erro:
         return erro
+    if not usuario_pode_ver_matricula(usuario, matricula):
+        return jsonify({'erro': 'Você não tem permissão para ver este aluno.'}), 403
     conn = None
     try:
         conn = conectar_db()

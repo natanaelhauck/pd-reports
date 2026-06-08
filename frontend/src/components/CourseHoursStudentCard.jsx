@@ -1,3 +1,5 @@
+import { Trophy } from 'lucide-react';
+
 const pctColor = (pct) => {
   if (pct >= 80) return '#15803d';
   if (pct >= 50) return '#d97706';
@@ -30,10 +32,8 @@ export function CourseHoursStudentCard({ aluno, compact = false, onClick }) {
             <span className={aluno?.ativo ? 'course-pill success' : 'course-pill muted'}>
               {statusLabel(aluno)}
             </span>
-            {aluno?.desafioFinal && <span className="course-pill final">Desafio Final</span>}
-            {aluno?.vinculado ? (
-              <span className="course-pill linked">PD Reports</span>
-            ) : (
+            {aluno?.desafioFinal && <span className="course-pill final"><Trophy size={13} /> Desafio Final</span>}
+            {!aluno?.vinculado && (
               <span className="course-pill warning">Não vinculado</span>
             )}
           </div>

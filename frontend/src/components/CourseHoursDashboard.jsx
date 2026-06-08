@@ -105,13 +105,6 @@ export function CourseHoursDashboard({ apiBaseUrl, authHeaders }) {
 
       {dados && (
         <>
-          <div className="course-summary-grid consumption-summary">
-            <div><span>Total</span><strong>{dados.resumo?.total || 0}</strong></div>
-            <div><span>Ativos</span><strong>{dados.resumo?.ativos || 0}</strong></div>
-            <div><span>Concluídos</span><strong>{dados.resumo?.concluidos || 0}</strong></div>
-            {podeVerNaoVinculados && <div><span>Não vinculados</span><strong>{dados.resumo?.naoVinculados || 0}</strong></div>}
-          </div>
-
           <div className="course-dashboard-controls consumption-controls">
             <div className="course-tab-list">
               {tabsVisiveis.map(([key, label]) => (

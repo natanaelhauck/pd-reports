@@ -66,7 +66,8 @@ def criar_planilha(caminho):
         '',
         '[{"curso":"Python","courseId":"py","status":"Concluído","percentual":100,"certificadoGerado":true},'
         '{"curso":"React","courseId":"react","status":"Em andamento","percentual":0.5,"certificadoGerado":false},'
-        '{"curso":"Banco","courseId":"db","status":"Não iniciado","percentual":0,"certificadoGerado":false}]',
+        '{"curso":"Banco","courseId":"db","status":"Não iniciado","percentual":0,"certificadoGerado":false},'
+        '{"curso":"Intensivão Desenvolve","courseId":"intensivao","status":"Não iniciado","percentual":0,"certificadoGerado":false}]',
     ])
     sheet.append([
         'final@example.com',
@@ -194,6 +195,8 @@ def main():
         assert_equal('data entrada curso formatada', aluno['dataEntradaCursoFormatada'], '04/11/2024')
         assert_equal('desafio final vazio', aluno['desafioFinal'], False)
         assert_equal('percentual calculado', aluno['percentualIntegralizacao'], 50)
+        assert_equal('total cursos certificaveis', aluno['certificados']['totalCursosCertificaveis'], 22)
+        assert_equal('curso removido dos certificados', len(aluno['certificados']['cursos']), 3)
         assert_equal('meta diaria aplicavel', aluno['metaDiaria']['aplicavel'], True)
         assert_equal('curso concluido agrupado', len(aluno['certificados']['grupos']['concluidos']), 1)
         assert_equal('curso em andamento agrupado', len(aluno['certificados']['grupos']['emAndamento']), 1)
@@ -206,6 +209,9 @@ def main():
         assert_equal('data entrada vazia nao quebra', final['dataEntradaCursoFormatada'], '')
         assert_equal('desafio final conclui aluno', final['alunoConcluido'], True)
         assert_equal('desafio final percentual 100', final['percentualIntegralizacao'], 100)
+        assert_equal('desafio final certificados 22', final['certificados']['certificadosGerados'], 22)
+        assert_equal('desafio final total cursos 22', final['certificados']['totalCursosCertificaveis'], 22)
+        assert_equal('desafio final sem nao iniciados', final['certificados']['cursosNaoIniciados'], 0)
         assert_equal('desafio final sem meta diaria obrigatoria', final['metaDiaria']['aplicavel'], False)
 
         acima = buscar_por_email(dados, 'over@example.com')

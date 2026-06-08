@@ -11,7 +11,7 @@ const pctColor = (pct) => {
 
 const alunoNome = (aluno) => aluno?.nome || aluno?.alunoPd?.nome || aluno?.email || 'Aluno sem nome';
 const alunoEmail = (aluno) => aluno?.email || aluno?.alunoPd?.email || 'E-mail não informado';
-const entradaCurso = (aluno) => aluno?.dataEntradaCursoFormatada || aluno?.dataIngresso || 'Não informada';
+const ingresso = (aluno) => aluno?.dataEntradaCursoFormatada || aluno?.dataIngresso || 'Não informado';
 
 function ConsumptionHeader({ aluno }) {
   const pct = Math.max(0, Math.min(100, Number(aluno?.percentualIntegralizacao || 0)));
@@ -29,15 +29,13 @@ function ConsumptionHeader({ aluno }) {
             {aluno?.ativo ? 'Ativo' : (aluno?.decisao || 'Inativo')}
           </span>
           {aluno?.desafioFinal && <span className="course-pill final">Desafio Final</span>}
-          {aluno?.vinculado ? (
-            <span className="course-pill linked">PD Reports</span>
-          ) : (
+          {!aluno?.vinculado && (
             <span className="course-pill warning">Não vinculado</span>
           )}
         </div>
         <div className="consumption-hero-meta">
-          <span>Entrada no curso</span>
-          <strong>{entradaCurso(aluno)}</strong>
+          <span>Ingresso</span>
+          <strong>{ingresso(aluno)}</strong>
         </div>
       </div>
 
@@ -95,7 +93,7 @@ function ConsumptionDetail({ aluno, onBack }) {
       <ConsumptionHeader aluno={aluno} />
       <ConsumptionStudentMeta aluno={aluno} />
       <CourseScheduleSection aluno={aluno} />
-      <CourseCertificatesSection certificados={aluno.certificados} />
+      <CourseCertificatesSection certificados={aluno.certificados} aluno={aluno} />
     </div>
   );
 }
