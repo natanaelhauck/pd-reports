@@ -22,6 +22,19 @@ from psycopg2.extras import RealDictCursor
 from werkzeug.exceptions import HTTPException
 from werkzeug.security import check_password_hash, generate_password_hash
 
+from integralizacao import (
+    IntegralizacaoArquivoNaoEncontrado,
+    IntegralizacaoConfigInvalida,
+    IntegralizacaoError,
+    IntegralizacaoPlanilhaInvalida,
+    aluno_pd_resumo,
+    buscar_por_email,
+    carregar_integralizacao,
+    cruzar_com_alunos_pd,
+    montar_resumo_geral,
+    normalizar_email as normalizar_email_integralizacao,
+)
+
 BASE_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = BASE_DIR.parent
 
@@ -58,6 +71,11 @@ GOOGLE_SHEETS_SCOPE = 'https://www.googleapis.com/auth/spreadsheets'
 RELATORIOS_MONITORIA_ABA = 'Relatórios Monitoria'
 RELATORIOS_MONITORIA_DATA_MINIMA = date(2026, 3, 23)
 RELATORIOS_MONITORIA_CACHE_TTL = int(os.getenv('RELATORIOS_MONITORIA_CACHE_TTL', '60'))
+INTEGRALIZACAO_XLSX_PATH = os.getenv('INTEGRALIZACAO_XLSX_PATH', 'dados/alunos_horas_extras_com_desafio_final.xlsx')
+INTEGRALIZACAO_SHEET_NAME = os.getenv('INTEGRALIZACAO_SHEET_NAME', 'Resultado')
+INTEGRALIZACAO_HORAS_TOTAIS = os.getenv('INTEGRALIZACAO_HORAS_TOTAIS', '154')
+INTEGRALIZACAO_PRAZO_FINAL = os.getenv('INTEGRALIZACAO_PRAZO_FINAL', '2026-11-30')
+INTEGRALIZACAO_CACHE_TTL_SECONDS = os.getenv('INTEGRALIZACAO_CACHE_TTL_SECONDS', '60')
 USUARIO_ROLES_VALIDOS = {'admin', 'monitor', 'psicologa'}
 AUTH_TOKEN_MAX_AGE_SECONDS = 60 * 60 * 12
 APP_TIMEZONE_NAME = os.getenv('APP_TIMEZONE', 'America/Sao_Paulo')
@@ -1721,6 +1739,65 @@ def status_da_linha(row, colunas_status):
             return status
     return ''
 
+def integralizacao_config_env():
+    return {
+        'xlsx_path': INTEGRALIZACAO_XLSX_PATH,
+        'sheet_name': INTEGRALIZACAO_SHEET_NAME,
+        'horas_totais': INTEGRALIZACAO_HORAS_TOTAIS,
+        'prazo_final': INTEGRALIZACAO_PRAZO_FINAL,
+        'cache_ttl': INTEGRALIZACAO_CACHE_TTL_SECONDS,
+    }
+
+def resposta_erro_integralizacao(exc):
+    if isinstance(exc, IntegralizacaoArquivoNaoEncontrado):
+        return jsonify({
+            'erro': 'Planilha de integralização não encontrada. Configure INTEGRALIZACAO_XLSX_PATH e coloque o arquivo local fora do Git.',
+            'detalhe': str(exc),
+        }), 404
+    if isinstance(exc, IntegralizacaoConfigInvalida):
+        return jsonify({'erro': str(exc)}), 400
+    if isinstance(exc, IntegralizacaoPlanilhaInvalida):
+        return jsonify({'erro': str(exc)}), 422
+    if isinstance(exc, IntegralizacaoError):
+        return jsonify({'erro': 'Não foi possível carregar os dados de integralização.'}), 500
+    app.logger.exception('Erro inesperado na integração de integralização')
+    return jsonify({'erro': 'Erro inesperado ao carregar integralização.'}), 500
+
+def carregar_alunos_pd_para_integralizacao(cursor):
+    cursor.execute('''
+        SELECT id, nome, email, matricula, monitor, status
+        FROM alunos
+        ORDER BY nome
+    ''')
+    return [row_to_dict(row) for row in cursor.fetchall()]
+
+def usuario_pode_ver_aluno_pd(usuario, aluno):
+    role = usuario.get('role')
+    if role in {'admin', 'psicologa'}:
+        return True
+    if role == 'monitor':
+        monitor_usuario = monitor_do_usuario(usuario)
+        return bool(monitor_usuario and normalizar_monitor(aluno.get('monitor')) == monitor_usuario)
+    return False
+
+def filtrar_integralizacao_por_usuario(alunos, usuario):
+    role = usuario.get('role')
+    if role in {'admin', 'psicologa'}:
+        return alunos
+    if role != 'monitor':
+        return []
+
+    monitor_usuario = monitor_do_usuario(usuario)
+    if not monitor_usuario:
+        return []
+
+    visiveis = []
+    for aluno in alunos:
+        aluno_pd = aluno.get('alunoPd') or {}
+        if aluno.get('vinculado') and normalizar_monitor(aluno_pd.get('monitor')) == monitor_usuario:
+            visiveis.append(aluno)
+    return visiveis
+
 def carregar_planilha():
     if not os.path.exists(CAMINHO_PLANILHA):
         return None
@@ -2100,6 +2177,98 @@ def get_alunos():
             return jsonify([])
     except psycopg2.Error as exc:
         return erro_banco(exc)
+    finally:
+        if conn:
+            conn.close()
+
+@app.route('/api/integralizacao', methods=['GET'])
+def get_integralizacao():
+    usuario, erro = require_roles('admin', 'monitor', 'psicologa')
+    if erro:
+        return erro
+
+    conn = None
+    try:
+        dados_integralizacao = carregar_integralizacao(**integralizacao_config_env())
+        conn = conectar_db()
+        cursor = cursor_db(conn)
+        alunos_pd = carregar_alunos_pd_para_integralizacao(cursor)
+        cruzamento = cruzar_com_alunos_pd(dados_integralizacao['alunos'], alunos_pd)
+        alunos_visiveis = filtrar_integralizacao_por_usuario(cruzamento['alunos'], usuario)
+        alunos_visiveis.sort(key=lambda item: item.get('percentualIntegralizacao', 0), reverse=True)
+        resumo = montar_resumo_geral(alunos_visiveis)
+        return jsonify({
+            'alunos': alunos_visiveis,
+            'resumo': resumo,
+            'fonte': dados_integralizacao.get('fonte', {}),
+            'permissoes': {
+                'podeVerNaoVinculados': usuario.get('role') in {'admin', 'psicologa'},
+            },
+            'resumoGeralFonte': {
+                **montar_resumo_geral(cruzamento['alunos']),
+                **cruzamento.get('resumoVinculos', {}),
+            },
+        })
+    except psycopg2.Error as exc:
+        return erro_banco(exc)
+    except Exception as exc:
+        return resposta_erro_integralizacao(exc)
+    finally:
+        if conn:
+            conn.close()
+
+@app.route('/api/alunos/<matricula>/integralizacao', methods=['GET'])
+def get_integralizacao_aluno(matricula):
+    usuario, erro = require_roles('admin', 'monitor', 'psicologa')
+    if erro:
+        return erro
+
+    conn = None
+    try:
+        conn = conectar_db()
+        cursor = cursor_db(conn)
+        cursor.execute('''
+            SELECT id, nome, email, matricula, monitor, status
+            FROM alunos
+            WHERE matricula=%s
+        ''', (matricula,))
+        aluno_pd = row_to_dict(cursor.fetchone())
+        if not aluno_pd:
+            return jsonify({'erro': 'Aluno não encontrado para a matrícula informada.'}), 404
+        if not usuario_pode_ver_aluno_pd(usuario, aluno_pd):
+            return jsonify({'erro': 'Você não tem permissão para ver a integralização deste aluno.'}), 403
+
+        aluno_pd_payload = aluno_pd_resumo(aluno_pd)
+        email = normalizar_email_integralizacao(aluno_pd.get('email'))
+        if not email:
+            return jsonify({
+                'encontrado': False,
+                'mensagem': 'Aluno sem e-mail cadastrado no PD Reports.',
+                'alunoPd': aluno_pd_payload,
+            })
+
+        dados_integralizacao = carregar_integralizacao(**integralizacao_config_env())
+        aluno_integralizacao = buscar_por_email(dados_integralizacao, email)
+        if not aluno_integralizacao:
+            return jsonify({
+                'encontrado': False,
+                'mensagem': 'Sem dados de integralização para este e-mail.',
+                'alunoPd': aluno_pd_payload,
+                'emailConsultado': email,
+                'fonte': dados_integralizacao.get('fonte', {}),
+            })
+
+        aluno_integralizacao['vinculado'] = True
+        aluno_integralizacao['alunoPd'] = aluno_pd_payload
+        return jsonify({
+            'encontrado': True,
+            'aluno': aluno_integralizacao,
+            'fonte': dados_integralizacao.get('fonte', {}),
+        })
+    except psycopg2.Error as exc:
+        return erro_banco(exc)
+    except Exception as exc:
+        return resposta_erro_integralizacao(exc)
     finally:
         if conn:
             conn.close()

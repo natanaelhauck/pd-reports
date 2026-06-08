@@ -74,6 +74,25 @@ python app.py
 http://127.0.0.1:5000/api/health
 ```
 
+### Integralização local
+
+1. Coloque a planilha de integralização em:
+
+```text
+dados/alunos_horas_extras_com_desafio_final.xlsx
+```
+
+2. Configure no `backend/.env`:
+
+```env
+INTEGRALIZACAO_XLSX_PATH=dados/alunos_horas_extras_com_desafio_final.xlsx
+INTEGRALIZACAO_HORAS_TOTAIS=154
+INTEGRALIZACAO_PRAZO_FINAL=2026-11-30
+INTEGRALIZACAO_SHEET_NAME=Resultado
+```
+
+Arquivos `.xlsx` dentro de `dados/` ficam fora do Git.
+
 ## Frontend
 
 1. Instale as dependencias:

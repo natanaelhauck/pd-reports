@@ -173,6 +173,9 @@ GOOGLE_SHEETS_ID=
 GOOGLE_SERVICE_ACCOUNT_JSON=
 GOOGLE_SERVICE_ACCOUNT_FILE=google-service-account.json
 FRONTEND_URL=https://pdreports.vercel.app
+INTEGRALIZACAO_XLSX_PATH=dados/alunos_horas_extras_com_desafio_final.xlsx
+INTEGRALIZACAO_HORAS_TOTAIS=154
+INTEGRALIZACAO_PRAZO_FINAL=2026-11-30
 ```
 
 ### Frontend

@@ -2,12 +2,14 @@ import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import { Search, User, Mail, Hash, Calendar, ShieldCheck, Phone, Edit2, Save, X, LogIn, Briefcase, GraduationCap, Users, CheckCircle2, Moon, Sun, Plus, UserPlus, ClipboardList, Laptop, Eye, EyeOff, KeyRound } from 'lucide-react';
 import pdLogo from './assets/pd-logo.svg';
+import { CourseHoursDashboard } from './components/CourseHoursDashboard.jsx';
+import { CourseHoursStudentDetails } from './components/CourseHoursStudentDetails.jsx';
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 const MONITORES = ['Alex', 'André', 'Douglas', 'Gabriel', 'Kellen', 'Natanael'];
 const MONITORES_DASHBOARD = ['Alex', 'André', 'Douglas', 'Gabriel', 'Kellen', 'Natanael'];
 const STATUS_OPTIONS = ['MANTER', 'EM ANÁLISE', 'REMOVIDO', 'DESLIGADO'];
-const TABS = ['Dados principais', 'Perfil do aluno', 'Relatórios Monitoria', 'Histórico'];
+const TABS = ['Dados principais', 'Perfil do aluno', 'Relatórios Monitoria', 'Integralização', 'Histórico'];
 const MONITORIA_COLUNAS = [
   ['presente', 'Presente'],
   ['falta', 'Falta'],
@@ -432,6 +434,7 @@ export default function App() {
   const [mostrarNovoAluno, setMostrarNovoAluno] = useState(false);
   const [mostrarUsuarios, setMostrarUsuarios] = useState(false);
   const [mostrarMonitores, setMostrarMonitores] = useState(false);
+  const [mostrarIntegralizacao, setMostrarIntegralizacao] = useState(false);
   const [usuarios, setUsuarios] = useState([]);
   const [novoAluno, setNovoAluno] = useState(NOVO_ALUNO_INICIAL);
   const [mostrarPerfilNovoAluno, setMostrarPerfilNovoAluno] = useState(false);
@@ -508,6 +511,7 @@ export default function App() {
     setMostrarNovoAluno(false);
     setMostrarUsuarios(false);
     setMostrarMonitores(false);
+    setMostrarIntegralizacao(false);
     setUsuarios([]);
     setNovoAluno(NOVO_ALUNO_INICIAL);
     setMostrarPerfilNovoAluno(false);
@@ -638,6 +642,7 @@ export default function App() {
     fecharAlunoSelecionado();
     setMostrarMonitores(false);
     setMostrarUsuarios(false);
+    setMostrarIntegralizacao(false);
     setMostrarNovoAluno(true);
     setMostrarPerfilNovoAluno(false);
     setNovoAlunoPerfil(PERFIL_CADASTRO_INICIAL());
@@ -647,6 +652,7 @@ export default function App() {
   const abrirUsuarios = async () => {
     fecharAlunoSelecionado();
     setMostrarMonitores(false);
+    setMostrarIntegralizacao(false);
     setMostrarNovoAluno(false);
     setNovoUsuario({ nome: '', email: '', senha: '', role: 'monitor' });
     setUsuarioEditando(null);
@@ -661,7 +667,17 @@ export default function App() {
     fecharAlunoSelecionado();
     setMostrarNovoAluno(false);
     setMostrarUsuarios(false);
+    setMostrarIntegralizacao(false);
     setMostrarMonitores(true);
+    setMensagem(null);
+  };
+
+  const abrirIntegralizacao = () => {
+    fecharAlunoSelecionado();
+    setMostrarNovoAluno(false);
+    setMostrarUsuarios(false);
+    setMostrarMonitores(false);
+    setMostrarIntegralizacao(true);
     setMensagem(null);
   };
 
@@ -813,6 +829,7 @@ export default function App() {
   const buscar = async (e) => {
     e.preventDefault();
     setMostrarMonitores(false);
+    setMostrarIntegralizacao(false);
     setBuscaRealizada(true);
     await carregarAlunos(busca.trim());
     setEditMode(false);
@@ -823,6 +840,7 @@ export default function App() {
     setMostrarNovoAluno(false);
     setMostrarUsuarios(false);
     setMostrarMonitores(false);
+    setMostrarIntegralizacao(false);
     setAluno(selecionado);
     setTemp(criarTempSeguro(selecionado));
     setPerfil(PERFIL_INICIAL(selecionado.matricula));
@@ -896,7 +914,7 @@ export default function App() {
   const corStatus = getStatusColor(statusAtual);
 
   return (
-    <div className={temaEscuro ? 'theme-dark app-shell' : 'theme-light app-shell'} style={mostrarMonitores ? { ...styles.container, maxWidth: '1500px' } : styles.container}>
+    <div className={temaEscuro ? 'theme-dark app-shell' : 'theme-light app-shell'} style={(mostrarMonitores || mostrarIntegralizacao) ? { ...styles.container, maxWidth: '1500px' } : styles.container}>
       <header className="app-header" style={styles.header}>
         <div className="header-user">
           <span className="user-chip">{formatarUsuario(usuario)}</span>
@@ -919,6 +937,7 @@ export default function App() {
 
       <div className="main-actions">
         <button className="ui-button" type="button" onClick={abrirMonitores} style={styles.neutralBtn}><Users size={17} /> Monitores</button>
+        <button className="ui-button" type="button" onClick={abrirIntegralizacao} style={styles.neutralBtn}><GraduationCap size={17} /> Integralização</button>
         {isAdmin && (
           <>
             <button className="ui-button" type="button" onClick={abrirNovoAluno} style={styles.neutralBtn}><Plus size={17} /> Novo aluno</button>
@@ -946,6 +965,10 @@ export default function App() {
 
       {mostrarMonitores && (
         <MonitoresDashboard usuario={usuario} authHeaders={authHeaders} />
+      )}
+
+      {mostrarIntegralizacao && (
+        <CourseHoursDashboard apiBaseUrl={API_BASE_URL} authHeaders={authHeaders} />
       )}
 
       {isAdmin && mostrarNovoAluno && (
@@ -1144,10 +1167,14 @@ export default function App() {
           {activeTab === 'Relatórios Monitoria' && (
             <RelatoriosMonitoria aluno={aluno} authHeaders={authHeaders} />
           )}
+
+          {activeTab === 'Integralização' && (
+            <CourseHoursStudentDetails aluno={aluno} apiBaseUrl={API_BASE_URL} authHeaders={authHeaders} />
+          )}
         </div>
       )}
 
-      {!mostrarMonitores && buscaRealizada && resultadosVisiveis.length > 0 && (
+      {!mostrarMonitores && !mostrarIntegralizacao && buscaRealizada && resultadosVisiveis.length > 0 && (
         <>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
             <h2 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--pd-title)', margin: 0 }}>Resultados</h2>

@@ -14,6 +14,7 @@ venv/
 backend/__pycache__/
 backend/.pycache_compile/
 backend/.pytest_cache/
+backend/.integralizacao_test_tmp/
 __pycache__/
 .pytest_cache/
 *.pyc
@@ -53,5 +54,6 @@ backend/google-service-account.json
 dados/alunos.xlsx
 dados/perfil_alunos.xlsx
 dados/*.xlsx
+dados/*.json
 !dados/exemplo_*.xlsx
 docs/reference/Dash-Hours-main/
