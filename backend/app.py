@@ -77,7 +77,7 @@ INTEGRALIZACAO_HORAS_TOTAIS = os.getenv('INTEGRALIZACAO_HORAS_TOTAIS', '154')
 INTEGRALIZACAO_PRAZO_FINAL = os.getenv('INTEGRALIZACAO_PRAZO_FINAL', '2026-11-30')
 INTEGRALIZACAO_CACHE_TTL_SECONDS = os.getenv('INTEGRALIZACAO_CACHE_TTL_SECONDS', '60')
 PREFEITURA_ITABIRA_ROLE = 'prefeitura_itabira'
-PREFEITURA_ITABIRA_EMAIL = os.getenv('PREFEITURA_ITABIRA_EMAIL', 'prefeitura.itabira@pdreports.local')
+PREFEITURA_ITABIRA_EMAIL = os.getenv('PREFEITURA_ITABIRA_EMAIL', 'prefeitura.itabira@projetodesenvolve.com.br')
 PREFEITURA_ITABIRA_PASSWORD_HASH = os.getenv('PREFEITURA_ITABIRA_PASSWORD_HASH')
 USUARIO_ROLES_VALIDOS = {'admin', 'monitor', 'psicologa', PREFEITURA_ITABIRA_ROLE}
 AUTH_TOKEN_MAX_AGE_SECONDS = 60 * 60 * 12
@@ -1936,8 +1936,8 @@ def garantir_usuario_padrao(cursor, nome, email, role, senha_hash=None):
     usuario = cursor.fetchone()
     if usuario:
         cursor.execute(
-            'UPDATE usuarios SET nome=%s, role=%s, ativo=TRUE WHERE id=%s',
-            (nome, role, usuario['id']),
+            'UPDATE usuarios SET nome=%s, email=%s, role=%s, ativo=TRUE WHERE id=%s',
+            (nome, email, role, usuario['id']),
         )
         return
 
@@ -1961,10 +1961,10 @@ def garantir_usuarios_padrao(cursor):
         cursor.execute(
             '''
             UPDATE usuarios
-            SET nome=%s, role=%s, ativo=TRUE
+            SET nome=%s, email=%s, role=%s, ativo=TRUE
             WHERE lower(email)=lower(%s) OR lower(nome)=lower(%s)
             ''',
-            ('Itabira - Prefeitura', PREFEITURA_ITABIRA_ROLE, PREFEITURA_ITABIRA_EMAIL, 'Itabira - Prefeitura'),
+            ('Itabira - Prefeitura', PREFEITURA_ITABIRA_EMAIL, PREFEITURA_ITABIRA_ROLE, PREFEITURA_ITABIRA_EMAIL, 'Itabira - Prefeitura'),
         )
 
 def criar_tabelas():
