@@ -54,3 +54,4 @@ dados/alunos.xlsx
 dados/perfil_alunos.xlsx
 dados/*.xlsx
 !dados/exemplo_*.xlsx
+docs/reference/Dash-Hours-main/
