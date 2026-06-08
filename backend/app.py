@@ -827,7 +827,6 @@ def registrar_cabecalho_reconhecido(reconhecidos, campo, row, possiveis_nomes=No
 
 def serializar_cabecalhos_reconhecidos(reconhecidos):
     return {campo: sorted(valores) for campo, valores in reconhecidos.items()}
-    return ''
 
 def get_google_sheets_credentials():
     if GOOGLE_SERVICE_ACCOUNT_JSON:

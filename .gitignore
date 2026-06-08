@@ -36,6 +36,9 @@ logs/
 *.sqlite
 *.sqlite3
 *.dump
+*.sql
+dumps/
+dump/
 
 # VSCode e IDE
 .vscode/

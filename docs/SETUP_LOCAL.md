@@ -44,16 +44,17 @@ Exemplo seguro, sem segredos reais:
 DATABASE_URL=postgresql://usuario:senha@host/database?sslmode=require
 ADMIN_PASSWORD=sua_senha_local
 GOOGLE_SHEETS_ID=id_da_planilha
-GOOGLE_SERVICE_ACCOUNT_JSON={"type":"service_account","project_id":"...","private_key":"-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n","client_email":"..."}
+GOOGLE_SERVICE_ACCOUNT_FILE=google-service-account.json
 FRONTEND_URL=http://localhost:5173
 ```
 
 Regras importantes:
 
-- `GOOGLE_SERVICE_ACCOUNT_JSON` precisa ficar em uma unica linha.
-- Dentro da `private_key`, as quebras de linha precisam estar como `\n`.
+- Salve a credencial local em `backend/google-service-account.json`.
+- `backend/google-service-account.json` fica fora do Git.
 - Para ambiente local, use `FRONTEND_URL=http://localhost:5173`.
 - Para producao no Render, use `FRONTEND_URL=https://pdreports.vercel.app`.
+- Para producao, use `GOOGLE_SERVICE_ACCOUNT_JSON` como variavel de ambiente em uma unica linha; dentro da `private_key`, as quebras de linha precisam estar como `\n`.
 
 7. Rode o diagnostico:
 
