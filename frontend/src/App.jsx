@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
-import { Search, User, Mail, Hash, Calendar, ShieldCheck, Phone, Edit2, Save, X, LogIn, Briefcase, GraduationCap, Users, CheckCircle2, Moon, Sun, Plus, UserPlus, ClipboardList, Laptop, Eye, EyeOff } from 'lucide-react';
+import { Search, User, Mail, Hash, Calendar, ShieldCheck, Phone, Edit2, Save, X, LogIn, Briefcase, GraduationCap, Users, CheckCircle2, Moon, Sun, Plus, UserPlus, ClipboardList, Laptop, Eye, EyeOff, KeyRound } from 'lucide-react';
 import pdLogo from './assets/pd-logo.svg';
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
@@ -392,6 +392,13 @@ const styles = {
   loginBox: { maxWidth: '420px', margin: '90px auto', background: 'var(--pd-surface)', border: '1px solid var(--pd-border)', borderRadius: '18px', padding: '28px', boxShadow: 'var(--pd-card-shadow)' },
   passwordWrap: { position: 'relative', marginBottom: '12px' },
   passwordToggle: { position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', width: '34px', height: '34px', padding: 0, border: 'none', borderRadius: '8px', background: 'transparent', color: 'var(--pd-muted)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' },
+  modalOverlay: { position: 'fixed', inset: 0, zIndex: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '18px', background: 'rgba(15, 23, 42, 0.55)', backdropFilter: 'blur(2px)' },
+  modalCard: { width: 'min(100%, 520px)', background: 'var(--pd-surface)', border: '1px solid var(--pd-border)', borderRadius: '14px', padding: '18px', boxShadow: '0 18px 50px rgba(15, 23, 42, 0.22)', textAlign: 'left' },
+  modalHead: { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px', marginBottom: '14px' },
+  modalTitle: { margin: 0, color: 'var(--pd-title)', fontSize: '18px', fontWeight: '850', lineHeight: 1.2 },
+  modalSubtitle: { marginTop: '4px', color: 'var(--pd-muted)', fontSize: '13px' },
+  modalGrid: { display: 'grid', gap: '10px' },
+  modalActions: { display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '10px', marginTop: '16px', flexWrap: 'wrap' },
 };
 
 export default function App() {
@@ -436,6 +443,8 @@ export default function App() {
   const [novaSenhaUsuario, setNovaSenhaUsuario] = useState('');
   const [mostrarSenhaUsuario, setMostrarSenhaUsuario] = useState(false);
   const [salvandoSenhaUsuario, setSalvandoSenhaUsuario] = useState(false);
+  const [mostrarAlterarSenha, setMostrarAlterarSenha] = useState(false);
+  const [alterandoMinhaSenha, setAlterandoMinhaSenha] = useState(false);
   const [salvandoUsuarioEditando, setSalvandoUsuarioEditando] = useState(false);
   const [salvandoNovoAluno, setSalvandoNovoAluno] = useState(false);
   const [salvandoUsuario, setSalvandoUsuario] = useState(false);
@@ -509,6 +518,8 @@ export default function App() {
     setSenhaUsuarioEditando(null);
     setNovaSenhaUsuario('');
     setMostrarSenhaUsuario(false);
+    setMostrarAlterarSenha(false);
+    setAlterandoMinhaSenha(false);
   };
 
   const salvarPerfilAluno = async () => {
@@ -611,6 +622,8 @@ export default function App() {
     limparEstadoAplicacao();
     setLoginEmail('');
     setSenha('');
+    setMostrarAlterarSenha(false);
+    setAlterandoMinhaSenha(false);
   };
 
   const fecharAlunoSelecionado = () => {
@@ -734,6 +747,25 @@ export default function App() {
       setMensagem({ tipo: 'erro', texto: mensagemErroApi(err, 'Erro ao alterar senha.') });
     } finally {
       setSalvandoSenhaUsuario(false);
+    }
+  };
+
+  const alterarMinhaSenha = async ({ senhaAtual, novaSenha, confirmacaoNovaSenha }) => {
+    if (alterandoMinhaSenha) return;
+    setAlterandoMinhaSenha(true);
+    setMensagem(null);
+    try {
+      const res = await axios.post(`${API_BASE_URL}/api/usuarios/me/password`, {
+        senha_atual: senhaAtual,
+        nova_senha: novaSenha,
+        confirmacao_nova_senha: confirmacaoNovaSenha,
+      }, authConfig({ timeout: 12000 }));
+      setMostrarAlterarSenha(false);
+      setMensagem({ tipo: 'sucesso', texto: res.data.mensagem || 'Senha alterada com sucesso.' });
+    } catch (err) {
+      setMensagem({ tipo: 'erro', texto: mensagemErroApi(err, 'Erro ao alterar a própria senha.') });
+    } finally {
+      setAlterandoMinhaSenha(false);
     }
   };
 
@@ -875,6 +907,9 @@ export default function App() {
           <p style={styles.subtitle}>Gestão de Alunos</p>
         </div>
         <div className="header-controls">
+          <button className="ui-button icon-button" type="button" title="Alterar minha senha" aria-label="Alterar minha senha" onClick={() => setMostrarAlterarSenha(true)} style={styles.iconBtn}>
+            <KeyRound size={18} />
+          </button>
           <button className="ui-button icon-button" type="button" title="Alternar tema" aria-label="Alternar tema" onClick={alternarTema} style={styles.iconBtn}>
             {temaEscuro ? <Sun size={18} /> : <Moon size={18} />}
           </button>
@@ -901,6 +936,13 @@ export default function App() {
       </form>
 
       {mensagem && <div style={{ ...styles.message, ...estiloMensagem }}>{mensagem.texto}</div>}
+
+      <AlterarSenhaPropriaModal
+        aberto={mostrarAlterarSenha}
+        carregando={alterandoMinhaSenha}
+        onClose={() => setMostrarAlterarSenha(false)}
+        onSubmit={alterarMinhaSenha}
+      />
 
       {mostrarMonitores && (
         <MonitoresDashboard usuario={usuario} authHeaders={authHeaders} />
@@ -2105,6 +2147,76 @@ function ProfileSelect({ label, value, onChange, disabled, options, color }) {
         {options.map(([optionValue, optionLabel]) => <option key={optionValue} value={optionValue}>{optionLabel}</option>)}
       </select>
     </label>
+  );
+}
+
+function AlterarSenhaPropriaModal({ aberto, carregando, onClose, onSubmit }) {
+  const [senhaAtual, setSenhaAtual] = useState('');
+  const [novaSenha, setNovaSenha] = useState('');
+  const [confirmacaoNovaSenha, setConfirmacaoNovaSenha] = useState('');
+
+  useEffect(() => {
+    if (!aberto) return;
+    setSenhaAtual('');
+    setNovaSenha('');
+    setConfirmacaoNovaSenha('');
+  }, [aberto]);
+
+  useEffect(() => {
+    if (!aberto) return undefined;
+    const aoPressionarTecla = (event) => {
+      if (event.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', aoPressionarTecla);
+    return () => window.removeEventListener('keydown', aoPressionarTecla);
+  }, [aberto, onClose]);
+
+  if (!aberto) return null;
+
+  const enviar = (event) => {
+    event.preventDefault();
+    onSubmit({
+      senhaAtual,
+      novaSenha,
+      confirmacaoNovaSenha,
+    });
+  };
+
+  return (
+    <div
+      role="presentation"
+      style={styles.modalOverlay}
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <form role="dialog" aria-modal="true" aria-label="Alterar minha senha" onSubmit={enviar} style={styles.modalCard}>
+        <div style={styles.modalHead}>
+          <div>
+            <h2 style={styles.modalTitle}>Alterar minha senha</h2>
+            <p style={styles.modalSubtitle}>A mudança vale só para o usuário logado.</p>
+          </div>
+          <button className="ui-button" type="button" aria-label="Fechar" title="Fechar" onClick={onClose} style={styles.iconBtn}>
+            <X size={17} />
+          </button>
+        </div>
+
+        <div style={styles.modalGrid}>
+          <ProfileField label="Senha atual" type="password" value={senhaAtual} onChange={setSenhaAtual} autoComplete="current-password" />
+          <ProfileField label="Nova senha" type="password" value={novaSenha} onChange={setNovaSenha} autoComplete="new-password" />
+          <ProfileField label="Confirmar nova senha" type="password" value={confirmacaoNovaSenha} onChange={setConfirmacaoNovaSenha} autoComplete="new-password" />
+        </div>
+
+        <div style={styles.modalActions}>
+          <button className="ui-button" type="submit" disabled={carregando} style={styles.primaryBtn}>
+            <Save size={17} /> {carregando ? 'Salvando...' : 'Salvar senha'}
+          </button>
+          <button className="ui-button" type="button" disabled={carregando} onClick={onClose} style={styles.secondaryBtn}>
+            Cancelar
+          </button>
+        </div>
+      </form>
+    </div>
   );
 }
 

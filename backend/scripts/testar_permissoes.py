@@ -11,6 +11,7 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 import app as app_module
+from werkzeug.security import generate_password_hash
 
 
 class FakeConnection:
@@ -30,24 +31,52 @@ class FakeCursor:
         self.admin_count = admin_count
         self.last_result = None
         self.profile = None
+        self.login_user = {
+            'id': 10,
+            'nome': 'Monitor',
+            'email': 'monitor@example.com',
+            'senha_hash': generate_password_hash('senha123'),
+            'role': self.target_role,
+            'ativo': True,
+            'criado_em': None,
+        }
 
     def execute(self, sql, params=None):
         sql_normalizado = ' '.join(sql.lower().split())
         if 'select id, role, ativo from usuarios where id=%s' in sql_normalizado:
             self.last_result = {'id': params[0], 'role': self.target_role, 'ativo': True}
+        elif 'select id, nome, email, senha_hash, role from usuarios where lower(email)=lower(%s) and ativo=true' in sql_normalizado:
+            email = str(params[0]).lower()
+            self.last_result = self.login_user if email == self.login_user['email'] else None
+        elif 'select id, nome, email, senha_hash, role, ativo, criado_em from usuarios where id=%s and ativo=true' in sql_normalizado:
+            usuario_id = params[0]
+            if usuario_id == self.login_user['id']:
+                self.last_result = self.login_user
+            else:
+                self.last_result = None
         elif 'select id from usuarios where lower(email)=lower(%s) and id<>%s' in sql_normalizado:
             self.last_result = None
         elif "select count(*) as total from usuarios where role='admin' and ativo=true" in sql_normalizado:
             self.last_result = {'total': self.admin_count}
         elif sql_normalizado.startswith('update usuarios'):
-            self.last_result = {
-                'id': params[3],
-                'nome': params[0],
-                'email': params[1],
-                'role': params[2],
-                'ativo': True,
-                'criado_em': None,
-            }
+            if 'set senha_hash=%s' in sql_normalizado:
+                self.last_result = {
+                    'id': params[1],
+                    'nome': self.login_user['nome'],
+                    'email': self.login_user['email'],
+                    'role': self.target_role,
+                    'ativo': True,
+                    'criado_em': None,
+                }
+            else:
+                self.last_result = {
+                    'id': params[3],
+                    'nome': params[0],
+                    'email': params[1],
+                    'role': params[2],
+                    'ativo': True,
+                    'criado_em': None,
+                }
         elif 'select matricula from alunos where matricula=%s' in sql_normalizado:
             self.last_result = {'matricula': params[0]}
         elif 'select * from perfil_alunos where matricula=%s' in sql_normalizado:
@@ -169,6 +198,97 @@ def assert_payload_invalido_continua_bloqueado(client):
     print(f'OK - payload invalido continua bloqueado: {response.status_code}')
 
 
+def assert_usuario_altera_propria_senha(client):
+    response = client.post('/api/usuarios/me/password', json={
+        'senha_atual': 'senha123',
+        'nova_senha': 'nova123',
+        'confirmacao_nova_senha': 'nova123',
+    })
+    assert response.status_code == 200, (
+        f'usuario alterando propria senha: esperado 200, recebido {response.status_code} - {response.get_json()}'
+    )
+    print(f'OK - usuario comum altera propria senha: {response.status_code}')
+
+    response = client.post('/api/usuarios/me/password', json={
+        'senha_atual': 'incorreta',
+        'nova_senha': 'nova123',
+        'confirmacao_nova_senha': 'nova123',
+    })
+    assert response.status_code == 400, (
+        f'senha atual incorreta: esperado 400, recebido {response.status_code} - {response.get_json()}'
+    )
+    print(f'OK - senha atual incorreta recebe 400: {response.status_code}')
+
+    response = client.post('/api/usuarios/me/password', json={
+        'senha_atual': 'senha123',
+        'nova_senha': 'nova123',
+        'confirmacao_nova_senha': 'diferente',
+    })
+    assert response.status_code == 400, (
+        f'confirmacao divergente: esperado 400, recebido {response.status_code} - {response.get_json()}'
+    )
+    print(f'OK - confirmacao divergente recebe 400: {response.status_code}')
+
+
+def assert_monitor_nao_altera_senha_terceiro(client):
+    response = client.post('/api/usuarios/update-password', json={
+        'usuario_id': 10,
+        'nova_senha': 'nova123',
+    })
+    assert response.status_code == 403, (
+        f'monitor alterando senha de terceiro: esperado 403, recebido {response.status_code} - {response.get_json()}'
+    )
+    print(f'OK - monitor nao altera senha de terceiro: {response.status_code}')
+
+
+def assert_admin_altera_senha_usuario(client):
+    response = client.post('/api/usuarios/update-password', json={
+        'usuario_id': 10,
+        'nova_senha': 'admin123',
+    })
+    assert response.status_code == 200, (
+        f'admin alterando senha de usuario: esperado 200, recebido {response.status_code} - {response.get_json()}'
+    )
+    print(f'OK - admin altera senha de usuario: {response.status_code}')
+
+
+def assert_login_rate_limit(client):
+    max_tentativas_original = app_module.LOGIN_RATE_LIMIT_MAX_ATTEMPTS
+    app_module.LOGIN_ATTEMPTS.clear()
+    try:
+        app_module.LOGIN_RATE_LIMIT_MAX_ATTEMPTS = 2
+        for _ in range(2):
+            response = client.post('/api/login', json={
+                'email': 'monitor@example.com',
+                'senha': 'errada',
+            }, headers={'X-Forwarded-For': '10.0.0.1'})
+            assert response.status_code == 401, (
+                f'login invalido antes do limite: esperado 401, recebido {response.status_code} - {response.get_json()}'
+            )
+
+        response = client.post('/api/login', json={
+            'email': 'monitor@example.com',
+            'senha': 'errada',
+        }, headers={'X-Forwarded-For': '10.0.0.1'})
+        assert response.status_code == 429, (
+            f'login rate limit: esperado 429, recebido {response.status_code} - {response.get_json()}'
+        )
+        print(f'OK - login com muitas tentativas recebe 429: {response.status_code}')
+
+        app_module.LOGIN_ATTEMPTS.clear()
+        response = client.post('/api/login', json={
+            'email': 'monitor@example.com',
+            'senha': 'senha123',
+        }, headers={'X-Forwarded-For': '10.0.0.2'})
+        assert response.status_code == 200, (
+            f'login normal apos limpeza: esperado 200, recebido {response.status_code} - {response.get_json()}'
+        )
+        print(f'OK - login normal continua funcionando: {response.status_code}')
+    finally:
+        app_module.LOGIN_RATE_LIMIT_MAX_ATTEMPTS = max_tentativas_original
+        app_module.LOGIN_ATTEMPTS.clear()
+
+
 def assert_formatar_perfil_remove_colunas_fora_contrato():
     perfil = app_module.formatar_perfil({
         'matricula': 'PD001',
@@ -194,6 +314,19 @@ def assert_monitor_nao_cria_admin(client):
     print(f'OK - monitor tentando criar admin recebe 403: {response.status_code}')
 
 
+def assert_psicologa_nao_cria_usuario(client):
+    response = client.post('/api/usuarios/create', json={
+        'nome': 'Usuario Indevido',
+        'email': 'usuario.indevido@example.com',
+        'senha': 'segura123',
+        'role': 'monitor',
+    })
+    assert response.status_code == 403, (
+        f'psicologa tentando criar usuario: esperado 403, recebido {response.status_code} - {response.get_json()}'
+    )
+    print(f'OK - psicologa tentando criar usuario recebe 403: {response.status_code}')
+
+
 def main():
     original_get_current_user = app_module.get_current_user
     original_conectar_db = app_module.conectar_db
@@ -210,21 +343,26 @@ def main():
         instalar_usuario({'id': 10, 'nome': 'Monitor', 'email': 'monitor@example.com', 'role': 'monitor'})
         assert_status(client, 'monitor tentando editar role recebe 403', 403)
         assert_monitor_nao_cria_admin(client)
+        assert_monitor_nao_altera_senha_terceiro(client)
 
         instalar_db(target_role='monitor', admin_count=2)
+        assert_login_rate_limit(client)
         assert_monitor_edita_perfil(client)
         assert_edicao_filhos_perfil(client)
         assert_payload_invalido_continua_bloqueado(client)
+        assert_usuario_altera_propria_senha(client)
         assert_formatar_perfil_remove_colunas_fora_contrato()
 
         instalar_usuario({'id': 11, 'nome': 'Isabela', 'email': 'isabela@example.com', 'role': 'psicologa'})
         assert_status(client, 'psicologa tentando editar role recebe 403', 403)
+        assert_psicologa_nao_cria_usuario(client)
 
         instalar_usuario({'id': 1, 'nome': 'Admin', 'email': 'admin@example.com', 'role': 'admin'})
         assert_status(client, 'role invalido recebe 400', 400, json_extra={'role': 'superadmin'})
 
         instalar_db(target_role='monitor', admin_count=2)
         assert_status(client, 'admin editando role permitido recebe 200', 200)
+        assert_admin_altera_senha_usuario(client)
 
         instalar_db(target_role='admin', admin_count=1)
         assert_status(client, 'tentativa de deixar sistema sem admin e bloqueada', 400)

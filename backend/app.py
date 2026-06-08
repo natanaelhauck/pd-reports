@@ -3,6 +3,7 @@ import os
 import re
 import time
 import unicodedata
+from collections import defaultdict, deque
 from datetime import date, datetime, timedelta, timezone
 from functools import wraps
 from pathlib import Path
@@ -18,6 +19,7 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from psycopg2.extras import RealDictCursor
+from werkzeug.exceptions import HTTPException
 from werkzeug.security import check_password_hash, generate_password_hash
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -40,10 +42,13 @@ ADMIN_EMAIL = os.getenv('ADMIN_EMAIL', 'admin@pdreports.local')
 ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD')
 GOOGLE_SHEETS_ID = os.getenv('GOOGLE_SHEETS_ID')
 GOOGLE_SERVICE_ACCOUNT_JSON = os.getenv('GOOGLE_SERVICE_ACCOUNT_JSON')
-GOOGLE_SERVICE_ACCOUNT_FILE = os.getenv('GOOGLE_SERVICE_ACCOUNT_FILE', str(BASE_DIR / 'google-service-account.json'))
+GOOGLE_SERVICE_ACCOUNT_FILE = os.getenv('GOOGLE_SERVICE_ACCOUNT_FILE', '').strip()
 GOOGLE_STUDENTS_SHEET_NAME = os.getenv('GOOGLE_STUDENTS_SHEET_NAME') or 'Alunos'
 GOOGLE_STUDENTS_SHEET_SYNC = os.getenv('GOOGLE_STUDENTS_SHEET_SYNC', 'true').strip().lower() in {'true', '1', 'sim', 'yes'}
 FRONTEND_URL = os.getenv('FRONTEND_URL')
+LOGIN_RATE_LIMIT_WINDOW_SECONDS = int(os.getenv('LOGIN_RATE_LIMIT_WINDOW_SECONDS', '300'))
+LOGIN_RATE_LIMIT_MAX_ATTEMPTS = int(os.getenv('LOGIN_RATE_LIMIT_MAX_ATTEMPTS', '8'))
+LOGIN_RATE_LIMIT_MESSAGE = 'Muitas tentativas de login. Aguarde alguns minutos e tente novamente.'
 allowed_origins = ['http://localhost:5173']
 if FRONTEND_URL:
     allowed_origins.insert(0, FRONTEND_URL.rstrip('/'))
@@ -61,6 +66,7 @@ try:
 except ZoneInfoNotFoundError:
     APP_TIMEZONE = timezone(timedelta(hours=-3))
 _relatorios_monitoria_cache = {'expires_at': 0, 'data': None}
+LOGIN_ATTEMPTS = defaultdict(deque)
 
 # Março e abril usam consolidados históricos oficiais porque o formulário mudou nesses meses.
 CONSOLIDADOS_MONITORIA_HISTORICOS = {
@@ -168,7 +174,19 @@ def adicionar_headers_seguranca(response):
     response.headers.setdefault('X-Frame-Options', 'DENY')
     response.headers.setdefault('Referrer-Policy', 'strict-origin-when-cross-origin')
     response.headers.setdefault('Permissions-Policy', 'geolocation=(), microphone=(), camera=()')
+    response.headers.setdefault('Content-Security-Policy', "default-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'")
+    if IS_PRODUCTION:
+        response.headers.setdefault('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
     return response
+
+@app.errorhandler(HTTPException)
+def tratar_http_exception(exc):
+    return jsonify({'erro': exc.description or 'Requisição inválida.'}), exc.code or 500
+
+@app.errorhandler(Exception)
+def tratar_erro_inesperado(exc):
+    app.logger.exception('Erro inesperado não tratado')
+    return jsonify({'erro': 'Ocorreu um erro inesperado. Tente novamente em instantes.'}), 500
 
 MONITORES_VALIDOS = {
     'alex': 'Alex',
@@ -573,6 +591,69 @@ def rejeitar_campos_inesperados(dados, permitidos):
         return jsonify({"erro": "Campos inesperados no payload.", "campos": sorted(extras)}), 400
     return None
 
+def cliente_ip():
+    forwarded_for = request.headers.get('X-Forwarded-For', '').strip()
+    if forwarded_for:
+        primeiro_ip = forwarded_for.split(',', 1)[0].strip()
+        if primeiro_ip:
+            return primeiro_ip
+    real_ip = request.headers.get('X-Real-IP', '').strip()
+    return real_ip or request.remote_addr or 'desconhecido'
+
+def registrar_evento_seguranca(evento, usuario=None, **dados):
+    usuario = usuario or {}
+    partes = [
+        f'evento={evento}',
+        f'usuario_id={usuario.get("id") if usuario else ""}',
+        f'usuario_email={usuario.get("email") if usuario else ""}',
+        f'usuario_role={usuario.get("role") if usuario else ""}',
+    ]
+    for chave, valor in dados.items():
+        if valor is None or valor == '' or valor == [] or valor == {}:
+            continue
+        partes.append(f'{chave}={valor}')
+    app.logger.info('security_event %s', ' '.join(partes))
+
+def senha_valida_basica(senha):
+    senha = str(senha or '')
+    return bool(senha.strip()) and len(senha) >= 6
+
+def chave_rate_limit_login(email=''):
+    chaves = [f'ip:{cliente_ip()}']
+    if email:
+        chaves.append(f'email:{email.lower()}')
+    return chaves
+
+def limpar_rate_limit_login(*chaves):
+    for chave in chaves:
+        if chave:
+            LOGIN_ATTEMPTS.pop(chave, None)
+
+def registrar_tentativa_login(*chaves):
+    agora = time.time()
+    for chave in chaves:
+        if not chave:
+            continue
+        tentativas = LOGIN_ATTEMPTS[chave]
+        while tentativas and agora - tentativas[0] > LOGIN_RATE_LIMIT_WINDOW_SECONDS:
+            tentativas.popleft()
+        tentativas.append(agora)
+
+def login_bloqueado(*chaves):
+    agora = time.time()
+    for chave in chaves:
+        if not chave:
+            continue
+        tentativas = LOGIN_ATTEMPTS[chave]
+        while tentativas and agora - tentativas[0] > LOGIN_RATE_LIMIT_WINDOW_SECONDS:
+            tentativas.popleft()
+        if len(tentativas) >= LOGIN_RATE_LIMIT_MAX_ATTEMPTS:
+            return True
+    return False
+
+def resposta_rate_limit_login():
+    return jsonify({'erro': LOGIN_RATE_LIMIT_MESSAGE}), 429
+
 def validar_campos_admin_only(usuario, atual, novo, campos):
     if usuario.get('role') == 'admin':
         return None
@@ -615,11 +696,11 @@ def corrigir_mojibake(valor):
         return texto
 
 def erro_banco(exception):
-    print(f'Erro de banco: {exception.__class__.__name__}')
+    app.logger.error('Erro de banco: %s', exception.__class__.__name__)
     return jsonify({"erro": "Não foi possível conectar ao banco de dados. Tente novamente em instantes."}), 503
 
 def erro_google_sheets(exception):
-    print(f'Erro Google Sheets: {exception.__class__.__name__}')
+    app.logger.error('Erro Google Sheets: %s', exception.__class__.__name__)
     return jsonify({"erro": "Não foi possível acessar a planilha no momento. Tente novamente em instantes."}), 503
 
 def sem_acentos(valor):
@@ -758,6 +839,9 @@ def get_google_sheets_credentials():
             service_account_info,
             scopes=[GOOGLE_SHEETS_SCOPE],
         )
+
+    if not GOOGLE_SERVICE_ACCOUNT_FILE:
+        raise RuntimeError('Configure GOOGLE_SERVICE_ACCOUNT_JSON ou GOOGLE_SERVICE_ACCOUNT_FILE.')
 
     service_account_path = Path(GOOGLE_SERVICE_ACCOUNT_FILE)
     if not service_account_path.is_absolute():
@@ -1849,8 +1933,15 @@ def login():
     dados = request.get_json(silent=True) or {}
     email = str(dados.get('email') or '').strip().lower()
     senha = dados.get('senha', '')
+    chaves_rate_limit = chave_rate_limit_login(email)
+
+    if login_bloqueado(*chaves_rate_limit):
+        registrar_evento_seguranca('login_rate_limited', email=email or '-', ip=cliente_ip())
+        return resposta_rate_limit_login()
 
     if not email or not senha:
+        registrar_tentativa_login(*chaves_rate_limit)
+        registrar_evento_seguranca('login_falha', email=email or '-', ip=cliente_ip(), motivo='campos_obrigatorios')
         return jsonify({"erro": "Informe e-mail e senha."}), 400
 
     conn = None
@@ -1864,6 +1955,8 @@ def login():
         usuario = row_to_dict(cursor.fetchone())
 
         if usuario and check_password_hash(usuario.get('senha_hash') or '', senha):
+            limpar_rate_limit_login(*chaves_rate_limit)
+            registrar_evento_seguranca('login_sucesso', usuario=usuario, ip=cliente_ip())
             usuario_resposta = usuario_publico(usuario)
             usuario_resposta['token'] = gerar_token_usuario(usuario)
             return jsonify({
@@ -1871,6 +1964,8 @@ def login():
                 "usuario": usuario_resposta,
             })
 
+        registrar_tentativa_login(*chaves_rate_limit)
+        registrar_evento_seguranca('login_falha', email=email or '-', ip=cliente_ip(), motivo='credenciais_invalidas')
         return jsonify({"erro": "E-mail ou senha inválidos."}), 401
     except psycopg2.Error as exc:
         return erro_banco(exc)
@@ -1878,7 +1973,61 @@ def login():
         if conn:
             conn.close()
 
-    return jsonify({"erro": "Senha inválida."}), 401
+@app.route('/api/usuarios/me/password', methods=['POST'])
+def update_minha_senha():
+    usuario, erro = require_auth()
+    if erro:
+        return erro
+
+    dados = request.get_json(silent=True) or {}
+    erro_payload = rejeitar_campos_inesperados(dados, {'senha_atual', 'nova_senha', 'confirmacao_nova_senha'})
+    if erro_payload:
+        return erro_payload
+
+    senha_atual = str(dados.get('senha_atual') or '')
+    nova_senha = str(dados.get('nova_senha') or '')
+    confirmacao_nova_senha = str(dados.get('confirmacao_nova_senha') or '')
+
+    if not senha_atual or not nova_senha or not confirmacao_nova_senha:
+        return jsonify({"erro": "Informe a senha atual, a nova senha e a confirmação."}), 400
+    if nova_senha != confirmacao_nova_senha:
+        return jsonify({"erro": "A confirmação da nova senha não confere."}), 400
+    if not senha_valida_basica(nova_senha):
+        return jsonify({"erro": "A nova senha deve ter pelo menos 6 caracteres."}), 400
+
+    conn = None
+    try:
+        conn = conectar_db()
+        cursor = cursor_db(conn)
+        cursor.execute('''
+            SELECT id, nome, email, senha_hash, role, ativo, criado_em
+            FROM usuarios
+            WHERE id=%s AND ativo=TRUE
+        ''', (usuario['id'],))
+        usuario_atual = row_to_dict(cursor.fetchone())
+        if not usuario_atual:
+            return jsonify({"erro": "Usuário não encontrado."}), 404
+        if not check_password_hash(usuario_atual.get('senha_hash') or '', senha_atual):
+            registrar_evento_seguranca('senha_propria_falha', usuario=usuario_atual, ip=cliente_ip(), motivo='senha_atual_incorreta')
+            return jsonify({"erro": "A senha atual informada está incorreta."}), 400
+
+        cursor.execute('''
+            UPDATE usuarios
+            SET senha_hash=%s
+            WHERE id=%s
+            RETURNING id, nome, email, role, ativo, criado_em
+        ''', (generate_password_hash(nova_senha), usuario['id']))
+        usuario_atualizado = row_to_dict(cursor.fetchone())
+        conn.commit()
+        registrar_evento_seguranca('senha_propria_alterada', usuario=usuario_atualizado, ip=cliente_ip())
+        return jsonify({"mensagem": "Senha alterada com sucesso.", "usuario": usuario_publico(usuario_atualizado)})
+    except psycopg2.Error as exc:
+        if conn:
+            conn.rollback()
+        return erro_banco(exc)
+    finally:
+        if conn:
+            conn.close()
 
 @app.route('/api/alunos', methods=['GET'])
 def get_alunos():
@@ -2262,7 +2411,7 @@ def get_resumo_monitoria_monitores():
                         tipo_matricula,
                     ))
             except Exception as exc:
-                print(f'Não foi possível validar detalhes históricos de monitoria: {exc.__class__.__name__}')
+                app.logger.warning('Não foi possível validar detalhes históricos de monitoria: %s', exc.__class__.__name__)
             return jsonify(historico)
 
         dados = buscar_relatorios_monitoria()
@@ -2277,7 +2426,7 @@ def get_resumo_monitoria_monitores():
             tipo_matricula,
         ))
     except Exception as exc:
-        print(f'Erro ao buscar resumo de monitoria por monitor: {exc}')
+        app.logger.error('Erro ao buscar resumo de monitoria por monitor: %s', exc.__class__.__name__)
         return jsonify({'erro': 'Não foi possível carregar o resumo de monitoria.'}), 503
 
 @app.route('/api/alunos/perfil/<matricula>', methods=['GET'])
@@ -2502,6 +2651,7 @@ def criar_aluno():
                     alteracoes_sheets[campo] = ('', valor_historico(novo_valor))
         conn.commit()
         avisos = espelhar_aluno_planilha(matricula, alteracoes_sheets) if GOOGLE_STUDENTS_SHEET_SYNC and alteracoes_sheets else []
+        registrar_evento_seguranca('aluno_cadastrado', usuario=usuario, ip=cliente_ip(), matricula=matricula)
         resposta = {"mensagem": "Aluno cadastrado com sucesso.", "aluno": aluno, "avisos": avisos}
         if perfil is not None:
             resposta["perfil"] = perfil
@@ -2538,7 +2688,7 @@ def listar_usuarios():
 
 @app.route('/api/usuarios/create', methods=['POST'])
 def criar_usuario():
-    _, erro = require_admin()
+    usuario_logado, erro = require_admin()
     if erro:
         return erro
 
@@ -2558,7 +2708,7 @@ def criar_usuario():
         return jsonify({"erro": "Nome, e-mail e senha são obrigatórios."}), 400
     if not email_valido(email):
         return jsonify({"erro": "E-mail inválido."}), 400
-    if len(senha) < 6:
+    if not senha_valida_basica(senha):
         return jsonify({"erro": "A senha deve ter pelo menos 6 caracteres."}), 400
 
     conn = None
@@ -2570,9 +2720,17 @@ def criar_usuario():
             VALUES (%s, %s, %s, %s, TRUE)
             RETURNING id, nome, email, role, ativo, criado_em
         ''', (nome, email, generate_password_hash(senha), role))
-        usuario = row_to_dict(cursor.fetchone())
+        usuario_criado = row_to_dict(cursor.fetchone())
         conn.commit()
-        return jsonify({"mensagem": "Usuário cadastrado com sucesso.", "usuario": usuario}), 201
+        registrar_evento_seguranca(
+            'usuario_criado',
+            usuario=usuario_logado,
+            ip=cliente_ip(),
+            usuario_criado_id=usuario_criado.get('id'),
+            usuario_criado_email=email,
+            usuario_criado_role=role,
+        )
+        return jsonify({"mensagem": "Usuário cadastrado com sucesso.", "usuario": usuario_criado}), 201
     except psycopg2.errors.UniqueViolation:
         if conn:
             conn.rollback()
@@ -2587,7 +2745,7 @@ def criar_usuario():
 
 @app.route('/api/usuarios/<int:usuario_id>', methods=['PUT'])
 def update_usuario(usuario_id):
-    _, erro = require_admin()
+    usuario_logado, erro = require_admin()
     if erro:
         return erro
 
@@ -2630,9 +2788,17 @@ def update_usuario(usuario_id):
             WHERE id=%s
             RETURNING id, nome, email, role, ativo, criado_em
         ''', (nome, email, role, usuario_id))
-        usuario = row_to_dict(cursor.fetchone())
+        usuario_atualizado = row_to_dict(cursor.fetchone())
         conn.commit()
-        return jsonify({"mensagem": "Usuário atualizado com sucesso.", "usuario": usuario})
+        registrar_evento_seguranca(
+            'usuario_atualizado',
+            usuario=usuario_logado,
+            ip=cliente_ip(),
+            usuario_alvo_id=usuario_id,
+            usuario_alvo_email=email,
+            usuario_alvo_role=role,
+        )
+        return jsonify({"mensagem": "Usuário atualizado com sucesso.", "usuario": usuario_atualizado})
     except psycopg2.errors.UniqueViolation:
         if conn:
             conn.rollback()
@@ -2647,7 +2813,7 @@ def update_usuario(usuario_id):
 
 @app.route('/api/usuarios/update-password', methods=['POST'])
 def update_usuario_password():
-    _, erro = require_admin()
+    usuario_logado, erro = require_admin()
     if erro:
         return erro
 
@@ -2658,7 +2824,7 @@ def update_usuario_password():
 
     usuario_id = dados.get('usuario_id')
     nova_senha = str(dados.get('nova_senha') or '')
-    if not usuario_id or len(nova_senha) < 6:
+    if not usuario_id or not senha_valida_basica(nova_senha):
         return jsonify({"erro": "Informe usuário e uma nova senha com pelo menos 6 caracteres."}), 400
 
     conn = None
@@ -2671,11 +2837,19 @@ def update_usuario_password():
             WHERE id=%s
             RETURNING id, nome, email, role, ativo, criado_em
         ''', (generate_password_hash(nova_senha), usuario_id))
-        usuario = row_to_dict(cursor.fetchone())
-        if not usuario:
+        usuario_alvo = row_to_dict(cursor.fetchone())
+        if not usuario_alvo:
             return jsonify({"erro": "Usuário não encontrado."}), 404
         conn.commit()
-        return jsonify({"mensagem": "Senha alterada com sucesso.", "usuario": usuario})
+        registrar_evento_seguranca(
+            'senha_usuario_alterada_admin',
+            usuario=usuario_logado,
+            ip=cliente_ip(),
+            usuario_alvo_id=usuario_id,
+            usuario_alvo_email=usuario_alvo.get('email'),
+            usuario_alvo_role=usuario_alvo.get('role'),
+        )
+        return jsonify({"mensagem": "Senha alterada com sucesso.", "usuario": usuario_alvo})
     except psycopg2.Error as exc:
         if conn:
             conn.rollback()

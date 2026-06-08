@@ -2,6 +2,11 @@
 backend/.env
 frontend/.env
 .env
+.env.*
+!.env.example
+!backend/.env.example
+!frontend/.env.example
+*.local
 
 # Python
 backend/venv/
@@ -21,6 +26,16 @@ build/
 
 # Logs
 *.log
+logs/
+*.pid
+*.seed
+*.stackdump
+
+# Dumps e bancos locais
+*.db
+*.sqlite
+*.sqlite3
+*.dump
 
 # VSCode e IDE
 .vscode/
