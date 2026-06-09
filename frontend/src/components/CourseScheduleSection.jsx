@@ -42,7 +42,7 @@ export function CourseScheduleSection({ aluno }) {
     <section className="course-section schedule-section">
       <div className="course-section-head schedule-head">
         <div>
-          <h3>META DIÁRIA - HORAS DO CURSO</h3>
+          <h3 className="course-section-kicker">META DIÁRIA - HORAS DO CURSO</h3>
           <p>
             Faltam {fmtHM(meta.horasRestantesCurso)} até {meta.prazoFinalFormatado}.
             Ritmo mínimo de {meta.minMinutosPorDia} min por dia útil.

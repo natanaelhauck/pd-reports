@@ -2402,11 +2402,16 @@ button.course-hours-card {
   text-align: left;
 }
 
-.schedule-head h3 {
+.schedule-head h3,
+.course-section-kicker {
   font-size: 12px;
   letter-spacing: 0.02em;
   text-transform: uppercase;
   color: #3b82f6;
+  text-align: left;
+}
+
+.certificates-head {
   text-align: left;
 }
 
@@ -2994,7 +2999,8 @@ body:has(.theme-dark) {
   color: #94a3b8;
 }
 
-.theme-dark .schedule-head h3 {
+.theme-dark .schedule-head h3,
+.theme-dark .course-section-kicker {
   color: #60a5fa !important;
   text-align: left;
 }

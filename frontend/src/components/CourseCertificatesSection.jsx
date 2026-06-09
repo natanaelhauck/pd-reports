@@ -107,7 +107,7 @@ export function CourseCertificatesSection({ certificados, aluno }) {
     <section className="course-section certificates-section">
       <div className="course-section-head certificates-head">
         <div>
-          <h3>Certificados e cursos</h3>
+          <h3 className="course-section-kicker">CERTIFICADOS E CURSOS</h3>
           <p>{concluidoPorDesafioFinal ? 'Conclusão reconhecida pelo Desafio Final.' : 'Progresso de certificados gerados nos cursos mapeados.'}</p>
         </div>
         <div className="certificate-score">

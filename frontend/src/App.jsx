@@ -1304,7 +1304,14 @@ function DadosPrincipais({ aluno, temp, setTemp, editMode, setEditMode, salvar, 
       <div className="student-grid" style={styles.grid}>
         <InfoItem icon={<Hash size={18} color={corStatus} />} label="Matrícula" value={aluno.matricula} />
         <FieldItem icon={<Phone size={18} color={corStatus} />} label="Telefone" editMode={editMode} value={temp.telefone} display={aluno.telefone} onChange={(v) => setTemp({ ...temp, telefone: v })} />
-        <FieldItem full icon={<Mail size={18} color={corStatus} />} label="E-mail" editMode={editMode} value={temp.email} display={aluno.email} onChange={(v) => setTemp({ ...temp, email: v })} />
+        <FieldItem icon={<Mail size={18} color={corStatus} />} label="E-mail" editMode={editMode} value={temp.email} display={aluno.email} onChange={(v) => setTemp({ ...temp, email: v })} />
+        <div style={styles.infoItem}>
+          <CheckCircle2 size={18} color={corStatus} />
+          <div style={{ width: '100%', minWidth: 0 }}>
+            <span style={styles.label}>Status</span>
+            {editMode ? <select style={styles.fieldInput} value={temp.status || ''} onChange={(e) => setTemp({ ...temp, status: e.target.value })}><option value="">NÃO INFORMADO</option>{STATUS_OPTIONS.map((status) => <option key={status} value={status}>{status}</option>)}</select> : <span style={styles.val}>{statusDisplay(aluno.status)}</span>}
+          </div>
+        </div>
         <InfoItem icon={<GraduationCap size={18} color={corStatus} />} label="Ingresso" value={aluno.dataEntradaCursoFormatada || 'Não informado'} />
         <FieldItem icon={<Calendar size={18} color={corStatus} />} label="Nascimento e Idade" type="date" editMode={editMode} value={temp.nascimento} display={`${aluno.nascimento_formatado} ${aluno.idade !== '-' ? `(${aluno.idade} anos)` : ''}`} onChange={(v) => setTemp({ ...temp, nascimento: v })} />
         <FieldItem icon={<Laptop size={18} color={corStatus} />} label="Patrimônio" editMode={editMode} value={temp.patrimonio} display={aluno.patrimonio || 'Não informado'} onChange={(v) => setTemp({ ...temp, patrimonio: v })} />
@@ -1313,13 +1320,6 @@ function DadosPrincipais({ aluno, temp, setTemp, editMode, setEditMode, salvar, 
           <div style={{ width: '100%', minWidth: 0 }}>
             <span style={styles.label}>Monitor Responsável</span>
             {editMode ? <select style={styles.fieldInput} value={temp.monitor || ''} onChange={(e) => setTemp({ ...temp, monitor: e.target.value })}><option value="">Selecione...</option>{MONITORES.map((m) => <option key={m} value={m}>{m}</option>)}</select> : <span style={styles.val}>{monitorDisplay(aluno.monitor)}</span>}
-          </div>
-        </div>
-        <div style={styles.infoItem}>
-          <CheckCircle2 size={18} color={corStatus} />
-          <div style={{ width: '100%', minWidth: 0 }}>
-            <span style={styles.label}>Status</span>
-            {editMode ? <select style={styles.fieldInput} value={temp.status || ''} onChange={(e) => setTemp({ ...temp, status: e.target.value })}><option value="">NÃO INFORMADO</option>{STATUS_OPTIONS.map((status) => <option key={status} value={status}>{status}</option>)}</select> : <span style={styles.val}>{statusDisplay(aluno.status)}</span>}
           </div>
         </div>
       </div>
