@@ -8,6 +8,14 @@ const statusKey = (status) => String(status || '')
   .replace(/[\u0300-\u036f]/g, '')
   .toLowerCase();
 
+const badgeTone = (course, fallbackTone) => {
+  if (course?.certificadoGerado) return 'ok';
+  const status = statusKey(course?.status);
+  if (status.includes('nao iniciado') || status.includes('não iniciado')) return 'muted';
+  if (status.includes('sem certificado')) return 'risk';
+  return fallbackTone || 'progress';
+};
+
 function CourseStat({ label, value, tone }) {
   return (
     <div className={`course-stat ${tone || ''}`}>
@@ -37,7 +45,7 @@ function CourseList({ title, courses, tone }) {
                   <strong>{course.curso || 'Curso sem nome'}</strong>
                   <span>{course.status || 'Não informado'}</span>
                 </div>
-                <span className={course.certificadoGerado ? 'course-cert-badge ok' : `course-cert-badge ${tone || ''}`}>
+                <span className={`course-cert-badge ${badgeTone(course, tone)}`}>
                   {course.certificadoGerado ? 'Certificado' : fmtPct(pct)}
                 </span>
               </li>

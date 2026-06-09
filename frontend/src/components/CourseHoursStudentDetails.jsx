@@ -4,9 +4,9 @@ import { CourseCertificatesSection } from './CourseCertificatesSection.jsx';
 import { CourseScheduleSection } from './CourseScheduleSection.jsx';
 
 const pctColor = (pct) => {
-  if (pct >= 80) return '#15803d';
-  if (pct >= 50) return '#d97706';
-  return '#dc2626';
+  if (pct >= 80) return 'var(--course-pct-good)';
+  if (pct >= 50) return 'var(--course-pct-mid)';
+  return 'var(--course-pct-low)';
 };
 
 const alunoNome = (aluno) => aluno?.nome || aluno?.alunoPd?.nome || aluno?.email || 'Aluno sem nome';

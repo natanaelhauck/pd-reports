@@ -466,6 +466,9 @@ export default function App() {
     headers: { ...(config.headers || {}), ...authHeaders },
   });
   const temaEscuro = tema === 'dark';
+  const tabsVisiveis = useMemo(() => (
+    isPrefeituraItabira ? TABS.filter((tab) => tab !== 'Histórico') : TABS
+  ), [isPrefeituraItabira]);
 
   const alunosOrdenados = useMemo(() => {
     const porMatricula = new Map();
@@ -565,9 +568,10 @@ export default function App() {
   };
 
   const selecionarTab = (tab) => {
+    if (!tabsVisiveis.includes(tab)) return;
     setActiveTab(tab);
     if (tab === 'Perfil do aluno' && aluno) buscarPerfilAluno(aluno.matricula);
-    if (tab === 'Histórico' && aluno) carregarHistorico(aluno.matricula);
+    if (tab === 'Histórico' && aluno && !isPrefeituraItabira) carregarHistorico(aluno.matricula);
   };
 
   const atualizarAlunoLocal = (atualizado) => {
@@ -945,7 +949,9 @@ export default function App() {
       </header>
 
       <div className="main-actions">
-        <button className="ui-button" type="button" onClick={abrirMonitores} style={styles.neutralBtn}><Users size={17} /> Monitores</button>
+        {!isPrefeituraItabira && (
+          <button className="ui-button" type="button" onClick={abrirMonitores} style={styles.neutralBtn}><Users size={17} /> Monitores</button>
+        )}
         <button className="ui-button" type="button" onClick={abrirIntegralizacao} style={styles.neutralBtn}><GraduationCap size={17} /> Consumo</button>
         {isAdmin && (
           <>
@@ -955,15 +961,13 @@ export default function App() {
         )}
       </div>
 
-      {!isPrefeituraItabira && (
-        <form className="search-form" onSubmit={buscar} style={styles.searchBox}>
-          <Search className="search-icon" size={20} color="#64748b" />
-          <input style={styles.searchInput} placeholder="Buscar por nome, matrícula, e-mail ou telefone..." value={busca} onChange={(e) => setBusca(e.target.value)} autoComplete="off" />
-          <button className="ui-button" type="submit" disabled={buscando} style={{ ...styles.primaryBtn, opacity: buscando ? 0.75 : 1 }}>
-            {buscando ? 'Buscando...' : 'Buscar'}
-          </button>
-        </form>
-      )}
+      <form className="search-form" onSubmit={buscar} style={styles.searchBox}>
+        <Search className="search-icon" size={20} color="#64748b" />
+        <input style={styles.searchInput} placeholder="Buscar por nome, matrícula, e-mail ou telefone..." value={busca} onChange={(e) => setBusca(e.target.value)} autoComplete="off" />
+        <button className="ui-button" type="submit" disabled={buscando} style={{ ...styles.primaryBtn, opacity: buscando ? 0.75 : 1 }}>
+          {buscando ? 'Buscando...' : 'Buscar'}
+        </button>
+      </form>
 
       {mensagem && <div style={{ ...styles.message, ...estiloMensagem }}>{mensagem.texto}</div>}
 
@@ -1126,7 +1130,7 @@ export default function App() {
         </section>
       )}
 
-      {!isPrefeituraItabira && aluno && (
+      {aluno && (
         <div ref={cardRef} className="student-card" style={{ ...styles.card, '--student-status-color': corStatus, borderLeft: `8px solid ${corStatus}`, marginBottom: '18px' }}>
           <button className="ui-button card-close" type="button" onClick={fecharAlunoSelecionado} aria-label="Fechar aluno selecionado" style={styles.iconBtn}><X size={17} /></button>
           <div className="student-card-header" style={styles.cardHeader}>
@@ -1140,7 +1144,7 @@ export default function App() {
           </div>
 
           <div style={styles.tabs}>
-            {TABS.map((tab) => (
+            {tabsVisiveis.map((tab) => (
               <button key={tab} className="ui-button" type="button" onClick={() => selecionarTab(tab)} style={{ ...styles.tab, background: activeTab === tab ? 'var(--pd-surface)' : 'transparent', color: activeTab === tab ? 'var(--pd-title)' : 'var(--pd-muted)', boxShadow: activeTab === tab ? 'var(--pd-tab-shadow)' : 'none' }}>{tab}</button>
             ))}
           </div>
@@ -1156,6 +1160,7 @@ export default function App() {
               cancelarEdicao={cancelarEdicao}
               salvando={salvando}
               corStatus={corStatus}
+              somenteLeitura={isPrefeituraItabira}
             />
           )}
 
@@ -1168,6 +1173,7 @@ export default function App() {
               setEditPerfil={setEditPerfil}
               salvarPerfilAluno={salvarPerfilAluno}
               salvandoPerfil={salvandoPerfil}
+              somenteLeitura={isPrefeituraItabira}
             />
           )}
 
@@ -1185,7 +1191,7 @@ export default function App() {
         </div>
       )}
 
-      {!isPrefeituraItabira && !mostrarMonitores && !mostrarIntegralizacao && buscaRealizada && resultadosVisiveis.length > 0 && (
+      {!mostrarMonitores && !mostrarIntegralizacao && buscaRealizada && resultadosVisiveis.length > 0 && (
         <>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
             <h2 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--pd-title)', margin: 0 }}>Resultados</h2>
@@ -1213,19 +1219,21 @@ export default function App() {
   );
 }
 
-function DadosPrincipais({ aluno, temp, setTemp, editMode, setEditMode, salvar, cancelarEdicao, salvando, corStatus }) {
+function DadosPrincipais({ aluno, temp, setTemp, editMode, setEditMode, salvar, cancelarEdicao, salvando, corStatus, somenteLeitura = false }) {
   return (
     <>
-      <div style={{ ...styles.actions, marginLeft: 0, marginBottom: '14px' }}>
-        {editMode ? (
-          <>
-            <button className="ui-button" type="button" onClick={salvar} disabled={salvando} style={{ ...styles.primaryBtn, background: '#166534', opacity: salvando ? 0.75 : 1 }}><Save size={18} /> {salvando ? 'Salvando...' : 'Salvar'}</button>
-            <button className="ui-button" type="button" onClick={cancelarEdicao} disabled={salvando} style={styles.secondaryBtn}><X size={18} /></button>
-          </>
-        ) : (
-          <button className="ui-button" type="button" onClick={() => setEditMode(true)} style={styles.secondaryBtn}><Edit2 size={18} /> Editar</button>
-        )}
-      </div>
+      {!somenteLeitura && (
+        <div style={{ ...styles.actions, marginLeft: 0, marginBottom: '14px' }}>
+          {editMode ? (
+            <>
+              <button className="ui-button" type="button" onClick={salvar} disabled={salvando} style={{ ...styles.primaryBtn, background: '#166534', opacity: salvando ? 0.75 : 1 }}><Save size={18} /> {salvando ? 'Salvando...' : 'Salvar'}</button>
+              <button className="ui-button" type="button" onClick={cancelarEdicao} disabled={salvando} style={styles.secondaryBtn}><X size={18} /></button>
+            </>
+          ) : (
+            <button className="ui-button" type="button" onClick={() => setEditMode(true)} style={styles.secondaryBtn}><Edit2 size={18} /> Editar</button>
+          )}
+        </div>
+      )}
       <div className="student-grid" style={styles.grid}>
         <InfoItem icon={<Hash size={18} color={corStatus} />} label="Matrícula" value={aluno.matricula} />
         <FieldItem icon={<Phone size={18} color={corStatus} />} label="Telefone" editMode={editMode} value={temp.telefone} display={aluno.telefone} onChange={(v) => setTemp({ ...temp, telefone: v })} />
@@ -1252,19 +1260,21 @@ function DadosPrincipais({ aluno, temp, setTemp, editMode, setEditMode, salvar, 
   );
 }
 
-function PerfilAluno({ perfil, perfilTemp, setPerfilTemp, editPerfil, setEditPerfil, salvarPerfilAluno, salvandoPerfil }) {
-  const p = editPerfil ? perfilTemp : perfil;
+function PerfilAluno({ perfil, perfilTemp, setPerfilTemp, editPerfil, setEditPerfil, salvarPerfilAluno, salvandoPerfil, somenteLeitura = false }) {
+  const p = editPerfil && !somenteLeitura ? perfilTemp : perfil;
   const setCampo = (campo, valor) => setPerfilTemp({ ...perfilTemp, [campo]: valor });
   const filhosInfo = parseFilhos(p.filhos_descricao);
   const filhos = filhosInfo.filhos;
   const setFilhos = (novosFilhos) => setCampo('filhos_descricao', stringifyFilhos(novosFilhos));
 
-  if (!editPerfil) {
+  if (!editPerfil || somenteLeitura) {
     return (
       <>
-        <div style={{ ...styles.actions, marginLeft: 0, marginBottom: '14px' }}>
-          <button className="ui-button" type="button" onClick={() => setEditPerfil(true)} style={styles.secondaryBtn}><Edit2 size={18} /> Editar perfil</button>
-        </div>
+        {!somenteLeitura && (
+          <div style={{ ...styles.actions, marginLeft: 0, marginBottom: '14px' }}>
+            <button className="ui-button" type="button" onClick={() => setEditPerfil(true)} style={styles.secondaryBtn}><Edit2 size={18} /> Editar perfil</button>
+          </div>
+        )}
         <div style={styles.profileGrid} className="profile-grid">
           <section style={{ ...styles.section, gridColumn: '1 / -1' }}>
             <h3><User size={18} /> Breve análise de perfil</h3>

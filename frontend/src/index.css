@@ -8,6 +8,21 @@
   --accent-bg: rgba(170, 59, 255, 0.1);
   --accent-border: rgba(170, 59, 255, 0.5);
   --social-bg: rgba(244, 243, 236, 0.5);
+  --course-pct-good: #047857;
+  --course-pct-mid: #b45309;
+  --course-pct-low: #be123c;
+  --course-success-text: #047857;
+  --course-success-bg: #ecfdf5;
+  --course-success-border: #a7f3d0;
+  --course-progress-text: #9a3412;
+  --course-progress-bg: #fff7ed;
+  --course-progress-border: #fed7aa;
+  --course-muted-text: #475569;
+  --course-muted-bg: #f1f5f9;
+  --course-muted-border: #cbd5e1;
+  --course-risk-text: #be123c;
+  --course-risk-bg: #fff1f2;
+  --course-risk-border: #fecdd3;
   --shadow:
     rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
 
@@ -1783,16 +1798,16 @@ button.monitoring-metric-card {
 
 .course-pill.success,
 .course-stat.done {
-  color: #166534;
-  background: #ecfdf5;
-  border-color: #bbf7d0;
+  color: var(--course-success-text);
+  background: var(--course-success-bg);
+  border-color: var(--course-success-border);
 }
 
 .course-pill.final,
 .course-stat.progress {
-  color: #92400e;
-  background: #fffbeb;
-  border-color: #fde68a;
+  color: var(--course-progress-text);
+  background: var(--course-progress-bg);
+  border-color: var(--course-progress-border);
 }
 
 .course-pill.linked {
@@ -1803,9 +1818,16 @@ button.monitoring-metric-card {
 
 .course-pill.warning,
 .course-stat.risk {
-  color: #991b1b;
-  background: #fef2f2;
-  border-color: #fecaca;
+  color: var(--course-risk-text);
+  background: var(--course-risk-bg);
+  border-color: var(--course-risk-border);
+}
+
+.course-pill.muted,
+.course-stat.muted {
+  color: var(--course-muted-text);
+  background: var(--course-muted-bg);
+  border-color: var(--course-muted-border);
 }
 
 .course-hours-link-info {
@@ -1830,12 +1852,12 @@ button.monitoring-metric-card {
 .course-progress-fill {
   height: 100%;
   border-radius: 999px;
-  background: #15803d;
+  background: var(--course-pct-good);
 }
 
 .course-section-head > strong {
   flex: 0 0 auto;
-  color: #15803d;
+  color: var(--course-pct-good);
   font-size: 28px;
   line-height: 1;
   font-weight: 900;
@@ -1910,9 +1932,9 @@ button.monitoring-metric-card {
 }
 
 .course-cert-badge.ok {
-  color: #166534;
-  background: #ecfdf5;
-  border-color: #bbf7d0;
+  color: var(--course-success-text);
+  background: var(--course-success-bg);
+  border-color: var(--course-success-border);
 }
 
 .course-empty-text {
@@ -2157,7 +2179,7 @@ button.course-hours-card {
 }
 
 .certificate-track .course-progress-fill {
-  background: #15803d;
+  background: var(--course-pct-good);
 }
 
 .certificates-stats {
@@ -2196,21 +2218,21 @@ button.course-hours-card {
 }
 
 .course-cert-badge.progress {
-  color: #92400e;
-  background: #fffbeb;
-  border-color: #fde68a;
+  color: var(--course-progress-text);
+  background: var(--course-progress-bg);
+  border-color: var(--course-progress-border);
 }
 
 .course-cert-badge.muted {
-  color: #475569;
-  background: #f1f5f9;
-  border-color: #cbd5e1;
+  color: var(--course-muted-text);
+  background: var(--course-muted-bg);
+  border-color: var(--course-muted-border);
 }
 
 .course-cert-badge.risk {
-  color: #991b1b;
-  background: #fef2f2;
-  border-color: #fecaca;
+  color: var(--course-risk-text);
+  background: var(--course-risk-bg);
+  border-color: var(--course-risk-border);
 }
 
 .schedule-head {
@@ -2223,6 +2245,21 @@ button.course-hours-card {
 
 .theme-dark {
   color: #dbe4ef !important;
+  --course-pct-good: #34d399;
+  --course-pct-mid: #fbbf24;
+  --course-pct-low: #fb7185;
+  --course-success-text: #bbf7d0;
+  --course-success-bg: rgba(16, 185, 129, 0.16);
+  --course-success-border: rgba(110, 231, 183, 0.36);
+  --course-progress-text: #fed7aa;
+  --course-progress-bg: rgba(245, 158, 11, 0.14);
+  --course-progress-border: rgba(251, 191, 36, 0.32);
+  --course-muted-text: #cbd5e1;
+  --course-muted-bg: rgba(100, 116, 139, 0.16);
+  --course-muted-border: rgba(148, 163, 184, 0.3);
+  --course-risk-text: #fecdd3;
+  --course-risk-bg: rgba(225, 29, 72, 0.14);
+  --course-risk-border: rgba(251, 113, 133, 0.3);
 }
 
 body:has(.theme-dark) {
@@ -2602,17 +2639,17 @@ body:has(.theme-dark) {
 
 .theme-dark .course-pill.success,
 .theme-dark .course-stat.done {
-  color: #bbf7d0;
-  background: rgba(22, 163, 74, 0.2);
-  border-color: rgba(134, 239, 172, 0.36);
+  color: var(--course-success-text);
+  background: var(--course-success-bg);
+  border-color: var(--course-success-border);
 }
 
 .theme-dark .course-pill.final,
 .theme-dark .course-stat.progress,
 .theme-dark .course-cert-badge.progress {
-  color: #fde68a;
-  background: rgba(202, 138, 4, 0.2);
-  border-color: rgba(253, 230, 138, 0.38);
+  color: var(--course-progress-text);
+  background: var(--course-progress-bg);
+  border-color: var(--course-progress-border);
 }
 
 .theme-dark .course-pill.linked {
@@ -2624,16 +2661,16 @@ body:has(.theme-dark) {
 .theme-dark .course-pill.warning,
 .theme-dark .course-stat.risk,
 .theme-dark .course-cert-badge.risk {
-  color: #fecaca;
-  background: rgba(220, 38, 38, 0.18);
-  border-color: rgba(248, 113, 113, 0.34);
+  color: var(--course-risk-text);
+  background: var(--course-risk-bg);
+  border-color: var(--course-risk-border);
 }
 
 .theme-dark .course-stat.muted,
 .theme-dark .course-cert-badge.muted {
-  color: #e2e8f0;
-  background: rgba(100, 116, 139, 0.18);
-  border-color: rgba(148, 163, 184, 0.32);
+  color: var(--course-muted-text);
+  background: var(--course-muted-bg);
+  border-color: var(--course-muted-border);
 }
 
 .theme-dark .course-cert-badge,
@@ -2641,6 +2678,12 @@ body:has(.theme-dark) {
   background: #0b1220;
   border-color: #334155;
   color: #e5edf7;
+}
+
+.theme-dark .course-cert-badge.ok {
+  color: var(--course-success-text);
+  background: var(--course-success-bg);
+  border-color: var(--course-success-border);
 }
 
 #root {

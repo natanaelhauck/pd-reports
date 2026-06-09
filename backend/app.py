@@ -2374,6 +2374,8 @@ def get_historico_aluno(matricula):
     usuario, erro = require_auth()
     if erro:
         return erro
+    if usuario_eh_prefeitura_itabira(usuario):
+        return jsonify({'erro': 'Você não tem permissão para ver o histórico deste aluno.'}), 403
     if not usuario_pode_ver_matricula(usuario, matricula):
         return jsonify({'erro': 'Você não tem permissão para ver este aluno.'}), 403
     conn = None
@@ -2436,7 +2438,7 @@ def refresh_relatorios_monitoria():
 
 @app.route('/api/sync/refresh', methods=['POST'])
 def sync_refresh():
-    _, erro = require_roles('admin', 'monitor', 'psicologa', PREFEITURA_ITABIRA_ROLE)
+    _, erro = require_roles('admin', 'monitor', 'psicologa')
     if erro:
         return erro
     limpar_cache_relatorios()
@@ -2629,6 +2631,8 @@ def get_resumo_monitoria_monitores():
     usuario, erro = require_auth()
     if erro:
         return erro
+    if usuario_eh_prefeitura_itabira(usuario):
+        return jsonify({'erro': 'Você não tem permissão para acessar o painel de monitores.'}), 403
     try:
         ano, mes, mes_param = parse_mes_monitoria(request.args.get('mes'))
         monitor_filtro, status_filtro = filtros_monitoria_request(usuario)

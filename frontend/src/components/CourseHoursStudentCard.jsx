@@ -1,9 +1,9 @@
 import { Trophy } from 'lucide-react';
 
 const pctColor = (pct) => {
-  if (pct >= 80) return '#15803d';
-  if (pct >= 50) return '#d97706';
-  return '#dc2626';
+  if (pct >= 80) return 'var(--course-pct-good)';
+  if (pct >= 50) return 'var(--course-pct-mid)';
+  return 'var(--course-pct-low)';
 };
 
 const statusLabel = (aluno) => {
