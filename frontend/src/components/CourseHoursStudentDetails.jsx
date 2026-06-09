@@ -5,7 +5,7 @@ import { CourseScheduleSection } from './CourseScheduleSection.jsx';
 
 const pctColor = (pct) => {
   if (pct >= 80) return 'var(--course-pct-good)';
-  if (pct >= 50) return 'var(--course-pct-mid)';
+  if (pct >= 60) return 'var(--course-pct-mid)';
   return 'var(--course-pct-low)';
 };
 

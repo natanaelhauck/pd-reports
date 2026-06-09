@@ -3,6 +3,12 @@ const fmtPct = (value) => {
   return `${Math.max(0, Math.min(100, numero)).toFixed(numero < 1 ? 2 : 1)}%`;
 };
 
+const pctColor = (pct) => {
+  if (pct >= 80) return 'var(--course-pct-good)';
+  if (pct >= 60) return 'var(--course-pct-mid)';
+  return 'var(--course-pct-low)';
+};
+
 const statusKey = (status) => String(status || '')
   .normalize('NFD')
   .replace(/[\u0300-\u036f]/g, '')
@@ -77,6 +83,7 @@ export function CourseCertificatesSection({ certificados, aluno }) {
     + Number(dados.cursosNaoIniciados || 0)
   );
   const certificadoPct = totalCursos > 0 ? Math.min(100, (certificadosGerados / totalCursos) * 100) : 0;
+  const certificadoColor = pctColor(certificadoPct);
   const comCertificado = cursos.filter((curso) => curso.certificadoGerado);
   const semCertificado = cursos.filter((curso) => !curso.certificadoGerado);
   const semCertificadoTotal = Math.max(0, totalCursos - certificadosGerados);
@@ -96,7 +103,7 @@ export function CourseCertificatesSection({ certificados, aluno }) {
       </div>
 
       <div className="course-progress-track large certificate-track">
-        <div className="course-progress-fill" style={{ width: `${certificadoPct}%` }} />
+        <div className="course-progress-fill" style={{ width: `${certificadoPct}%`, background: certificadoColor }} />
       </div>
 
       <div className="course-stats-grid certificates-stats">

@@ -8,9 +8,10 @@
   --accent-bg: rgba(170, 59, 255, 0.1);
   --accent-border: rgba(170, 59, 255, 0.5);
   --social-bg: rgba(244, 243, 236, 0.5);
-  --course-pct-good: #047857;
-  --course-pct-mid: #b45309;
-  --course-pct-low: #be123c;
+  --course-pct-good: #15803d;
+  --course-pct-mid: #ea580c;
+  --course-pct-low: #dc2626;
+  --course-progress-track-bg: #e5e7eb;
   --course-success-text: #047857;
   --course-success-bg: #ecfdf5;
   --course-success-border: #a7f3d0;
@@ -1838,15 +1839,16 @@ button.monitoring-metric-card {
 
 .course-progress-track {
   width: 100%;
-  height: 8px;
+  height: 10px;
   margin-top: 8px;
   overflow: hidden;
   border-radius: 999px;
-  background: var(--pd-border);
+  background: var(--course-progress-track-bg);
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.04);
 }
 
 .course-progress-track.large {
-  height: 11px;
+  height: 12px;
 }
 
 .course-progress-fill {
@@ -2189,10 +2191,6 @@ button.course-hours-card {
   font-weight: 950;
 }
 
-.certificate-track .course-progress-fill {
-  background: var(--course-pct-good);
-}
-
 .certificates-stats {
   grid-template-columns: repeat(4, minmax(140px, 1fr));
 }
@@ -2256,9 +2254,10 @@ button.course-hours-card {
 
 .theme-dark {
   color: #dbe4ef !important;
-  --course-pct-good: #34d399;
-  --course-pct-mid: #fbbf24;
-  --course-pct-low: #fb7185;
+  --course-pct-good: #22c55e;
+  --course-pct-mid: #f59e0b;
+  --course-pct-low: #ef4444;
+  --course-progress-track-bg: #263449;
   --course-success-text: #bbf7d0;
   --course-success-bg: #111c2a;
   --course-success-border: rgba(110, 231, 183, 0.36);
