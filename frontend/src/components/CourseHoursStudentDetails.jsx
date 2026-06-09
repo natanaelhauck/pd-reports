@@ -29,18 +29,20 @@ function ConsumptionHeader({ aluno }) {
           <p>{alunoEmail(aluno)}</p>
           {matricula && <p className="consumption-hero-registration">Matrícula: {matricula}</p>}
           <span className="consumption-hero-entry">Ingresso: {ingresso(aluno)}</span>
-        </div>
-        <div className="course-hours-badges">
-          {aluno?.desafioFinal && <span className="course-pill final"><Trophy size={13} /> Desafio Final</span>}
-          {!aluno?.vinculado && (
-            <span className="course-pill warning">Não vinculado</span>
+          {(aluno?.desafioFinal || !aluno?.vinculado) && (
+            <div className="course-hours-badges consumption-hero-badges">
+              {aluno?.desafioFinal && <span className="course-pill final"><Trophy size={13} /> Desafio Final</span>}
+              {!aluno?.vinculado && (
+                <span className="course-pill warning">Não vinculado</span>
+              )}
+            </div>
           )}
         </div>
       </div>
 
       <div className="consumption-hero-score consumption-hero-score-card" style={{ color }}>
+        <span>CONSUMO</span>
         <strong>{pct.toFixed(1)}%</strong>
-        <span>consumo</span>
       </div>
 
       <div className="consumption-progress-row">

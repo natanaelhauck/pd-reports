@@ -1844,6 +1844,22 @@ button.monitoring-metric-card {
   background: var(--pd-subtle);
 }
 
+.course-stat.done {
+  border-left: 4px solid #22c55e;
+}
+
+.course-stat.progress {
+  border-left: 4px solid #f59e0b;
+}
+
+.course-stat.risk {
+  border-left: 4px solid #ef4444;
+}
+
+.course-stat.muted {
+  border-left: 4px solid #94a3b8;
+}
+
 .course-stat.done strong {
   color: #22c55e;
 }
@@ -2124,6 +2140,7 @@ button.course-hours-card {
   border-radius: 12px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--pd-surface) 94%, #2563eb 6%), var(--pd-surface));
   box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
+  text-align: left;
 }
 
 .consumption-hero-main {
@@ -2132,6 +2149,8 @@ button.course-hours-card {
   align-items: start;
   gap: 12px 18px;
   min-width: 0;
+  justify-items: start;
+  text-align: left;
 }
 
 .consumption-hero-identity {
@@ -2139,6 +2158,8 @@ button.course-hours-card {
   gap: 2px;
   flex: 1 1 420px;
   min-width: 0;
+  justify-items: start;
+  text-align: left;
 }
 
 .consumption-hero-main h2 {
@@ -2221,7 +2242,13 @@ button.course-hours-card {
   text-align: center;
 }
 
+.consumption-hero-badges {
+  margin-top: 4px;
+  justify-content: flex-start;
+}
+
 .consumption-hero-score strong {
+  margin-top: 4px;
   font-size: 34px;
   line-height: 1;
   font-weight: 950;
@@ -2372,13 +2399,15 @@ button.course-hours-card {
 
 .schedule-head {
   align-items: center;
+  text-align: left;
 }
 
 .schedule-head h3 {
   font-size: 12px;
   letter-spacing: 0.02em;
   text-transform: uppercase;
-  color: #2563eb;
+  color: #3b82f6;
+  text-align: left;
 }
 
 .schedule-head p {
@@ -2390,6 +2419,11 @@ button.course-hours-card {
 
 .schedule-stats {
   grid-template-columns: repeat(3, minmax(150px, 1fr));
+}
+
+.daily-goal-score strong,
+.daily-goal-score span {
+  color: #3b82f6;
 }
 
 .course-week-note {
@@ -2918,6 +2952,26 @@ body:has(.theme-dark) {
   background: #111c2a;
 }
 
+.theme-dark .course-stat.done {
+  border-color: rgba(74, 222, 128, 0.58);
+  border-left-color: #4ade80;
+}
+
+.theme-dark .course-stat.progress {
+  border-color: rgba(251, 191, 36, 0.54);
+  border-left-color: #fbbf24;
+}
+
+.theme-dark .course-stat.risk {
+  border-color: rgba(248, 113, 113, 0.52);
+  border-left-color: #fb7185;
+}
+
+.theme-dark .course-stat.muted {
+  border-color: rgba(148, 163, 184, 0.36);
+  border-left-color: #94a3b8;
+}
+
 .theme-dark .course-stat.done strong {
   color: #4ade80;
 }
@@ -2941,6 +2995,12 @@ body:has(.theme-dark) {
 }
 
 .theme-dark .schedule-head h3 {
+  color: #60a5fa !important;
+  text-align: left;
+}
+
+.theme-dark .daily-goal-score strong,
+.theme-dark .daily-goal-score span {
   color: #60a5fa;
 }
 
