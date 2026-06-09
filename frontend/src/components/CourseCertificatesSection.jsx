@@ -16,6 +16,15 @@ const badgeTone = (course, fallbackTone) => {
   return fallbackTone || 'progress';
 };
 
+const ordenarSemCertificado = (courses) => [...(courses || [])].sort((a, b) => {
+  const pctA = Math.max(0, Number(a?.percentual || 0));
+  const pctB = Math.max(0, Number(b?.percentual || 0));
+  if (pctA > 0 || pctB > 0) {
+    if (pctA !== pctB) return pctB - pctA;
+  }
+  return String(a?.curso || '').localeCompare(String(b?.curso || ''), 'pt-BR', { sensitivity: 'base' });
+});
+
 function CourseStat({ label, value, tone }) {
   return (
     <div className={`course-stat ${tone || ''}`}>
@@ -43,7 +52,7 @@ function CourseList({ title, courses, tone }) {
               <li key={`${course.courseId || course.curso}-${course.status || ''}`}>
                 <div>
                   <strong>{course.curso || 'Curso sem nome'}</strong>
-                  <span>{course.status || 'Não informado'}</span>
+                  <span className="course-status-text">{course.status || 'Não informado'}</span>
                 </div>
                 <span className={`course-cert-badge ${badgeTone(course, tone)}`}>
                   {course.certificadoGerado ? 'Certificado' : fmtPct(pct)}
@@ -71,7 +80,7 @@ export function CourseCertificatesSection({ certificados, aluno }) {
   const comCertificado = cursos.filter((curso) => curso.certificadoGerado);
   const semCertificado = cursos.filter((curso) => !curso.certificadoGerado);
   const semCertificadoTotal = Math.max(0, totalCursos - certificadosGerados);
-  const emAndamentoSemCertificado = semCertificado;
+  const semCertificadoOrdenado = ordenarSemCertificado(semCertificado);
 
   return (
     <section className="course-section certificates-section">
@@ -100,7 +109,7 @@ export function CourseCertificatesSection({ certificados, aluno }) {
       <div className="course-lists-grid certificates-lists">
         <CourseList title="Com certificado" courses={comCertificado} tone="done" />
         {!concluidoPorDesafioFinal && (
-          <CourseList title="Em andamento / sem certificado" courses={emAndamentoSemCertificado} tone="progress" />
+          <CourseList title="Sem certificado" courses={semCertificadoOrdenado} tone="progress" />
         )}
       </div>
     </section>

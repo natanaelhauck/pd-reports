@@ -1907,6 +1907,13 @@ button.monitoring-metric-card {
   padding-top: 8px;
 }
 
+.course-list-box li > div {
+  display: grid;
+  justify-items: start;
+  min-width: 0;
+  text-align: left;
+}
+
 .course-list-box li strong {
   display: block;
   color: var(--pd-title);
@@ -1914,10 +1921,14 @@ button.monitoring-metric-card {
   line-height: 1.25;
 }
 
-.course-list-box li span {
+.course-list-box li .course-status-text {
+  display: block;
   color: var(--pd-muted);
   font-size: 12px;
   font-weight: 700;
+  line-height: 1.25;
+  margin-top: 2px;
+  text-align: left;
 }
 
 .course-cert-badge {
@@ -2249,16 +2260,16 @@ button.course-hours-card {
   --course-pct-mid: #fbbf24;
   --course-pct-low: #fb7185;
   --course-success-text: #bbf7d0;
-  --course-success-bg: rgba(16, 185, 129, 0.16);
+  --course-success-bg: #111c2a;
   --course-success-border: rgba(110, 231, 183, 0.36);
   --course-progress-text: #fed7aa;
-  --course-progress-bg: rgba(245, 158, 11, 0.14);
+  --course-progress-bg: #111c2a;
   --course-progress-border: rgba(251, 191, 36, 0.32);
   --course-muted-text: #cbd5e1;
-  --course-muted-bg: rgba(100, 116, 139, 0.16);
+  --course-muted-bg: #111c2a;
   --course-muted-border: rgba(148, 163, 184, 0.3);
   --course-risk-text: #fecdd3;
-  --course-risk-bg: rgba(225, 29, 72, 0.14);
+  --course-risk-bg: #111c2a;
   --course-risk-border: rgba(251, 113, 133, 0.3);
 }
 
@@ -2630,6 +2641,49 @@ body:has(.theme-dark) {
 .theme-dark .course-week-grid > div,
 .theme-dark .course-list-box {
   background: #172033;
+}
+
+.theme-dark .course-summary-grid > div,
+.theme-dark .course-stat,
+.theme-dark .course-week-grid > div {
+  position: relative;
+  overflow: hidden;
+  background: #111c2a;
+  border-color: #2f3f55;
+  box-shadow: none;
+}
+
+.theme-dark .course-summary-grid > div::before,
+.theme-dark .course-stat::before,
+.theme-dark .course-week-grid > div::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: #64748b;
+}
+
+.theme-dark .course-summary-grid > div,
+.theme-dark .course-stat.muted,
+.theme-dark .course-week-grid > div {
+  border-left-color: rgba(148, 163, 184, 0.44);
+}
+
+.theme-dark .course-stat.done::before {
+  background: #34d399;
+}
+
+.theme-dark .course-stat.progress::before {
+  background: #fbbf24;
+}
+
+.theme-dark .course-stat.muted::before,
+.theme-dark .course-week-grid > div::before {
+  background: #94a3b8;
+}
+
+.theme-dark .course-stat.risk::before {
+  background: #fb7185;
 }
 
 .theme-dark .consumption-hero {
