@@ -2127,14 +2127,16 @@ button.course-hours-card {
 }
 
 .consumption-hero-main {
-  display: flex;
-  align-items: flex-start;
-  flex-wrap: wrap;
-  gap: 10px 18px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px 18px;
   min-width: 0;
 }
 
-.consumption-hero-main > div:first-child {
+.consumption-hero-identity {
+  display: grid;
+  gap: 2px;
   flex: 1 1 420px;
   min-width: 0;
 }
@@ -2142,7 +2144,7 @@ button.course-hours-card {
 .consumption-hero-main h2 {
   margin: 0 0 3px;
   color: var(--pd-title);
-  font-size: 26px;
+  font-size: 24px;
   font-weight: 900;
   line-height: 1.08;
   overflow-wrap: anywhere;
@@ -2150,27 +2152,29 @@ button.course-hours-card {
 
 .consumption-hero-main p {
   color: var(--pd-muted);
-  font-size: 14px;
-  font-weight: 750;
+  font-size: 13px;
+  font-weight: 700;
   overflow-wrap: anywhere;
 }
 
 .consumption-hero-main .consumption-hero-registration {
-  margin-top: 3px;
+  margin-top: 1px;
   color: var(--pd-text);
-  font-weight: 850;
+  font-size: 13px;
+  font-weight: 800;
 }
 
 .consumption-hero-entry {
   display: inline-flex;
   align-items: center;
-  min-height: 26px;
+  width: fit-content;
+  min-height: 24px;
   padding: 4px 9px;
   border: 1px solid var(--pd-border);
   border-radius: 999px;
   background: var(--pd-subtle);
   color: var(--pd-muted);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 850;
 }
 
@@ -2206,10 +2210,24 @@ button.course-hours-card {
   text-align: right;
 }
 
+.consumption-hero-score-card {
+  min-width: 126px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, currentColor 24%, var(--pd-border));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--pd-surface) 92%, currentColor 8%);
+}
+
 .consumption-hero-score strong {
-  font-size: 40px;
+  font-size: 34px;
   line-height: 1;
   font-weight: 950;
+}
+
+.consumption-hero-score span {
+  color: color-mix(in srgb, currentColor 78%, var(--pd-muted) 22%);
+  font-size: 11px;
+  font-weight: 850;
 }
 
 .consumption-hero .course-progress-track {
@@ -2227,21 +2245,22 @@ button.course-hours-card {
   align-items: center;
   justify-content: space-between;
   gap: 6px;
-  color: var(--pd-muted);
+  min-width: 0;
   font-size: 12px;
   font-weight: 850;
 }
 
+.consumption-progress-complete,
 .consumption-progress-separator {
   color: var(--pd-muted);
 }
 
 .consumption-progress-remaining {
-  color: var(--course-muted-text);
+  color: #f59e0b;
 }
 
 .consumption-progress-remaining.pending {
-  color: var(--course-pct-low);
+  color: #f59e0b;
 }
 
 .consumption-progress-caption span:first-child {
@@ -2349,6 +2368,12 @@ button.course-hours-card {
 
 .schedule-head {
   align-items: center;
+}
+
+.schedule-head h3 {
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
 }
 
 .schedule-head p {
@@ -2820,16 +2845,29 @@ body:has(.theme-dark) {
   color: #cbd5e1;
 }
 
+.theme-dark .consumption-hero-score-card {
+  background: #111c2a;
+  border-color: rgba(148, 163, 184, 0.28);
+}
+
+.theme-dark .consumption-hero-score span {
+  color: #cbd5e1;
+}
+
 .theme-dark .consumption-progress-separator {
   color: #64748b;
 }
 
+.theme-dark .consumption-progress-complete {
+  color: inherit;
+}
+
 .theme-dark .consumption-progress-remaining {
-  color: var(--course-muted-text);
+  color: #f59e0b;
 }
 
 .theme-dark .consumption-progress-remaining.pending {
-  color: var(--course-pct-low);
+  color: #f59e0b;
 }
 
 .theme-dark .course-pill.success,
@@ -2895,6 +2933,10 @@ body:has(.theme-dark) {
 .theme-dark .course-week-grid em,
 .theme-dark .course-week-note {
   color: #94a3b8;
+}
+
+.theme-dark .schedule-head h3 {
+  color: #e5edf7;
 }
 
 .theme-dark .schedule-head p {

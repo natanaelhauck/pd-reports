@@ -24,31 +24,28 @@ function ConsumptionHeader({ aluno }) {
   return (
     <section className="consumption-hero">
       <div className="consumption-hero-main">
-        <div>
+        <div className="consumption-hero-identity">
           <h2>{alunoNome(aluno)}</h2>
           <p>{alunoEmail(aluno)}</p>
           {matricula && <p className="consumption-hero-registration">Matrícula: {matricula}</p>}
+          <span className="consumption-hero-entry">Ingresso: {ingresso(aluno)}</span>
         </div>
         <div className="course-hours-badges">
-          <span className={aluno?.ativo ? 'course-pill success' : 'course-pill muted'}>
-            {aluno?.ativo ? 'Ativo' : (aluno?.decisao || 'Inativo')}
-          </span>
           {aluno?.desafioFinal && <span className="course-pill final"><Trophy size={13} /> Desafio Final</span>}
           {!aluno?.vinculado && (
             <span className="course-pill warning">Não vinculado</span>
           )}
         </div>
-        <span className="consumption-hero-entry">Ingresso: {ingresso(aluno)}</span>
       </div>
 
-      <div className="consumption-hero-score" style={{ color }}>
+      <div className="consumption-hero-score consumption-hero-score-card" style={{ color }}>
         <strong>{pct.toFixed(1)}%</strong>
         <span>consumo</span>
       </div>
 
       <div className="consumption-progress-row">
         <div className="consumption-progress-caption">
-          <span style={{ color }}>{pct.toFixed(1)}% concluído</span>
+          <span className="consumption-progress-complete" style={{ color }}>{pct.toFixed(1)}% concluído</span>
           <span className="consumption-progress-separator">·</span>
           <span className={remainingPct > 0 ? 'consumption-progress-remaining pending' : 'consumption-progress-remaining'}>
             {remainingPct.toFixed(1)}% restante
