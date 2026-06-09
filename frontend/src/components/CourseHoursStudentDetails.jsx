@@ -17,6 +17,7 @@ const ingresso = (aluno) => aluno?.dataEntradaCursoFormatada || aluno?.dataIngre
 
 function ConsumptionHeader({ aluno }) {
   const pct = Math.max(0, Math.min(100, Number(aluno?.percentualIntegralizacao || 0)));
+  const remainingPct = Math.max(0, 100 - pct);
   const color = pctColor(pct);
   const matricula = alunoMatricula(aluno);
 
@@ -37,10 +38,7 @@ function ConsumptionHeader({ aluno }) {
             <span className="course-pill warning">Não vinculado</span>
           )}
         </div>
-        <div className="consumption-hero-meta">
-          <span>Ingresso</span>
-          <strong>{ingresso(aluno)}</strong>
-        </div>
+        <span className="consumption-hero-entry">Ingresso: {ingresso(aluno)}</span>
       </div>
 
       <div className="consumption-hero-score" style={{ color }}>
@@ -48,8 +46,17 @@ function ConsumptionHeader({ aluno }) {
         <span>consumo</span>
       </div>
 
-      <div className="course-progress-track large" aria-label={`Consumo ${pct.toFixed(1)}%`}>
-        <div className="course-progress-fill" style={{ width: `${pct}%`, background: color }} />
+      <div className="consumption-progress-row">
+        <div className="consumption-progress-caption">
+          <span style={{ color }}>{pct.toFixed(1)}% concluído</span>
+          <span className="consumption-progress-separator">·</span>
+          <span className={remainingPct > 0 ? 'consumption-progress-remaining pending' : 'consumption-progress-remaining'}>
+            {remainingPct.toFixed(1)}% restante
+          </span>
+        </div>
+        <div className="course-progress-track large" aria-label={`Consumo ${pct.toFixed(1)}%`}>
+          <div className="course-progress-fill" style={{ width: `${pct}%`, background: color }} />
+        </div>
       </div>
     </section>
   );

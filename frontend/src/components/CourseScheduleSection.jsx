@@ -74,9 +74,13 @@ export function CourseScheduleSection({ aluno }) {
           <div key={key}>
             <span>{label}</span>
             <strong>{fmtHM(meta.semana?.[key])}</strong>
+            <em>horas de curso</em>
           </div>
         ))}
       </div>
+      <p className="course-week-note">
+        Sábados e domingos ficam livres — o avanço é distribuído igualmente pelos dias úteis.
+      </p>
     </section>
   );
 }

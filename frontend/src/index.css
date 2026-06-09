@@ -1662,6 +1662,12 @@ button.monitoring-metric-card {
   line-height: 1.1;
 }
 
+.course-hours-percent strong,
+.course-hours-percent span,
+.consumption-hero-score strong {
+  color: inherit;
+}
+
 .course-dashboard-controls {
   align-items: center;
   margin: 14px 0;
@@ -1853,6 +1859,15 @@ button.monitoring-metric-card {
 .course-stat.muted strong,
 .course-week-grid strong {
   color: var(--course-muted-text);
+}
+
+.course-week-grid em {
+  display: block;
+  margin-top: 4px;
+  color: var(--pd-muted);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 800;
 }
 
 .course-hours-link-info {
@@ -2146,6 +2161,19 @@ button.course-hours-card {
   font-weight: 850;
 }
 
+.consumption-hero-entry {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 4px 9px;
+  border: 1px solid var(--pd-border);
+  border-radius: 999px;
+  background: var(--pd-subtle);
+  color: var(--pd-muted);
+  font-size: 12px;
+  font-weight: 850;
+}
+
 .consumption-hero-meta {
   display: grid;
   gap: 2px;
@@ -2185,7 +2213,46 @@ button.course-hours-card {
 }
 
 .consumption-hero .course-progress-track {
+  margin-top: 5px;
+}
+
+.consumption-progress-row {
   grid-column: 1 / -1;
+  display: grid;
+  gap: 5px;
+}
+
+.consumption-progress-caption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  color: var(--pd-muted);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.consumption-progress-separator {
+  color: var(--pd-muted);
+}
+
+.consumption-progress-remaining {
+  color: var(--course-muted-text);
+}
+
+.consumption-progress-remaining.pending {
+  color: var(--course-pct-low);
+}
+
+.consumption-progress-caption span:first-child {
+  margin-right: auto;
+}
+
+.consumption-progress-caption span:last-child {
+  text-align: right;
+}
+
+.consumption-progress-row .course-progress-track {
   margin-top: 0;
 }
 
@@ -2263,9 +2330,9 @@ button.course-hours-card {
 }
 
 .course-cert-badge.progress {
-  color: var(--course-progress-text);
-  background: var(--course-progress-bg);
-  border-color: var(--course-progress-border);
+  color: #9a3412;
+  background: #ffedd5;
+  border-color: #fb923c;
 }
 
 .course-cert-badge.muted {
@@ -2275,9 +2342,9 @@ button.course-hours-card {
 }
 
 .course-cert-badge.risk {
-  color: var(--course-risk-text);
-  background: var(--course-risk-bg);
-  border-color: var(--course-risk-border);
+  color: #b91c1c;
+  background: #fee2e2;
+  border-color: #f87171;
 }
 
 .schedule-head {
@@ -2293,6 +2360,14 @@ button.course-hours-card {
 
 .schedule-stats {
   grid-template-columns: repeat(3, minmax(150px, 1fr));
+}
+
+.course-week-note {
+  margin: 10px 0 0;
+  color: var(--pd-muted);
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1.4;
 }
 
 .theme-dark {
@@ -2733,6 +2808,30 @@ body:has(.theme-dark) {
   box-shadow: 0 10px 26px rgba(0, 0, 0, 0.28);
 }
 
+.theme-dark .course-hours-percent strong,
+.theme-dark .course-hours-percent span,
+.theme-dark .consumption-hero-score strong {
+  color: inherit;
+}
+
+.theme-dark .consumption-hero-entry {
+  background: #0b1220;
+  border-color: #334155;
+  color: #cbd5e1;
+}
+
+.theme-dark .consumption-progress-separator {
+  color: #64748b;
+}
+
+.theme-dark .consumption-progress-remaining {
+  color: var(--course-muted-text);
+}
+
+.theme-dark .consumption-progress-remaining.pending {
+  color: var(--course-pct-low);
+}
+
 .theme-dark .course-pill.success,
 .theme-dark .course-stat.done {
   color: var(--course-success-text);
@@ -2743,9 +2842,9 @@ body:has(.theme-dark) {
 .theme-dark .course-pill.final,
 .theme-dark .course-stat.progress,
 .theme-dark .course-cert-badge.progress {
-  color: var(--course-progress-text);
-  background: var(--course-progress-bg);
-  border-color: var(--course-progress-border);
+  color: #fed7aa;
+  background: rgba(154, 52, 18, 0.38);
+  border-color: rgba(251, 146, 60, 0.58);
 }
 
 .theme-dark .course-pill.linked {
@@ -2757,9 +2856,9 @@ body:has(.theme-dark) {
 .theme-dark .course-pill.warning,
 .theme-dark .course-stat.risk,
 .theme-dark .course-cert-badge.risk {
-  color: var(--course-risk-text);
-  background: var(--course-risk-bg);
-  border-color: var(--course-risk-border);
+  color: #fecaca;
+  background: rgba(127, 29, 29, 0.42);
+  border-color: rgba(248, 113, 113, 0.58);
 }
 
 .theme-dark .course-stat.muted,
@@ -2791,6 +2890,11 @@ body:has(.theme-dark) {
 .theme-dark .course-stat.muted strong,
 .theme-dark .course-week-grid strong {
   color: var(--course-muted-text);
+}
+
+.theme-dark .course-week-grid em,
+.theme-dark .course-week-note {
+  color: #94a3b8;
 }
 
 .theme-dark .schedule-head p {

@@ -1,6 +1,11 @@
 const fmtPct = (value) => {
-  const numero = Number(value || 0);
-  return `${Math.max(0, Math.min(100, numero)).toFixed(numero < 1 ? 2 : 1)}%`;
+  const numero = Math.max(0, Math.min(100, Number(value || 0)));
+  const arredondado = Math.round(numero * 10) / 10;
+  const casas = Number.isInteger(arredondado) ? 0 : 1;
+  return `${arredondado.toLocaleString('pt-BR', {
+    minimumFractionDigits: casas,
+    maximumFractionDigits: casas,
+  })}%`;
 };
 
 const pctColor = (pct) => {
