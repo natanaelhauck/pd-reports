@@ -92,8 +92,8 @@ function ConsumptionDetail({ aluno, onBack }) {
       )}
       <ConsumptionHeader aluno={aluno} />
       <ConsumptionStudentMeta aluno={aluno} />
-      <CourseScheduleSection aluno={aluno} />
       <CourseCertificatesSection certificados={aluno.certificados} aluno={aluno} />
+      <CourseScheduleSection aluno={aluno} />
     </div>
   );
 }

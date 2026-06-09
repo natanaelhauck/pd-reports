@@ -1831,6 +1831,30 @@ button.monitoring-metric-card {
   border-color: var(--course-muted-border);
 }
 
+.course-stat.done,
+.course-stat.progress,
+.course-stat.risk,
+.course-stat.muted {
+  background: var(--pd-subtle);
+}
+
+.course-stat.done strong {
+  color: var(--course-pct-good);
+}
+
+.course-stat.progress strong {
+  color: var(--course-pct-mid);
+}
+
+.course-stat.risk strong {
+  color: var(--course-pct-low);
+}
+
+.course-stat.muted strong,
+.course-week-grid strong {
+  color: var(--course-muted-text);
+}
+
 .course-hours-link-info {
   display: grid;
   gap: 2px;
@@ -1945,6 +1969,12 @@ button.monitoring-metric-card {
 }
 
 .course-cert-badge.ok {
+  color: var(--course-success-text);
+  background: var(--course-success-bg);
+  border-color: var(--course-success-border);
+}
+
+.course-cert-badge.done {
   color: var(--course-success-text);
   background: var(--course-success-bg);
   border-color: var(--course-success-border);
@@ -2246,6 +2276,13 @@ button.course-hours-card {
 
 .schedule-head {
   align-items: center;
+}
+
+.schedule-head p {
+  color: var(--pd-text);
+  font-size: 14px;
+  line-height: 1.45;
+  font-weight: 750;
 }
 
 .schedule-stats {
@@ -2726,6 +2763,34 @@ body:has(.theme-dark) {
   border-color: var(--course-muted-border);
 }
 
+.theme-dark .course-stat.done,
+.theme-dark .course-stat.progress,
+.theme-dark .course-stat.risk,
+.theme-dark .course-stat.muted {
+  background: #111c2a;
+}
+
+.theme-dark .course-stat.done strong {
+  color: var(--course-pct-good);
+}
+
+.theme-dark .course-stat.progress strong {
+  color: var(--course-pct-mid);
+}
+
+.theme-dark .course-stat.risk strong {
+  color: var(--course-pct-low);
+}
+
+.theme-dark .course-stat.muted strong,
+.theme-dark .course-week-grid strong {
+  color: var(--course-muted-text);
+}
+
+.theme-dark .schedule-head p {
+  color: #cbd5e1;
+}
+
 .theme-dark .course-cert-badge,
 .theme-dark .course-back-button {
   background: #0b1220;
@@ -2734,6 +2799,12 @@ body:has(.theme-dark) {
 }
 
 .theme-dark .course-cert-badge.ok {
+  color: var(--course-success-text);
+  background: var(--course-success-bg);
+  border-color: var(--course-success-border);
+}
+
+.theme-dark .course-cert-badge.done {
   color: var(--course-success-text);
   background: var(--course-success-bg);
   border-color: var(--course-success-border);

@@ -9,6 +9,13 @@ const pctColor = (pct) => {
   return 'var(--course-pct-low)';
 };
 
+const pctTone = (pct) => {
+  if (pct <= 0) return 'muted';
+  if (pct >= 80) return 'done';
+  if (pct >= 60) return 'progress';
+  return 'risk';
+};
+
 const statusKey = (status) => String(status || '')
   .normalize('NFD')
   .replace(/[\u0300-\u036f]/g, '')
@@ -16,6 +23,8 @@ const statusKey = (status) => String(status || '')
 
 const badgeTone = (course, fallbackTone) => {
   if (course?.certificadoGerado) return 'ok';
+  const pct = Math.max(0, Math.min(100, Number(course?.percentual || 0)));
+  if (pct > 0) return pctTone(pct);
   const status = statusKey(course?.status);
   if (status.includes('nao iniciado') || status.includes('não iniciado')) return 'muted';
   if (status.includes('sem certificado')) return 'risk';
