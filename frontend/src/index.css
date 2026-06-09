@@ -1845,7 +1845,7 @@ button.monitoring-metric-card {
 }
 
 .course-stat.done strong {
-  color: var(--course-pct-good);
+  color: #22c55e;
 }
 
 .course-stat.progress strong {
@@ -2216,6 +2216,9 @@ button.course-hours-card {
   border: 1px solid color-mix(in srgb, currentColor 24%, var(--pd-border));
   border-radius: 12px;
   background: color-mix(in srgb, var(--pd-surface) 92%, currentColor 8%);
+  justify-items: center;
+  align-content: center;
+  text-align: center;
 }
 
 .consumption-hero-score strong {
@@ -2228,6 +2231,7 @@ button.course-hours-card {
   color: color-mix(in srgb, currentColor 78%, var(--pd-muted) 22%);
   font-size: 11px;
   font-weight: 850;
+  text-align: center;
 }
 
 .consumption-hero .course-progress-track {
@@ -2374,6 +2378,7 @@ button.course-hours-card {
   font-size: 12px;
   letter-spacing: 0.02em;
   text-transform: uppercase;
+  color: #2563eb;
 }
 
 .schedule-head p {
@@ -2914,7 +2919,7 @@ body:has(.theme-dark) {
 }
 
 .theme-dark .course-stat.done strong {
-  color: var(--course-pct-good);
+  color: #4ade80;
 }
 
 .theme-dark .course-stat.progress strong {
@@ -2936,7 +2941,7 @@ body:has(.theme-dark) {
 }
 
 .theme-dark .schedule-head h3 {
-  color: #e5edf7;
+  color: #60a5fa;
 }
 
 .theme-dark .schedule-head p {
