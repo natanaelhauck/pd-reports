@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { CourseHoursStudentCard } from './CourseHoursStudentCard.jsx';
-import { CourseHoursStudentDetails } from './CourseHoursStudentDetails.jsx';
 
 const TABS = [
   ['ativos', 'Ativos'],
@@ -17,13 +16,12 @@ const formatarAtualizacao = (valor) => {
   return data.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
 };
 
-export function CourseHoursDashboard({ apiBaseUrl, authHeaders }) {
+export function CourseHoursDashboard({ apiBaseUrl, authHeaders, onSelectStudent }) {
   const [dados, setDados] = useState(null);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState('');
   const [tab, setTab] = useState('ativos');
   const [filtro, setFiltro] = useState('');
-  const [alunoSelecionado, setAlunoSelecionado] = useState(null);
 
   const carregar = async () => {
     setCarregando(true);
@@ -31,10 +29,6 @@ export function CourseHoursDashboard({ apiBaseUrl, authHeaders }) {
     try {
       const res = await axios.get(`${apiBaseUrl}/api/integralizacao`, { headers: authHeaders, timeout: 25000 });
       setDados(res.data);
-      if (alunoSelecionado) {
-        const atualizado = (res.data.alunos || []).find((aluno) => aluno.emailNormalizado === alunoSelecionado.emailNormalizado);
-        if (atualizado) setAlunoSelecionado(atualizado);
-      }
     } catch (err) {
       setErro(err.response?.data?.erro || 'Não foi possível carregar os dados de consumo.');
     } finally {
@@ -75,17 +69,6 @@ export function CourseHoursDashboard({ apiBaseUrl, authHeaders }) {
       })
       .sort((a, b) => Number(b.percentualIntegralizacao || 0) - Number(a.percentualIntegralizacao || 0));
   }, [alunos, filtro, tab]);
-
-  if (alunoSelecionado) {
-    return (
-      <section className="course-hours-panel consumption-panel detail-mode">
-        <CourseHoursStudentDetails
-          alunoConsumo={alunoSelecionado}
-          onBack={() => setAlunoSelecionado(null)}
-        />
-      </section>
-    );
-  }
 
   return (
     <section className="course-hours-panel consumption-panel">
@@ -134,7 +117,7 @@ export function CourseHoursDashboard({ apiBaseUrl, authHeaders }) {
                 <CourseHoursStudentCard
                   key={`${aluno.emailNormalizado}-${aluno.alunoPd?.matricula || 'sem-vinculo'}`}
                   aluno={aluno}
-                  onClick={() => setAlunoSelecionado(aluno)}
+                  onClick={() => onSelectStudent?.(aluno)}
                 />
               ))}
             </div>

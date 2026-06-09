@@ -438,6 +438,7 @@ export default function App() {
   const [mostrarUsuarios, setMostrarUsuarios] = useState(false);
   const [mostrarMonitores, setMostrarMonitores] = useState(false);
   const [mostrarIntegralizacao, setMostrarIntegralizacao] = useState(false);
+  const [voltarParaListaConsumo, setVoltarParaListaConsumo] = useState(false);
   const [usuarios, setUsuarios] = useState([]);
   const [novoAluno, setNovoAluno] = useState(NOVO_ALUNO_INICIAL);
   const [mostrarPerfilNovoAluno, setMostrarPerfilNovoAluno] = useState(false);
@@ -519,6 +520,7 @@ export default function App() {
     setMostrarUsuarios(false);
     setMostrarMonitores(false);
     setMostrarIntegralizacao(false);
+    setVoltarParaListaConsumo(false);
     setUsuarios([]);
     setNovoAluno(NOVO_ALUNO_INICIAL);
     setMostrarPerfilNovoAluno(false);
@@ -644,6 +646,7 @@ export default function App() {
     setEditPerfil(false);
     setActiveTab('Dados principais');
     setHistorico([]);
+    setVoltarParaListaConsumo(false);
   };
 
   const abrirNovoAluno = () => {
@@ -686,6 +689,7 @@ export default function App() {
     setMostrarUsuarios(false);
     setMostrarMonitores(false);
     setMostrarIntegralizacao(true);
+    setVoltarParaListaConsumo(false);
     setMensagem(null);
   };
 
@@ -838,6 +842,7 @@ export default function App() {
     e.preventDefault();
     setMostrarMonitores(false);
     setMostrarIntegralizacao(false);
+    setVoltarParaListaConsumo(false);
     setBuscaRealizada(true);
     await carregarAlunos(busca.trim());
     setEditMode(false);
@@ -857,8 +862,61 @@ export default function App() {
     setEditPerfil(false);
     setActiveTab('Dados principais');
     setHistorico([]);
+    setVoltarParaListaConsumo(false);
     setMensagem(null);
     requestAnimationFrame(() => cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  };
+
+  const selecionarAlunoConsumo = async (alunoConsumo) => {
+    const alunoPd = alunoConsumo?.alunoPd;
+    const matricula = alunoPd?.matricula;
+    if (!matricula) {
+      setMensagem({ tipo: 'aviso', texto: 'Este registro de consumo ainda nÃ£o tem aluno vinculado no PD Reports.' });
+      return;
+    }
+
+    setBuscando(true);
+    setMensagem(null);
+    try {
+      const res = await axios.get(`${API_BASE_URL}/api/alunos`, authConfig({ params: { q: matricula }, timeout: 12000 }));
+      const encontrados = res.data || [];
+      const selecionado = encontrados.find((item) => item.matricula === matricula) || alunoPd;
+      setAlunos(encontrados.length ? encontrados : [alunoPd]);
+      setBusca(matricula);
+      setBuscaRealizada(true);
+      setMostrarNovoAluno(false);
+      setMostrarUsuarios(false);
+      setMostrarMonitores(false);
+      setMostrarIntegralizacao(false);
+      setAluno(selecionado);
+      setTemp(criarTempSeguro(selecionado));
+      setPerfil(PERFIL_INICIAL(selecionado.matricula));
+      setPerfilTemp(PERFIL_INICIAL(selecionado.matricula));
+      setEditMode(false);
+      setEditPerfil(false);
+      setActiveTab('Consumo');
+      setHistorico([]);
+      setVoltarParaListaConsumo(true);
+      requestAnimationFrame(() => cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+    } catch (err) {
+      setMensagem({ tipo: 'erro', texto: mensagemErroApi(err, 'NÃ£o foi possÃ­vel abrir o perfil do aluno.') });
+    } finally {
+      setBuscando(false);
+    }
+  };
+
+  const voltarParaConsumoGeral = () => {
+    setAluno(null);
+    setEditMode(false);
+    setEditPerfil(false);
+    setActiveTab('Dados principais');
+    setHistorico([]);
+    setVoltarParaListaConsumo(false);
+    setMostrarNovoAluno(false);
+    setMostrarUsuarios(false);
+    setMostrarMonitores(false);
+    setMostrarIntegralizacao(true);
+    setMensagem(null);
   };
 
   const salvar = async () => {
@@ -983,7 +1041,11 @@ export default function App() {
       )}
 
       {mostrarIntegralizacao && (
-        <CourseHoursDashboard apiBaseUrl={API_BASE_URL} authHeaders={authHeaders} />
+        <CourseHoursDashboard
+          apiBaseUrl={API_BASE_URL}
+          authHeaders={authHeaders}
+          onSelectStudent={selecionarAlunoConsumo}
+        />
       )}
 
       {isAdmin && mostrarNovoAluno && (
@@ -1186,7 +1248,12 @@ export default function App() {
           )}
 
           {activeTab === 'Consumo' && (
-            <CourseHoursStudentDetails aluno={aluno} apiBaseUrl={API_BASE_URL} authHeaders={authHeaders} />
+            <CourseHoursStudentDetails
+              aluno={aluno}
+              apiBaseUrl={API_BASE_URL}
+              authHeaders={authHeaders}
+              onBack={voltarParaListaConsumo ? voltarParaConsumoGeral : undefined}
+            />
           )}
         </div>
       )}

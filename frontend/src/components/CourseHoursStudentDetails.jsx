@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
+import { Trophy } from 'lucide-react';
 import { CourseCertificatesSection } from './CourseCertificatesSection.jsx';
 import { CourseScheduleSection } from './CourseScheduleSection.jsx';
 
@@ -11,11 +12,13 @@ const pctColor = (pct) => {
 
 const alunoNome = (aluno) => aluno?.nome || aluno?.alunoPd?.nome || aluno?.email || 'Aluno sem nome';
 const alunoEmail = (aluno) => aluno?.email || aluno?.alunoPd?.email || 'E-mail não informado';
+const alunoMatricula = (aluno) => aluno?.alunoPd?.matricula || aluno?.matricula || '';
 const ingresso = (aluno) => aluno?.dataEntradaCursoFormatada || aluno?.dataIngresso || 'Não informado';
 
 function ConsumptionHeader({ aluno }) {
   const pct = Math.max(0, Math.min(100, Number(aluno?.percentualIntegralizacao || 0)));
   const color = pctColor(pct);
+  const matricula = alunoMatricula(aluno);
 
   return (
     <section className="consumption-hero">
@@ -23,12 +26,13 @@ function ConsumptionHeader({ aluno }) {
         <div>
           <h2>{alunoNome(aluno)}</h2>
           <p>{alunoEmail(aluno)}</p>
+          {matricula && <p className="consumption-hero-registration">Matrícula: {matricula}</p>}
         </div>
         <div className="course-hours-badges">
           <span className={aluno?.ativo ? 'course-pill success' : 'course-pill muted'}>
             {aluno?.ativo ? 'Ativo' : (aluno?.decisao || 'Inativo')}
           </span>
-          {aluno?.desafioFinal && <span className="course-pill final">Desafio Final</span>}
+          {aluno?.desafioFinal && <span className="course-pill final"><Trophy size={13} /> Desafio Final</span>}
           {!aluno?.vinculado && (
             <span className="course-pill warning">Não vinculado</span>
           )}
@@ -51,37 +55,6 @@ function ConsumptionHeader({ aluno }) {
   );
 }
 
-function ConsumptionStudentMeta({ aluno }) {
-  const alunoPd = aluno?.alunoPd;
-  if (!alunoPd && aluno?.vinculado) return null;
-
-  return (
-    <section className="course-section consumption-link-section">
-      {alunoPd ? (
-        <div className="course-stats-grid compact-stats">
-          <div className="course-stat muted">
-            <span>Matrícula</span>
-            <strong>{alunoPd.matricula || '-'}</strong>
-          </div>
-          <div className="course-stat muted">
-            <span>Monitor</span>
-            <strong>{alunoPd.monitor || 'Não informado'}</strong>
-          </div>
-          <div className="course-stat muted">
-            <span>Status PD</span>
-            <strong>{alunoPd.status || 'Não informado'}</strong>
-          </div>
-        </div>
-      ) : (
-        <div className="consumption-empty-inline">
-          <strong>Aluno sem vínculo no PD Reports</strong>
-          <p>O consumo existe na planilha, mas não há aluno vinculado por e-mail no sistema.</p>
-        </div>
-      )}
-    </section>
-  );
-}
-
 function ConsumptionDetail({ aluno, onBack }) {
   return (
     <div className="course-hours-details">
@@ -91,7 +64,6 @@ function ConsumptionDetail({ aluno, onBack }) {
         </button>
       )}
       <ConsumptionHeader aluno={aluno} />
-      <ConsumptionStudentMeta aluno={aluno} />
       <CourseCertificatesSection certificados={aluno.certificados} aluno={aluno} />
       <CourseScheduleSection aluno={aluno} />
     </div>
@@ -139,11 +111,29 @@ export function CourseHoursStudentDetails({ aluno, alunoConsumo, apiBaseUrl, aut
   }, [aluno?.matricula, alunoConsumo, apiBaseUrl, authHeaders]);
 
   if (carregando) {
-    return <p className="monitoring-state">Carregando consumo...</p>;
+    return (
+      <>
+        {onBack && (
+          <button className="course-back-button" type="button" onClick={onBack}>
+            Voltar para lista
+          </button>
+        )}
+        <p className="monitoring-state">Carregando consumo...</p>
+      </>
+    );
   }
 
   if (erro) {
-    return <p className="monitoring-state error">{erro}</p>;
+    return (
+      <>
+        {onBack && (
+          <button className="course-back-button" type="button" onClick={onBack}>
+            Voltar para lista
+          </button>
+        )}
+        <p className="monitoring-state error">{erro}</p>
+      </>
+    );
   }
 
   if (!dados) {

@@ -1969,15 +1969,15 @@ button.monitoring-metric-card {
 }
 
 .course-cert-badge.ok {
-  color: var(--course-success-text);
-  background: var(--course-success-bg);
-  border-color: var(--course-success-border);
+  color: #166534;
+  background: #dcfce7;
+  border-color: #4ade80;
 }
 
 .course-cert-badge.done {
-  color: var(--course-success-text);
-  background: var(--course-success-bg);
-  border-color: var(--course-success-border);
+  color: #166534;
+  background: #dcfce7;
+  border-color: #4ade80;
 }
 
 .course-empty-text {
@@ -2138,6 +2138,12 @@ button.course-hours-card {
   font-size: 14px;
   font-weight: 750;
   overflow-wrap: anywhere;
+}
+
+.consumption-hero-main .consumption-hero-registration {
+  margin-top: 3px;
+  color: var(--pd-text);
+  font-weight: 850;
 }
 
 .consumption-hero-meta {
@@ -2799,15 +2805,15 @@ body:has(.theme-dark) {
 }
 
 .theme-dark .course-cert-badge.ok {
-  color: var(--course-success-text);
-  background: var(--course-success-bg);
-  border-color: var(--course-success-border);
+  color: #bbf7d0;
+  background: rgba(22, 101, 52, 0.34);
+  border-color: rgba(74, 222, 128, 0.52);
 }
 
 .theme-dark .course-cert-badge.done {
-  color: var(--course-success-text);
-  background: var(--course-success-bg);
-  border-color: var(--course-success-border);
+  color: #bbf7d0;
+  background: rgba(22, 101, 52, 0.34);
+  border-color: rgba(74, 222, 128, 0.52);
 }
 
 #root {
