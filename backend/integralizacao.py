@@ -8,7 +8,14 @@ import unicodedata
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
+import psycopg2
 from openpyxl import load_workbook
+
+from consumption_repository import (
+    get_consumption_courses_from_run,
+    get_consumption_students_from_run,
+    get_latest_successful_run,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -17,7 +24,9 @@ DEFAULT_SHEET_NAME = "Resultado"
 DEFAULT_HORAS_TOTAIS = 154
 DEFAULT_PRAZO_FINAL = "2026-11-30"
 DEFAULT_CACHE_TTL_SECONDS = 60
-TOTAL_CURSOS_CERTIFICAVEIS = 22
+DEFAULT_CONSUMPTION_SOURCE_MODE = "auto"
+DEFAULT_TOTAL_CURSOS_CERTIFICAVEIS = 22
+TOTAL_CURSOS_CERTIFICAVEIS = DEFAULT_TOTAL_CURSOS_CERTIFICAVEIS
 CURSO_REMOVIDO_CERTIFICADOS = "intensivao desenvolve"
 MIN_MINUTOS_DIA = 30
 MIN_HORAS_DIA = MIN_MINUTOS_DIA / 60
@@ -43,6 +52,14 @@ class IntegralizacaoConfigInvalida(IntegralizacaoError):
 
 
 class IntegralizacaoPlanilhaInvalida(IntegralizacaoError):
+    pass
+
+
+class IntegralizacaoNeonSemDados(IntegralizacaoError):
+    pass
+
+
+class IntegralizacaoNeonIndisponivel(IntegralizacaoError):
     pass
 
 
@@ -92,6 +109,15 @@ def numero_seguro(valor):
         return parse_numero(valor)
     except (TypeError, ValueError):
         return 0
+
+
+def inteiro_seguro(valor, padrao=0):
+    try:
+        if valor is None or valor == "":
+            return padrao
+        return int(valor)
+    except (TypeError, ValueError):
+        return padrao
 
 
 def clamp(valor, minimo=0, maximo=100):
@@ -171,6 +197,29 @@ def parse_horas_totais(valor):
     return horas
 
 
+def parse_total_cursos_certificaveis(valor):
+    try:
+        total = int(valor or DEFAULT_TOTAL_CURSOS_CERTIFICAVEIS)
+    except (TypeError, ValueError) as exc:
+        raise IntegralizacaoConfigInvalida(
+            "COURSE_CONSUMPTION_TOTAL_CERTIFIABLE deve ser um numero inteiro."
+        ) from exc
+    if total <= 0:
+        raise IntegralizacaoConfigInvalida(
+            "COURSE_CONSUMPTION_TOTAL_CERTIFIABLE deve ser maior que zero."
+        )
+    return total
+
+
+def parse_consumption_source_mode(valor):
+    modo = texto(valor or DEFAULT_CONSUMPTION_SOURCE_MODE).lower()
+    if modo not in {"xlsx", "neon", "auto"}:
+        raise IntegralizacaoConfigInvalida(
+            "CONSUMPTION_SOURCE_MODE deve ser xlsx, neon ou auto."
+        )
+    return modo
+
+
 def resolver_caminho(caminho):
     caminho = texto(caminho or DEFAULT_XLSX_PATH)
     path = Path(caminho)
@@ -206,6 +255,14 @@ def config_integralizacao(env=None, **overrides):
         raise IntegralizacaoConfigInvalida(
             "INTEGRALIZACAO_CACHE_TTL_SECONDS deve ser um número inteiro."
         ) from exc
+    source_mode = parse_consumption_source_mode(overrides.get(
+        "source_mode",
+        env.get("CONSUMPTION_SOURCE_MODE", DEFAULT_CONSUMPTION_SOURCE_MODE),
+    ))
+    total_cursos_certificaveis = parse_total_cursos_certificaveis(overrides.get(
+        "total_cursos_certificaveis",
+        env.get("COURSE_CONSUMPTION_TOTAL_CERTIFIABLE", DEFAULT_TOTAL_CURSOS_CERTIFICAVEIS),
+    ))
     return {
         "xlsx_path_configurado": texto(caminho_configurado or DEFAULT_XLSX_PATH),
         "xlsx_path": resolver_caminho(caminho_configurado),
@@ -213,7 +270,10 @@ def config_integralizacao(env=None, **overrides):
         "horas_totais": horas_totais,
         "prazo_final": prazo_final,
         "cache_ttl": max(0, cache_ttl),
-        "source": "xlsx",
+        "source": source_mode,
+        "source_mode": source_mode,
+        "database_url": texto(overrides.get("database_url", env.get("DATABASE_URL", ""))),
+        "total_cursos_certificaveis": total_cursos_certificaveis,
     }
 
 
@@ -224,6 +284,9 @@ def cache_key(config, hoje):
         config["sheet_name"],
         config["horas_totais"],
         config["prazo_final"].isoformat(),
+        config["source_mode"],
+        bool(config.get("database_url")),
+        config["total_cursos_certificaveis"],
         hoje_key,
     )
 
@@ -340,7 +403,11 @@ def agrupar_cursos(cursos):
     }
 
 
-def build_certificados(cells, concluido_ou_desafio_final=False):
+def build_certificados(
+    cells,
+    concluido_ou_desafio_final=False,
+    total_cursos_certificaveis=TOTAL_CURSOS_CERTIFICAVEIS,
+):
     cursos = parse_cursos_json(cells.get("cursosDetalhesJson"))
     if concluido_ou_desafio_final:
         cursos = [
@@ -354,9 +421,9 @@ def build_certificados(cells, concluido_ou_desafio_final=False):
         ]
         grupos = agrupar_cursos(cursos)
         return {
-            "totalCursosCertificaveis": TOTAL_CURSOS_CERTIFICAVEIS,
-            "cursosConcluidos": TOTAL_CURSOS_CERTIFICAVEIS,
-            "certificadosGerados": TOTAL_CURSOS_CERTIFICAVEIS,
+            "totalCursosCertificaveis": total_cursos_certificaveis,
+            "cursosConcluidos": total_cursos_certificaveis,
+            "certificadosGerados": total_cursos_certificaveis,
             "cursosEmAndamento": 0,
             "cursosNaoIniciados": 0,
             "cursosComCertificado": "; ".join(f"{curso.get('curso')} (100%)" for curso in cursos),
@@ -367,7 +434,7 @@ def build_certificados(cells, concluido_ou_desafio_final=False):
 
     grupos = agrupar_cursos(cursos)
     return {
-        "totalCursosCertificaveis": TOTAL_CURSOS_CERTIFICAVEIS,
+        "totalCursosCertificaveis": total_cursos_certificaveis,
         "cursosConcluidos": len(grupos["concluidos"]),
         "certificadosGerados": len(grupos["comCertificado"]),
         "cursosEmAndamento": len(grupos["emAndamento"]),
@@ -527,8 +594,220 @@ def montar_aluno_integralizacao(cells, config, hoje=None):
         "alunoConcluido": aluno_concluido,
         "horasTotaisCurso": config["horas_totais"],
         "percentualIntegralizacao": percentual,
-        "certificados": build_certificados(cells, aluno_concluido),
+        "certificados": build_certificados(
+            cells,
+            aluno_concluido,
+            total_cursos_certificaveis=config["total_cursos_certificaveis"],
+        ),
         "metaDiaria": meta_diaria,
+    }
+
+
+def status_curso_por_percentual(percentual, certificado_gerado=False):
+    if certificado_gerado or percentual >= 100:
+        return "Concluido"
+    if percentual <= 0:
+        return "Nao iniciado"
+    return "Em andamento"
+
+
+def montar_curso_neon(row):
+    percentual = parse_percentual(row.get("percentual"))
+    certificado_gerado = bool(row.get("certificado_gerado"))
+    nome = texto(row.get("course_name"))
+    course_id = texto(row.get("course_id")) or nome
+    if not nome and not course_id:
+        return None
+    return {
+        "curso": nome or course_id,
+        "courseId": course_id,
+        "status": texto(row.get("status")) or status_curso_por_percentual(percentual, certificado_gerado),
+        "percentual": percentual,
+        "certificadoGerado": certificado_gerado,
+    }
+
+
+def formatar_percentual_curso(valor):
+    percentual = parse_percentual(valor)
+    if float(percentual).is_integer():
+        return f"{int(percentual)}%"
+    return f"{percentual:.1f}%"
+
+
+def texto_cursos_resumo(cursos):
+    return "; ".join(
+        f"{curso.get('curso')} ({formatar_percentual_curso(curso.get('percentual'))})"
+        for curso in cursos
+        if curso.get("curso")
+    )
+
+
+def build_certificados_neon(aluno_row, cursos, concluido_ou_desafio_final=False, total_cursos_certificaveis=TOTAL_CURSOS_CERTIFICAVEIS):
+    if concluido_ou_desafio_final:
+        cursos = [
+            {
+                **curso,
+                "status": "Concluido",
+                "percentual": 100,
+                "certificadoGerado": True,
+            }
+            for curso in cursos
+        ]
+        grupos = agrupar_cursos(cursos)
+        return {
+            "totalCursosCertificaveis": total_cursos_certificaveis,
+            "cursosConcluidos": total_cursos_certificaveis,
+            "certificadosGerados": total_cursos_certificaveis,
+            "cursosEmAndamento": 0,
+            "cursosNaoIniciados": 0,
+            "cursosComCertificado": texto_cursos_resumo(cursos),
+            "cursosSemCertificado": "",
+            "cursos": cursos,
+            "grupos": grupos,
+        }
+
+    grupos = agrupar_cursos(cursos)
+    com_certificado = grupos["comCertificado"]
+    sem_certificado = grupos["semCertificado"]
+    return {
+        "totalCursosCertificaveis": total_cursos_certificaveis,
+        "cursosConcluidos": inteiro_seguro(aluno_row.get("cursos_concluidos"), len(grupos["concluidos"])),
+        "certificadosGerados": inteiro_seguro(aluno_row.get("certificados_gerados"), len(com_certificado)),
+        "cursosEmAndamento": inteiro_seguro(aluno_row.get("cursos_em_andamento"), len(grupos["emAndamento"])),
+        "cursosNaoIniciados": inteiro_seguro(aluno_row.get("cursos_nao_iniciados"), len(grupos["naoIniciados"])),
+        "cursosComCertificado": texto_cursos_resumo(com_certificado),
+        "cursosSemCertificado": texto_cursos_resumo(sem_certificado),
+        "cursos": cursos,
+        "grupos": grupos,
+    }
+
+
+def montar_aluno_integralizacao_neon(aluno_row, cursos, config, hoje=None):
+    email = texto(aluno_row.get("student_email"))
+    email_normalizado = normalizar_email(email)
+    if not email_normalizado:
+        return None
+
+    percentual = parse_percentual(aluno_row.get("consumo_percentual"))
+    desafio_final = bool(aluno_row.get("desafio_final"))
+    if desafio_final:
+        percentual = 100
+
+    horas_totais = config["horas_totais"]
+    horas_vistas = round((horas_totais * percentual) / 100, 2)
+    data_entrada = parse_data_excel(aluno_row.get("ingresso"))
+    aluno_concluido = bool(desafio_final or percentual >= 100)
+    meta_diaria = calcular_meta_diaria(
+        horas_vistas,
+        horas_totais,
+        config["prazo_final"],
+        desafio_final=desafio_final,
+        hoje=hoje,
+    )
+    matricula = texto(aluno_row.get("matricula_pd"))
+
+    return {
+        "nome": texto(aluno_row.get("student_name")) or email,
+        "email": email,
+        "emailNormalizado": email_normalizado,
+        "alunoSlug": email_normalizado.split("@", 1)[0],
+        "horasVistas": horas_vistas,
+        "dataIngresso": formatar_data_br_date(data_entrada),
+        "dataEntradaCurso": formatar_data_iso(data_entrada),
+        "dataEntradaCursoFormatada": formatar_data_br_date(data_entrada),
+        "decisao": "",
+        "ativo": True,
+        "pdita": matricula,
+        "matriculaPd": matricula,
+        "cidade": texto(aluno_row.get("cidade")),
+        "linkedStudentId": aluno_row.get("linked_student_id"),
+        "statusCruzamento": "",
+        "desafioFinal": desafio_final,
+        "alunoConcluido": aluno_concluido,
+        "horasTotaisCurso": horas_totais,
+        "percentualIntegralizacao": percentual,
+        "fonteConsumo": "neon",
+        "certificados": build_certificados_neon(
+            aluno_row,
+            cursos,
+            aluno_concluido,
+            total_cursos_certificaveis=config["total_cursos_certificaveis"],
+        ),
+        "metaDiaria": meta_diaria,
+    }
+
+
+def fonte_neon(run, alunos, config):
+    finished_at = run.get("finished_at") or run.get("created_at")
+    started_at = run.get("started_at")
+    return {
+        "tipo": "neon",
+        "runId": run.get("id"),
+        "status": run.get("status"),
+        "startedAt": started_at.isoformat(timespec="seconds") if started_at else "",
+        "finishedAt": finished_at.isoformat(timespec="seconds") if finished_at else "",
+        "atualizadoEm": finished_at.isoformat(timespec="seconds") if finished_at else "",
+        "horasTotaisCurso": config["horas_totais"],
+        "prazoFinal": config["prazo_final"].isoformat(),
+        "prazoFinalFormatado": formatar_data_br_date(config["prazo_final"]),
+        "totalAlunos": len(alunos),
+        "totalCursosCertificaveis": config["total_cursos_certificaveis"],
+    }
+
+
+def ler_neon_integralizacao(config, hoje=None):
+    database_url = config.get("database_url")
+    if not database_url:
+        raise IntegralizacaoNeonIndisponivel(
+            "DATABASE_URL nao configurada para leitura de consumo no Neon."
+        )
+
+    conn = None
+    try:
+        conn = psycopg2.connect(database_url)
+        run = get_latest_successful_run(conn)
+        if not run:
+            raise IntegralizacaoNeonSemDados(
+                "Nao ha dados de consumo no banco. Nenhuma execucao success foi encontrada."
+            )
+
+        alunos_rows = get_consumption_students_from_run(conn, run["id"])
+        cursos_rows = get_consumption_courses_from_run(conn, run["id"])
+    except IntegralizacaoNeonSemDados:
+        raise
+    except psycopg2.Error as exc:
+        raise IntegralizacaoNeonIndisponivel(
+            "Nao foi possivel ler os dados de consumo no Neon."
+        ) from exc
+    finally:
+        if conn:
+            conn.close()
+
+    cursos_por_email = {}
+    for row in cursos_rows:
+        curso = montar_curso_neon(row)
+        if not curso:
+            continue
+        email = normalizar_email(row.get("student_email"))
+        if email:
+            cursos_por_email.setdefault(email, []).append(curso)
+
+    alunos = []
+    for aluno_row in alunos_rows:
+        email = normalizar_email(aluno_row.get("student_email"))
+        aluno = montar_aluno_integralizacao_neon(
+            aluno_row,
+            cursos_por_email.get(email, []),
+            config,
+            hoje=hoje,
+        )
+        if aluno:
+            alunos.append(aluno)
+
+    return {
+        "alunos": alunos,
+        "porEmail": {aluno["emailNormalizado"]: aluno for aluno in alunos},
+        "fonte": fonte_neon(run, alunos, config),
     }
 
 
@@ -608,8 +887,28 @@ def ler_planilha_integralizacao(config, hoje=None):
             "totalAlunos": len(alunos),
             "emailsDuplicados": sorted(set(duplicados)),
             "atualizadoEm": atualizado_em,
+            "totalCursosCertificaveis": config["total_cursos_certificaveis"],
         },
     }
+
+
+def carregar_por_fonte(config, hoje=None):
+    modo = config["source_mode"]
+    if modo == "xlsx":
+        return ler_planilha_integralizacao(config, hoje=hoje)
+    if modo == "neon":
+        return ler_neon_integralizacao(config, hoje=hoje)
+
+    try:
+        dados = ler_neon_integralizacao(config, hoje=hoje)
+        dados["fonte"]["modoFonte"] = "auto"
+        return dados
+    except (IntegralizacaoNeonSemDados, IntegralizacaoNeonIndisponivel) as exc:
+        dados = ler_planilha_integralizacao(config, hoje=hoje)
+        dados["fonte"]["modoFonte"] = "auto"
+        dados["fonte"]["fallback"] = "xlsx"
+        dados["fonte"]["neonFallbackMotivo"] = exc.__class__.__name__
+        return dados
 
 
 def carregar_integralizacao(env=None, usar_cache=True, hoje=None, **overrides):
@@ -619,7 +918,7 @@ def carregar_integralizacao(env=None, usar_cache=True, hoje=None, **overrides):
     if usar_cache and _CACHE["key"] == key and _CACHE["data"] and agora < _CACHE["expires_at"]:
         return copy.deepcopy(_CACHE["data"])
 
-    dados = ler_planilha_integralizacao(config, hoje=hoje)
+    dados = carregar_por_fonte(config, hoje=hoje)
     if usar_cache and config["cache_ttl"] > 0:
         _CACHE["key"] = key
         _CACHE["expires_at"] = agora + config["cache_ttl"]
@@ -642,8 +941,12 @@ def aluno_pd_resumo(aluno):
 
 def cruzar_com_alunos_pd(alunos_integralizacao, alunos_pd):
     pd_por_email = {}
+    pd_por_id = {}
     duplicados_pd = set()
     for aluno in alunos_pd:
+        aluno_id = aluno.get("id")
+        if aluno_id is not None:
+            pd_por_id[str(aluno_id)] = aluno
         email = normalizar_email(aluno.get("email"))
         if not email:
             continue
@@ -657,10 +960,18 @@ def cruzar_com_alunos_pd(alunos_integralizacao, alunos_pd):
     nao_vinculados = 0
     for aluno in alunos_integralizacao:
         item = copy.deepcopy(aluno)
-        aluno_pd = pd_por_email.get(item["emailNormalizado"])
+        linked_student_id = item.get("linkedStudentId")
+        aluno_pd = pd_por_id.get(str(linked_student_id)) if linked_student_id is not None else None
+        if not aluno_pd:
+            aluno_pd = pd_por_email.get(item["emailNormalizado"])
         item["vinculado"] = bool(aluno_pd)
         item["alunoPd"] = aluno_pd_resumo(aluno_pd)
         if aluno_pd:
+            if item.get("fonteConsumo") == "neon" and aluno_pd.get("status"):
+                item["decisao"] = texto(aluno_pd.get("status"))
+                item["ativo"] = chave_campo(aluno_pd.get("status")) == "manter"
+            if not item.get("pdita"):
+                item["pdita"] = texto(aluno_pd.get("matricula"))
             vinculados += 1
         else:
             nao_vinculados += 1

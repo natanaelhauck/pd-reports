@@ -38,6 +38,7 @@ logs/
 *.sqlite3
 *.dump
 *.sql
+!backend/migrations/*.sql
 dumps/
 dump/
 
@@ -51,9 +52,16 @@ google-service-account.json
 backend/google-service-account.json
 
 # Dados locais
+checker/
 dados/alunos.xlsx
 dados/perfil_alunos.xlsx
 dados/*.xlsx
 dados/*.json
 !dados/exemplo_*.xlsx
+**/users.json
+**/cursos_new.json
+**/ignore_courses.json
+**/all_grades.json
+**/certificados*.csv
+**/relatorio_final.xlsx
 docs/reference/Dash-Hours-main/

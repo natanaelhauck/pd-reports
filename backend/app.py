@@ -26,6 +26,8 @@ from integralizacao import (
     IntegralizacaoArquivoNaoEncontrado,
     IntegralizacaoConfigInvalida,
     IntegralizacaoError,
+    IntegralizacaoNeonIndisponivel,
+    IntegralizacaoNeonSemDados,
     IntegralizacaoPlanilhaInvalida,
     aluno_pd_resumo,
     buscar_por_email,
@@ -76,6 +78,8 @@ INTEGRALIZACAO_SHEET_NAME = os.getenv('INTEGRALIZACAO_SHEET_NAME', 'Resultado')
 INTEGRALIZACAO_HORAS_TOTAIS = os.getenv('INTEGRALIZACAO_HORAS_TOTAIS', '154')
 INTEGRALIZACAO_PRAZO_FINAL = os.getenv('INTEGRALIZACAO_PRAZO_FINAL', '2026-11-30')
 INTEGRALIZACAO_CACHE_TTL_SECONDS = os.getenv('INTEGRALIZACAO_CACHE_TTL_SECONDS', '60')
+CONSUMPTION_SOURCE_MODE = os.getenv('CONSUMPTION_SOURCE_MODE', 'auto')
+COURSE_CONSUMPTION_TOTAL_CERTIFIABLE = os.getenv('COURSE_CONSUMPTION_TOTAL_CERTIFIABLE', '22')
 PREFEITURA_ITABIRA_ROLE = 'prefeitura_itabira'
 PREFEITURA_ITABIRA_EMAIL = os.getenv('PREFEITURA_ITABIRA_EMAIL', 'prefeitura.itabira@projetodesenvolve.com.br')
 PREFEITURA_ITABIRA_PASSWORD_HASH = os.getenv('PREFEITURA_ITABIRA_PASSWORD_HASH')
@@ -1775,6 +1779,9 @@ def integralizacao_config_env():
         'horas_totais': INTEGRALIZACAO_HORAS_TOTAIS,
         'prazo_final': INTEGRALIZACAO_PRAZO_FINAL,
         'cache_ttl': INTEGRALIZACAO_CACHE_TTL_SECONDS,
+        'source_mode': CONSUMPTION_SOURCE_MODE,
+        'database_url': DATABASE_URL,
+        'total_cursos_certificaveis': COURSE_CONSUMPTION_TOTAL_CERTIFIABLE,
     }
 
 def resposta_erro_integralizacao(exc):
@@ -1782,6 +1789,10 @@ def resposta_erro_integralizacao(exc):
         return jsonify({
             'erro': 'Planilha de consumo não encontrada.',
         }), 404
+    if isinstance(exc, IntegralizacaoNeonSemDados):
+        return jsonify({'erro': str(exc)}), 404
+    if isinstance(exc, IntegralizacaoNeonIndisponivel):
+        return jsonify({'erro': str(exc)}), 503
     if isinstance(exc, IntegralizacaoConfigInvalida):
         return jsonify({'erro': str(exc)}), 400
     if isinstance(exc, IntegralizacaoPlanilhaInvalida):
@@ -1840,6 +1851,13 @@ def fonte_consumo_publica(fonte):
         'totalLinhas',
         'totalAlunos',
         'atualizadoEm',
+        'modoFonte',
+        'fallback',
+        'runId',
+        'status',
+        'startedAt',
+        'finishedAt',
+        'totalCursosCertificaveis',
     )
     return {campo: fonte.get(campo) for campo in campos_publicos if campo in fonte}
 
