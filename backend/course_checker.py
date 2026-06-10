@@ -10,14 +10,18 @@ from pathlib import Path
 import psycopg2
 from psycopg2.extras import Json, RealDictCursor, execute_values
 
+from course_rules import (
+    COURSE_CONSUMPTION_TOTAL_CERTIFIABLE,
+    course_name_is_excluded_from_consumption,
+)
+
 try:
     import ijson
 except ImportError:  # pragma: no cover - covered by runtime validation message
     ijson = None
 
 
-TOTAL_CERTIFICABLE_DEFAULT = 22
-IGNORED_COURSE_NAME_KEY = "intensivao desenvolve"
+TOTAL_CERTIFICABLE_DEFAULT = COURSE_CONSUMPTION_TOTAL_CERTIFIABLE
 VALID_STATUSES = {
     "not_started": "Não iniciado",
     "in_progress": "Em andamento",
@@ -218,8 +222,7 @@ def normalize_catalog_entry(course_id, value, ordem=None):
     if not course_id:
         return None
 
-    name_key = field_key(course_name)
-    if IGNORED_COURSE_NAME_KEY in name_key:
+    if course_name_is_excluded_from_consumption(course_name):
         certificavel = False
         ignored = True
 
@@ -302,7 +305,7 @@ def is_course_ignored(course_id, course_name, catalog_entry, ignored_courses):
     if catalog_entry:
         if catalog_entry.get("ignored") or not catalog_entry.get("certificavel", True):
             return True
-    return IGNORED_COURSE_NAME_KEY in field_key(course_name)
+    return course_name_is_excluded_from_consumption(course_name)
 
 
 def normalize_student_result(student, total_certifiable):

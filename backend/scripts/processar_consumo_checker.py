@@ -28,6 +28,7 @@ from course_checker import (
     parse_total_certifiable,
     persist_consumption_run,
 )
+from course_rules import COURSE_CONSUMPTION_TOTAL_CERTIFIABLE
 
 
 load_dotenv(dotenv_path=BACKEND_DIR / ".env", override=True)
@@ -103,7 +104,7 @@ def parse_args():
 def main():
     args = parse_args()
     total_certifiable = parse_total_certifiable(
-        os.getenv("COURSE_CONSUMPTION_TOTAL_CERTIFIABLE", "22")
+        os.getenv("COURSE_CONSUMPTION_TOTAL_CERTIFIABLE", str(COURSE_CONSUMPTION_TOTAL_CERTIFIABLE))
     )
     paths = load_paths_from_env()
     validate_files(paths)

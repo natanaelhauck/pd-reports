@@ -54,6 +54,11 @@ backend/google-service-account.json
 
 # Dados locais
 checker/
+checker/users.json
+checker/all_grades.json
+checker/certificados_*.csv
+checker/relatorio_final.xlsx
+checker/*.xlsx
 dados/alunos.xlsx
 dados/perfil_alunos.xlsx
 dados/*.xlsx

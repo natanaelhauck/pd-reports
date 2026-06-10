@@ -92,7 +92,7 @@ def create_fake_files(tmpdir):
         },
         {
             "course_id": "course-v1:test+intensivao+2026",
-            "course_name": "Intensivão Desenvolve",
+            "course_name": "Intensivão Desenvolve 2025",
         },
     ])
     write_json(paths["ignore"], ["course-v1:test+ignorado+2026"])

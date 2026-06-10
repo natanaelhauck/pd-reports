@@ -11,6 +11,10 @@ from pathlib import Path
 import psycopg2
 from openpyxl import load_workbook
 
+from course_rules import (
+    COURSE_CONSUMPTION_TOTAL_CERTIFIABLE,
+    course_name_is_excluded_from_consumption,
+)
 from consumption_repository import (
     get_consumption_courses_from_run,
     get_consumption_students_from_run,
@@ -25,9 +29,8 @@ DEFAULT_HORAS_TOTAIS = 154
 DEFAULT_PRAZO_FINAL = "2026-11-30"
 DEFAULT_CACHE_TTL_SECONDS = 60
 DEFAULT_CONSUMPTION_SOURCE_MODE = "auto"
-DEFAULT_TOTAL_CURSOS_CERTIFICAVEIS = 22
+DEFAULT_TOTAL_CURSOS_CERTIFICAVEIS = COURSE_CONSUMPTION_TOTAL_CERTIFIABLE
 TOTAL_CURSOS_CERTIFICAVEIS = DEFAULT_TOTAL_CURSOS_CERTIFICAVEIS
-CURSO_REMOVIDO_CERTIFICADOS = "intensivao desenvolve"
 MIN_MINUTOS_DIA = 30
 MIN_HORAS_DIA = MIN_MINUTOS_DIA / 60
 EXCEL_EPOCH = datetime(1899, 12, 30)
@@ -332,14 +335,14 @@ def limpar_curso(raw):
 
 def curso_removido_certificados(curso):
     nome = curso.get("curso") if isinstance(curso, dict) else curso
-    return CURSO_REMOVIDO_CERTIFICADOS in chave_campo(nome)
+    return course_name_is_excluded_from_consumption(nome)
 
 
 def remover_curso_de_lista(valor):
     return "; ".join(
         item
         for item in (texto(parte) for parte in texto(valor).split(";"))
-        if item and CURSO_REMOVIDO_CERTIFICADOS not in chave_campo(item)
+        if item and not course_name_is_excluded_from_consumption(item)
     )
 
 
