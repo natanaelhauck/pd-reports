@@ -139,6 +139,46 @@ def parse_date(value):
     return None
 
 
+def looks_like_identifier(value):
+    raw = text(value)
+    if not raw:
+        return False
+    normalized = raw.split("@", 1)[0]
+    return bool(re.fullmatch(r"[a-z0-9._-]+", normalized)) and (
+        "." in normalized or "_" in normalized or "-" in normalized or normalized.islower()
+    )
+
+
+def pretty_name_from_identifier(value):
+    raw = text(value)
+    if not raw:
+        return ""
+    raw = raw.split("@", 1)[0]
+    raw = raw.replace(".", " ").replace("_", " ").replace("-", " ")
+    raw = re.sub(r"\s+", " ", raw).strip()
+    if not raw:
+        return ""
+    return " ".join(part[:1].upper() + part[1:].lower() for part in raw.split(" ") if part)
+
+
+def resolve_student_name(pd_name=None, consumption_name=None, checker_name=None, fallback_identifier=None):
+    pd_name = text(pd_name)
+    if pd_name:
+        return pd_name
+
+    consumption_name = text(consumption_name)
+    if consumption_name:
+        return consumption_name
+
+    checker_name = text(checker_name)
+    if checker_name:
+        if looks_like_identifier(checker_name):
+            return pretty_name_from_identifier(checker_name)
+        return checker_name
+
+    return pretty_name_from_identifier(fallback_identifier)
+
+
 def ensure_file(path, label):
     if not path:
         raise CourseCheckerError(f"{label} nao configurado.")
@@ -471,6 +511,7 @@ def load_existing_consumption_enrichment(env=None):
         if not email:
             continue
         enrichment[email] = {
+            "nome": aluno.get("nome") or "",
             "desafioFinal": bool(aluno.get("desafioFinal")),
             "ingresso": aluno.get("dataEntradaCurso") or aluno.get("dataIngresso") or None,
         }
@@ -572,13 +613,19 @@ def link_payload_students(payload, pd_students):
     for student in payload.get("students", []):
         email = normalize_email(student.get("email"))
         pd_student = by_email.get(email)
+        resolved_name = resolve_student_name(
+            pd_name=(pd_student or {}).get("nome"),
+            consumption_name=student.get("nomeConsumo"),
+            checker_name=student.get("nomeChecker") or student.get("nome"),
+            fallback_identifier=email,
+        )
+        if resolved_name:
+            student["nome"] = resolved_name
         if pd_student:
             linked += 1
             student["linkedStudentId"] = pd_student.get("id")
             student["matriculaPd"] = text(pd_student.get("matricula"))
             student["cidade"] = city_from_matricula(student["matriculaPd"])
-            if not student.get("nome"):
-                student["nome"] = text(pd_student.get("nome")) or email
         else:
             unlinked += 1
             student["linkedStudentId"] = None

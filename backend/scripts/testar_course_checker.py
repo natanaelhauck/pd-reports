@@ -19,6 +19,7 @@ from course_checker import (
     build_consumption_payload,
     enrich_payload_with_existing_consumption,
     link_payload_students,
+    resolve_student_name,
 )
 
 
@@ -203,6 +204,27 @@ def main():
         assert_equal("aluno vinculado recebe matricula", aluno["matriculaPd"], "PDITA123")
         assert_equal("matricula PDITA vira Itabira", aluno["cidade"], "Itabira")
         assert_equal("email sem vinculo fica sem id", sem_vinculo["linkedStudentId"], None)
+
+        assert_equal(
+            "nome do PD tem prioridade sobre username do relatorio",
+            resolve_student_name(
+                pd_name="Alisson Vinicius Ferreira Goncalves",
+                consumption_name="Alisson Vinicius Ferreira Goncalves",
+                checker_name="alisson.goncalves",
+                fallback_identifier="alisson.goncalves",
+            ),
+            "Alisson Vinicius Ferreira Goncalves",
+        )
+        assert_equal(
+            "fallback de username vira nome amigavel",
+            resolve_student_name(
+                pd_name=None,
+                consumption_name=None,
+                checker_name="alisson.goncalves",
+                fallback_identifier="alisson.goncalves",
+            ),
+            "Alisson Goncalves",
+        )
 
         enrich_payload_with_existing_consumption(payload, {
             "vinculado@example.com": {

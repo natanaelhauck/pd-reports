@@ -31,6 +31,7 @@ from course_checker import (
     normalize_email,
     parse_percent_input,
     parse_total_certifiable,
+    resolve_student_name,
     persist_consumption_run,
     text,
 )
@@ -236,14 +237,23 @@ def build_payload_from_report(report_path, enrichment_by_email, total_certifiabl
     emails = set(report["resumo"].keys()) | set(report["cursos_por_email"].keys())
     for email in sorted(emails):
         base = report["resumo"].get(email, {"email": email, "nome": email})
+        consumo_enrichment = enrichment_by_email.get(email) or {}
+        checker_name = base.get("nome") or email
         student = {
             "email": email,
-            "nome": base.get("nome") or email,
+            "nomeChecker": checker_name,
+            "nomeConsumo": consumo_enrichment.get("nome") or "",
+            "nome": resolve_student_name(
+                pd_name=None,
+                consumption_name=consumo_enrichment.get("nome"),
+                checker_name=checker_name,
+                fallback_identifier=email,
+            ),
             "desafioFinal": False,
             "ingresso": None,
             "cursos": report["cursos_por_email"].get(email, []),
         }
-        enrich = enrichment_by_email.get(email) or {}
+        enrich = consumo_enrichment
         student["desafioFinal"] = bool(enrich.get("desafioFinal", False))
         student["ingresso"] = enrich.get("ingresso")
         normalize_student_courses(student, total_certifiable)
