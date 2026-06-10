@@ -22,6 +22,11 @@ from psycopg2.extras import RealDictCursor
 from werkzeug.exceptions import HTTPException
 from werkzeug.security import check_password_hash, generate_password_hash
 
+from access_scope import (
+    apply_student_scope_filter,
+    can_access_student,
+    get_user_city_scope,
+)
 from integralizacao import (
     IntegralizacaoArquivoNaoEncontrado,
     IntegralizacaoConfigInvalida,
@@ -1559,27 +1564,19 @@ def usuario_eh_prefeitura_itabira(usuario):
     return (usuario or {}).get('role') == PREFEITURA_ITABIRA_ROLE
 
 def usuario_tipo_matricula_obrigatorio(usuario):
-    if usuario_eh_prefeitura_itabira(usuario):
-        return 'pdita'
-    return None
+    scope = get_user_city_scope(usuario)
+    prefixo = scope.get('primary_prefix')
+    return prefixo.lower() if prefixo else None
 
 def tipo_matricula_para_usuario(usuario, valor):
     tipo_obrigatorio = usuario_tipo_matricula_obrigatorio(usuario)
     return tipo_obrigatorio or normalizar_tipo_matricula(valor)
 
 def usuario_pode_ver_matricula(usuario, matricula):
-    tipo_obrigatorio = usuario_tipo_matricula_obrigatorio(usuario)
-    if not tipo_obrigatorio:
-        return True
-    return matricula_corresponde_tipo(matricula, tipo_obrigatorio)
+    return can_access_student(usuario, {'matricula': matricula})
 
 def filtrar_alunos_por_usuario(alunos, usuario):
-    if not usuario_tipo_matricula_obrigatorio(usuario):
-        return alunos
-    return [
-        aluno for aluno in alunos
-        if usuario_pode_ver_matricula(usuario, aluno.get('matricula'))
-    ]
+    return apply_student_scope_filter(usuario, alunos)
 
 def parse_mes_monitoria(valor):
     texto = str(valor or '').strip()
@@ -1862,25 +1859,19 @@ def fonte_consumo_publica(fonte):
     return {campo: fonte.get(campo) for campo in campos_publicos if campo in fonte}
 
 def usuario_pode_ver_aluno_pd(usuario, aluno):
-    role = usuario.get('role')
-    if role in {'admin', 'psicologa'}:
-        return True
-    if role == PREFEITURA_ITABIRA_ROLE:
-        return usuario_pode_ver_matricula(usuario, aluno.get('matricula'))
-    if role == 'monitor':
-        monitor_usuario = monitor_do_usuario(usuario)
-        return bool(monitor_usuario and normalizar_monitor(aluno.get('monitor')) == monitor_usuario)
-    return False
+    return can_access_student(
+        usuario,
+        aluno,
+        monitor_name_resolver=monitor_do_usuario,
+        enforce_monitor_scope=True,
+    )
 
 def filtrar_integralizacao_por_usuario(alunos, usuario):
     role = usuario.get('role')
     if role in {'admin', 'psicologa'}:
-        return alunos
+        return apply_student_scope_filter(usuario, alunos)
     if role == PREFEITURA_ITABIRA_ROLE:
-        return [
-            aluno for aluno in alunos
-            if usuario_pode_ver_matricula(usuario, (aluno.get('alunoPd') or {}).get('matricula') or aluno.get('pdita'))
-        ]
+        return apply_student_scope_filter(usuario, alunos)
     if role != 'monitor':
         return []
 
