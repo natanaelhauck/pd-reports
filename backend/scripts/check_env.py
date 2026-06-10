@@ -19,6 +19,7 @@ REQUIRED_ENV_VARS = [
 
 REQUIRED_PACKAGES = {
     "Flask": "flask",
+    "ijson": "ijson",
     "pandas": "pandas",
     "psycopg2": "psycopg2",
     "dotenv": "dotenv",

@@ -15,6 +15,7 @@ backend/__pycache__/
 backend/.pycache_compile/
 backend/.pytest_cache/
 backend/.integralizacao_test_tmp/
+backend/.course_checker_test_tmp/
 __pycache__/
 .pytest_cache/
 *.pyc
