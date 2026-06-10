@@ -642,20 +642,21 @@ def link_payload_students(payload, pd_students):
     return payload
 
 
-def create_consumption_run(conn, triggered_by_user_id=None, source_files_info=None, warnings=None):
+def create_consumption_run(conn, triggered_by_user_id=None, source_files_info=None, warnings=None, source_type=None):
     with conn.cursor() as cursor:
         cursor.execute(
             """
             INSERT INTO course_consumption_runs (
-                status, started_at, triggered_by_user_id, source_files_info, warnings
+                status, started_at, triggered_by_user_id, source_files_info, warnings, source_type
             )
-            VALUES ('running', NOW(), %s, %s, %s)
+            VALUES ('running', NOW(), %s, %s, %s, %s)
             RETURNING id
             """,
             (
                 triggered_by_user_id,
                 Json(source_files_info or {}),
                 Json(warnings or []),
+                text(source_type) or None,
             ),
         )
         run_id = cursor.fetchone()[0]
@@ -783,6 +784,7 @@ def persist_consumption_run(
     payload,
     triggered_by_user_id=None,
     source_files_info=None,
+    source_type=None,
     run_id=None,
 ):
     if run_id is None:
@@ -791,6 +793,7 @@ def persist_consumption_run(
             triggered_by_user_id=triggered_by_user_id,
             source_files_info=source_files_info or payload.get("sourceFilesInfo"),
             warnings=payload.get("warnings"),
+            source_type=source_type or payload.get("sourceType"),
         )
 
     try:
@@ -808,12 +811,14 @@ def persist_consumption_run(
                     finished_at = NOW(),
                     error_message = NULL,
                     source_files_info = %s,
-                    warnings = %s
+                    warnings = %s,
+                    source_type = COALESCE(%s, source_type)
                 WHERE id = %s
                 """,
                 (
                     Json(source_files_info or payload.get("sourceFilesInfo") or {}),
                     Json(warnings),
+                    text(source_type or payload.get("sourceType")) or None,
                     run_id,
                 ),
             )

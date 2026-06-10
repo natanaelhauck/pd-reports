@@ -1044,6 +1044,7 @@ export default function App() {
         <CourseHoursDashboard
           apiBaseUrl={API_BASE_URL}
           authHeaders={authHeaders}
+          usuario={usuario}
           onSelectStudent={selecionarAlunoConsumo}
         />
       )}

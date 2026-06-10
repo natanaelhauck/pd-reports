@@ -120,6 +120,10 @@ def print_expected_local_env():
     print("- GOOGLE_SHEETS_ID=...")
     print("- GOOGLE_SERVICE_ACCOUNT_FILE=google-service-account.json")
     print("- FRONTEND_URL=http://localhost:5173")
+    print("- CONSUMPTION_SOURCE_MODE=auto")
+    print("- COURSE_CONSUMPTION_TOTAL_CERTIFIABLE=22")
+    print("- CONSUMPTION_UPLOAD_MAX_BYTES=26214400")
+    print("- CHECKER_REPORT_XLSX_PATH=checker/relatorio_final.xlsx")
 
 
 def main():

@@ -2028,8 +2028,237 @@ button.monitoring-metric-card {
 }
 
 .consumption-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
   padding-bottom: 12px;
   border-bottom: 1px solid var(--pd-border);
+}
+
+.consumption-panel-head-main {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  flex: 1 1 520px;
+}
+
+.consumption-panel-actions {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.consumption-status-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  width: fit-content;
+  min-height: 30px;
+  padding: 5px 10px;
+  border: 1px solid var(--pd-border);
+  border-radius: 999px;
+  background: var(--pd-subtle);
+  color: var(--pd-text);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.consumption-status-line strong {
+  font-weight: 850;
+  color: inherit;
+}
+
+.consumption-status-line.progress {
+  color: #b45309;
+  background: color-mix(in srgb, var(--pd-surface) 86%, #f59e0b 14%);
+  border-color: color-mix(in srgb, #f59e0b 32%, var(--pd-border));
+}
+
+.consumption-status-line.success {
+  color: #166534;
+  background: color-mix(in srgb, var(--pd-surface) 86%, #22c55e 14%);
+  border-color: color-mix(in srgb, #22c55e 30%, var(--pd-border));
+}
+
+.consumption-status-line.error {
+  color: #991b1b;
+  background: color-mix(in srgb, var(--pd-surface) 86%, #ef4444 14%);
+  border-color: color-mix(in srgb, #ef4444 30%, var(--pd-border));
+}
+
+.consumption-status-line.neutral {
+  color: var(--pd-muted);
+}
+
+.consumption-last-update-only {
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  color: var(--pd-muted);
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1.35;
+}
+
+.consumption-upload-feedback {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.consumption-upload-feedback.success {
+  color: #166534;
+}
+
+.consumption-upload-feedback.error {
+  color: #991b1b;
+}
+
+.consumption-upload-warnings {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--pd-muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.consumption-upload-warnings li + li {
+  margin-top: 2px;
+}
+
+.consumption-upload-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.56);
+}
+
+.consumption-upload-modal {
+  width: min(100%, 560px);
+  border: 1px solid var(--pd-border);
+  border-radius: 12px;
+  padding: 18px;
+  background: var(--pd-surface);
+  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.24);
+}
+
+.consumption-upload-modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.consumption-upload-modal-head h3 {
+  margin: 0 0 4px;
+  color: var(--pd-title);
+  font-size: 18px;
+  font-weight: 850;
+}
+
+.consumption-upload-modal-head p {
+  margin: 0;
+  color: var(--pd-muted);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.consumption-upload-close {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--pd-border);
+  border-radius: 8px;
+  background: var(--pd-subtle);
+  color: var(--pd-muted);
+  cursor: pointer;
+}
+
+.consumption-upload-drop {
+  display: grid;
+  gap: 10px;
+  align-items: start;
+  justify-items: start;
+  padding: 14px;
+  border: 1px dashed var(--pd-border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--pd-surface) 92%, #2563eb 8%);
+}
+
+.consumption-upload-drop > svg {
+  color: #2563eb;
+}
+
+.consumption-upload-drop p {
+  margin: 0;
+  color: var(--pd-muted);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+.consumption-upload-file {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 8px 12px;
+  border: 1px solid var(--pd-border);
+  border-radius: 8px;
+  background: var(--pd-surface);
+  color: var(--pd-title);
+  font-size: 13px;
+  font-weight: 850;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.consumption-upload-file input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.consumption-upload-file-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--pd-border);
+  border-radius: 8px;
+  background: var(--pd-subtle);
+  color: var(--pd-text);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.consumption-upload-file-meta.empty {
+  color: var(--pd-muted);
+}
+
+.consumption-upload-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 16px;
 }
 
 .consumption-summary {
@@ -2821,6 +3050,12 @@ body:has(.theme-dark) {
   color: #dbe4ef;
 }
 
+.theme-dark .consumption-status-line {
+  background: #111c2a;
+  border-color: #334155;
+  color: #dbe4ef;
+}
+
 .theme-dark .consumption-controls,
 .theme-dark .course-summary-grid > div,
 .theme-dark .course-stat,
@@ -2912,6 +3147,41 @@ body:has(.theme-dark) {
 
 .theme-dark .consumption-progress-remaining.pending {
   color: #f59e0b;
+}
+
+.theme-dark .consumption-upload-modal {
+  background: #111827;
+  border-color: #334155;
+  color: #dbe4ef;
+}
+
+.theme-dark .consumption-upload-modal-head h3 {
+  color: #f8fafc;
+}
+
+.theme-dark .consumption-upload-modal-head p,
+.theme-dark .consumption-upload-file-meta.empty,
+.theme-dark .consumption-upload-drop p,
+.theme-dark .consumption-last-update-only,
+.theme-dark .consumption-upload-warnings {
+  color: #cbd5e1;
+}
+
+.theme-dark .consumption-upload-drop {
+  background: #0f172a;
+  border-color: #334155;
+}
+
+.theme-dark .consumption-upload-drop > svg {
+  color: #60a5fa;
+}
+
+.theme-dark .consumption-upload-file,
+.theme-dark .consumption-upload-file-meta,
+.theme-dark .consumption-upload-close {
+  background: #0f172a;
+  border-color: #334155;
+  color: #dbe4ef;
 }
 
 .theme-dark .course-pill.success,

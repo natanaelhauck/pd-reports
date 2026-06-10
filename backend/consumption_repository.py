@@ -27,6 +27,20 @@ def get_latest_successful_run(conn):
         return _row_to_dict(cursor.fetchone())
 
 
+def get_latest_active_run(conn):
+    with _cursor(conn) as cursor:
+        cursor.execute(
+            """
+            SELECT *
+            FROM course_consumption_runs
+            WHERE status IN ('pending', 'running')
+            ORDER BY started_at DESC NULLS LAST, id DESC
+            LIMIT 1
+            """
+        )
+        return _row_to_dict(cursor.fetchone())
+
+
 def has_successful_consumption_run(conn):
     with _cursor(conn) as cursor:
         cursor.execute(
@@ -111,5 +125,35 @@ def get_consumption_courses_from_latest_run(conn, email):
             ORDER BY course_name
             """,
             (run["id"], email_normalized),
+        )
+        return [dict(row) for row in cursor.fetchall()]
+
+
+def get_run_counts(conn, run_id):
+    with _cursor(conn) as cursor:
+        cursor.execute(
+            "SELECT COUNT(*) AS total FROM course_consumption_students WHERE run_id = %s",
+            (run_id,),
+        )
+        students = int((cursor.fetchone() or {}).get("total") or 0)
+        cursor.execute(
+            "SELECT COUNT(*) AS total FROM course_consumption_courses WHERE run_id = %s",
+            (run_id,),
+        )
+        courses = int((cursor.fetchone() or {}).get("total") or 0)
+        return {"students": students, "courses": courses}
+
+
+def list_recent_runs(conn, limit=10):
+    with _cursor(conn) as cursor:
+        cursor.execute(
+            """
+            SELECT id, status, started_at, finished_at, error_message, source_type,
+                   triggered_by_user_id, source_files_info, warnings, created_at
+            FROM course_consumption_runs
+            ORDER BY created_at DESC NULLS LAST, id DESC
+            LIMIT %s
+            """,
+            (int(limit),),
         )
         return [dict(row) for row in cursor.fetchall()]

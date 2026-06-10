@@ -7,6 +7,8 @@ from collections import defaultdict, deque
 from datetime import date, datetime, timedelta, timezone
 from functools import wraps
 from pathlib import Path
+import tempfile
+import hashlib
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import pandas as pd
@@ -21,6 +23,7 @@ from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from psycopg2.extras import RealDictCursor
 from werkzeug.exceptions import HTTPException
 from werkzeug.security import check_password_hash, generate_password_hash
+from werkzeug.utils import secure_filename
 
 from access_scope import (
     apply_student_scope_filter,
@@ -28,6 +31,18 @@ from access_scope import (
     get_user_city_scope,
 )
 from course_rules import COURSE_CONSUMPTION_TOTAL_CERTIFIABLE as DEFAULT_COURSE_CONSUMPTION_TOTAL_CERTIFIABLE
+from consumption_repository import (
+    get_latest_active_run,
+    get_latest_successful_run,
+    get_run_counts,
+    list_recent_runs,
+)
+from checker_report_importer import (
+    CourseCheckerError,
+    SOURCE_TYPE_CHECKER_REPORT_XLSX,
+    ensure_report_is_valid,
+    importar_relatorio_checker_xlsx,
+)
 from integralizacao import (
     IntegralizacaoArquivoNaoEncontrado,
     IntegralizacaoConfigInvalida,
@@ -89,6 +104,9 @@ COURSE_CONSUMPTION_TOTAL_CERTIFIABLE = os.getenv(
     'COURSE_CONSUMPTION_TOTAL_CERTIFIABLE',
     str(DEFAULT_COURSE_CONSUMPTION_TOTAL_CERTIFIABLE),
 )
+CONSUMPTION_UPLOAD_MAX_BYTES = int(os.getenv('CONSUMPTION_UPLOAD_MAX_BYTES', str(25 * 1024 * 1024)))
+CONSUMPTION_UPLOAD_RATE_LIMIT_WINDOW_SECONDS = int(os.getenv('CONSUMPTION_UPLOAD_RATE_LIMIT_WINDOW_SECONDS', '300'))
+CONSUMPTION_UPLOAD_RATE_LIMIT_MAX_ATTEMPTS = int(os.getenv('CONSUMPTION_UPLOAD_RATE_LIMIT_MAX_ATTEMPTS', '3'))
 PREFEITURA_ITABIRA_ROLE = 'prefeitura_itabira'
 PREFEITURA_ITABIRA_EMAIL = os.getenv('PREFEITURA_ITABIRA_EMAIL', 'prefeitura.itabira@projetodesenvolve.com.br')
 PREFEITURA_ITABIRA_PASSWORD_HASH = os.getenv('PREFEITURA_ITABIRA_PASSWORD_HASH')
@@ -101,6 +119,8 @@ except ZoneInfoNotFoundError:
     APP_TIMEZONE = timezone(timedelta(hours=-3))
 _relatorios_monitoria_cache = {'expires_at': 0, 'data': None}
 LOGIN_ATTEMPTS = defaultdict(deque)
+CONSUMO_UPLOAD_ATTEMPTS = defaultdict(deque)
+CONSUMO_UPLOAD_LOCK_KEY = 782391
 
 # Março e abril usam consolidados históricos oficiais porque o formulário mudou nesses meses.
 CONSOLIDADOS_MONITORIA_HISTORICOS = {
@@ -611,6 +631,97 @@ def require_roles(*roles):
 
 def require_student_edit_permission():
     return require_roles('admin', 'monitor', 'psicologa')
+
+def upload_consumo_rate_limit_key(usuario=None):
+    chaves = [f'ip:{cliente_ip()}']
+    if usuario:
+        chaves.append(f'user:{usuario.get("id")}')
+        if usuario.get('email'):
+            chaves.append(f'email:{str(usuario.get("email")).lower()}')
+    return chaves
+
+def registrar_tentativa_upload_consumo(*chaves):
+    agora = time.time()
+    for chave in chaves:
+        if not chave:
+            continue
+        tentativas = CONSUMO_UPLOAD_ATTEMPTS[chave]
+        while tentativas and agora - tentativas[0] > CONSUMPTION_UPLOAD_RATE_LIMIT_WINDOW_SECONDS:
+            tentativas.popleft()
+        tentativas.append(agora)
+
+def upload_consumo_bloqueado(*chaves):
+    agora = time.time()
+    for chave in chaves:
+        if not chave:
+            continue
+        tentativas = CONSUMO_UPLOAD_ATTEMPTS[chave]
+        while tentativas and agora - tentativas[0] > CONSUMPTION_UPLOAD_RATE_LIMIT_WINDOW_SECONDS:
+            tentativas.popleft()
+        if len(tentativas) >= CONSUMPTION_UPLOAD_RATE_LIMIT_MAX_ATTEMPTS:
+            return True
+    return False
+
+def limpar_tentativas_upload_consumo(*chaves):
+    for chave in chaves:
+        if chave:
+            CONSUMO_UPLOAD_ATTEMPTS.pop(chave, None)
+
+def consumo_upload_lock(conn):
+    cursor = cursor_db(conn)
+    cursor.execute('SELECT pg_try_advisory_lock(%s) AS locked', (CONSUMO_UPLOAD_LOCK_KEY,))
+    return bool(cursor.fetchone()['locked'])
+
+def consumo_upload_unlock(conn):
+    cursor = cursor_db(conn)
+    cursor.execute('SELECT pg_advisory_unlock(%s) AS unlocked', (CONSUMO_UPLOAD_LOCK_KEY,))
+    return bool(cursor.fetchone()['unlocked'])
+
+def sanitizar_source_files_info(info):
+    if not isinstance(info, dict):
+        return {}
+    retorno = {}
+    for chave in ('sourceType', 'arquivoOriginal', 'tamanhoBytes', 'sha256', 'quantidadeAlunos', 'quantidadeCursos', 'formula', 'abas'):
+        valor = info.get(chave)
+        if valor is not None:
+            retorno[chave] = valor
+    return retorno
+
+def resumir_run_consumo(run, conn=None):
+    if not run:
+        return None
+    counts = get_run_counts(conn, run['id']) if conn else {'students': None, 'courses': None}
+    warnings = run.get('warnings') or []
+    if not isinstance(warnings, list):
+        warnings = [str(warnings)]
+    return {
+        'id': run.get('id'),
+        'status': run.get('status'),
+        'started_at': run.get('started_at'),
+        'finished_at': run.get('finished_at'),
+        'error_message': run.get('error_message'),
+        'source_type': run.get('source_type'),
+        'triggered_by_user_id': run.get('triggered_by_user_id'),
+        'source_files_info': sanitizar_source_files_info(run.get('source_files_info') or {}),
+        'warnings': warnings,
+        'quantidade_alunos': counts.get('students'),
+        'quantidade_cursos': counts.get('courses'),
+    }
+
+def mensagem_status_consumo(status_atual, ultima_success):
+    if status_atual and status_atual.get('status') in {'pending', 'running'}:
+        return 'Atualização do consumo em processamento.'
+    if ultima_success:
+        return 'Última atualização bem-sucedida disponível.'
+    return 'Ainda não há atualização bem-sucedida do consumo.'
+
+def _serializar_resumo_consumo(run, conn):
+    if not run:
+        return None
+    resumo = resumir_run_consumo(run, conn)
+    if resumo and resumo.get('warnings'):
+        resumo['warnings'] = resumo['warnings'][:8]
+    return resumo
 
 def admin_ativo_count(cursor):
     cursor.execute("SELECT COUNT(*) AS total FROM usuarios WHERE role='admin' AND ativo=TRUE")
@@ -2284,6 +2395,135 @@ def get_alunos():
             return jsonify(filtrar_alunos_por_usuario(anexar_consumo_alunos(alunos_filtrados), usuario))
         else:
             return jsonify([])
+    except psycopg2.Error as exc:
+        return erro_banco(exc)
+    finally:
+        if conn:
+            conn.close()
+
+@app.route('/api/admin/consumo/importar-relatorio', methods=['POST'])
+def importar_relatorio_consumo_admin():
+    usuario, erro = require_admin()
+    if erro:
+        return erro
+
+    chaves_rate_limit = upload_consumo_rate_limit_key(usuario)
+    if upload_consumo_bloqueado(*chaves_rate_limit):
+        return jsonify({'erro': 'Muitas tentativas de importação. Aguarde alguns minutos e tente novamente.'}), 429
+    registrar_tentativa_upload_consumo(*chaves_rate_limit)
+
+    arquivo = request.files.get('arquivo') or request.files.get('file') or request.files.get('relatorio')
+    if not arquivo or not arquivo.filename:
+        return jsonify({'erro': 'Envie um arquivo .xlsx válido.'}), 400
+
+    original_filename = secure_filename(arquivo.filename)
+    if not original_filename.lower().endswith('.xlsx'):
+        return jsonify({'erro': 'O upload precisa ser um arquivo .xlsx.'}), 400
+
+    mime_permitido = {
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/octet-stream',
+        'application/zip',
+    }
+    if arquivo.mimetype and arquivo.mimetype not in mime_permitido:
+        return jsonify({'erro': 'O arquivo enviado não parece ser um .xlsx válido.'}), 400
+
+    temp_path = None
+    conn = None
+    try:
+        temp = tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx')
+        temp_path = Path(temp.name)
+        temp.close()
+        arquivo.save(temp_path)
+
+        if temp_path.stat().st_size > CONSUMPTION_UPLOAD_MAX_BYTES:
+            return jsonify({'erro': 'O arquivo excede o limite permitido para importação.'}), 413
+
+        ensure_report_is_valid(temp_path)
+
+        conn = conectar_db()
+        if not consumo_upload_lock(conn):
+            return jsonify({'erro': 'Já existe uma atualização de consumo em andamento.'}), 409
+
+        try:
+            if get_latest_active_run(conn):
+                return jsonify({'erro': 'Já existe uma atualização de consumo em andamento.'}), 409
+
+            resultado = importar_relatorio_checker_xlsx(
+                conn,
+                temp_path,
+                triggered_by_user_id=usuario.get('id'),
+                total_certifiable=int(COURSE_CONSUMPTION_TOTAL_CERTIFIABLE),
+                source_type=SOURCE_TYPE_CHECKER_REPORT_XLSX,
+                original_filename=original_filename,
+            )
+        finally:
+            consumo_upload_unlock(conn)
+
+        return jsonify({
+            'status': resultado.get('status'),
+            'run_id': resultado.get('run_id'),
+            'mensagem': 'Atualização concluída com sucesso.',
+            'quantidade_alunos': resultado.get('students', 0),
+            'quantidade_cursos': resultado.get('courses', 0),
+            'warnings': resultado.get('warnings', []),
+            'sourceType': SOURCE_TYPE_CHECKER_REPORT_XLSX,
+        })
+    except CourseCheckerError as exc:
+        return jsonify({'erro': str(exc)}), 400
+    except psycopg2.Error as exc:
+        return erro_banco(exc)
+    except Exception:
+        app.logger.exception('Erro ao importar consumo via upload')
+        return jsonify({'erro': 'Não foi possível importar o relatório de consumo.'}), 500
+    finally:
+        if conn:
+            conn.close()
+        if temp_path and temp_path.exists():
+            try:
+                temp_path.unlink()
+            except OSError:
+                pass
+
+@app.route('/api/consumo/atualizacao/status', methods=['GET'])
+def status_atualizacao_consumo():
+    usuario, erro = require_roles('admin', 'monitor', 'psicologa', PREFEITURA_ITABIRA_ROLE)
+    if erro:
+        return erro
+
+    conn = None
+    try:
+        conn = conectar_db()
+        ativa = get_latest_active_run(conn)
+        sucesso = get_latest_successful_run(conn)
+        run_relevante = ativa or sucesso
+        counts = get_run_counts(conn, run_relevante['id']) if run_relevante else {'students': 0, 'courses': 0}
+        return jsonify({
+            'status': (ativa or sucesso or {}).get('status') or 'idle',
+            'mensagem': mensagem_status_consumo(ativa, sucesso),
+            'execucaoAtual': _serializar_resumo_consumo(ativa, conn),
+            'ultimaAtualizacaoBemSucedida': _serializar_resumo_consumo(sucesso, conn),
+            'quantidadeAlunos': counts.get('students', 0),
+            'quantidadeCursos': counts.get('courses', 0),
+            'warnings': (ativa or sucesso or {}).get('warnings') or [],
+        })
+    except psycopg2.Error as exc:
+        return erro_banco(exc)
+    finally:
+        if conn:
+            conn.close()
+
+@app.route('/api/admin/consumo/atualizacoes', methods=['GET'])
+def historico_atualizacoes_consumo():
+    _, erro = require_admin()
+    if erro:
+        return erro
+
+    conn = None
+    try:
+        conn = conectar_db()
+        execucoes = [_serializar_resumo_consumo(run, conn) for run in list_recent_runs(conn, limit=20)]
+        return jsonify({'atualizacoes': execucoes})
     except psycopg2.Error as exc:
         return erro_banco(exc)
     finally:
