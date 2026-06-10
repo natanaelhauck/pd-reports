@@ -1,4 +1,5 @@
 import csv
+import hashlib
 import json
 import math
 import re
@@ -22,6 +23,8 @@ except ImportError:  # pragma: no cover - covered by runtime validation message
 
 
 TOTAL_CERTIFICABLE_DEFAULT = COURSE_CONSUMPTION_TOTAL_CERTIFIABLE
+BACKEND_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = BACKEND_DIR.parent
 VALID_STATUSES = {
     "not_started": "Não iniciado",
     "in_progress": "Em andamento",
@@ -31,6 +34,12 @@ VALID_STATUSES = {
 
 class CourseCheckerError(Exception):
     pass
+
+
+class CertificateMap(dict):
+    def __init__(self):
+        super().__init__()
+        self.stats = defaultdict(int)
 
 
 def normalize_email(value):
@@ -183,6 +192,8 @@ def ensure_file(path, label):
     if not path:
         raise CourseCheckerError(f"{label} nao configurado.")
     resolved = Path(path)
+    if not resolved.is_absolute():
+        resolved = PROJECT_ROOT / resolved
     if not resolved.is_file():
         raise CourseCheckerError(f"{label} nao encontrado: {resolved}")
     return resolved
@@ -315,7 +326,7 @@ def load_ignored_courses(path):
 
 def load_certificates_csv(path):
     resolved = ensure_file(path, "COURSE_CHECKER_CERTIFICATES_PATH")
-    certificates = {}
+    certificates = CertificateMap()
 
     with resolved.open("r", encoding="utf-8-sig", newline="") as file_obj:
         reader = csv.DictReader(file_obj)
@@ -325,16 +336,47 @@ def load_certificates_csv(path):
         username_field = normalized_fields.get("username")
         course_field = normalized_fields.get("course id") or normalized_fields.get("courseid")
         certificates_field = normalized_fields.get("certificates") or normalized_fields.get("certificados")
+        status_field = normalized_fields.get("status")
+        is_passing_field = normalized_fields.get("is passing") or normalized_fields.get("ispassing")
         if not username_field or not course_field:
             raise CourseCheckerError("CSV de certificados precisa das colunas username e course_id.")
 
         for row in reader:
+            certificates.stats["records_total"] += 1
             username = text(row.get(username_field))
             course_id = text(row.get(course_field))
             if not username or not course_id:
+                certificates.stats["invalid_records"] += 1
                 continue
+
+            if course_name_is_excluded_from_consumption(course_id) or course_name_is_excluded_from_consumption(row.get(normalized_fields.get("course display name", ""))):
+                certificates.stats["ignored_course_records"] += 1
+                continue
+
+            key = (username, course_id)
+            if key in certificates:
+                certificates.stats["duplicates_ignored"] += 1
+                continue
+
+            if status_field or is_passing_field:
+                status_ok = field_key(row.get(status_field)) == "downloadable" if status_field else True
+                passing_ok = parse_boolish(row.get(is_passing_field)) if is_passing_field else True
+                if not status_ok:
+                    certificates.stats["non_downloadable_ignored"] += 1
+                    continue
+                if not passing_ok:
+                    certificates.stats["non_passing_ignored"] += 1
+                    continue
+                certificates[key] = True
+                certificates.stats["valid_records"] += 1
+                continue
+
             amount = to_float(row.get(certificates_field), 1) if certificates_field else 1
-            certificates[(username, course_id)] = amount > 0
+            if amount > 0:
+                certificates[key] = True
+                certificates.stats["valid_records"] += 1
+            else:
+                certificates.stats["invalid_records"] += 1
 
     return certificates
 
@@ -396,6 +438,7 @@ def process_grades_stream(
     students_by_email = {}
     warnings = []
     counters = defaultdict(int)
+    certificate_stats = getattr(certificates_map, "stats", {})
 
     with grades_path.open("rb") as file_obj:
         try:
@@ -405,12 +448,15 @@ def process_grades_stream(
                 if not course_id.startswith("course-v1:"):
                     counters["chaves_ignoradas"] += 1
                     continue
+                counters["courses_found"] += 1
 
                 catalog_entry = catalog.get(course_id)
                 course_name = (catalog_entry or {}).get("courseName") or course_id
                 if is_course_ignored(course_id, course_name, catalog_entry, ignored_courses):
                     counters["cursos_ignorados"] += 1
                     continue
+                if catalog_entry:
+                    counters["courses_mapped"] += 1
 
                 if not isinstance(course_students, list):
                     counters["cursos_com_formato_invalido"] += 1
@@ -440,6 +486,8 @@ def process_grades_stream(
                         course_is_completed(status)
                         and certificates_map.get((username, course_id), False)
                     )
+                    if certificado:
+                        counters["valid_certificates_used"] += 1
 
                     student = students_by_email.setdefault(email, {
                         "email": email,
@@ -483,9 +531,39 @@ def process_grades_stream(
             "students": len(students),
             "courses": sum(len(student.get("cursos", [])) for student in students),
             "ignoredCourses": counters["cursos_ignorados"],
+            "coursesFound": counters["courses_found"],
+            "coursesMapped": counters["courses_mapped"],
+            "invalidGradeRecords": counters["linhas_invalidas"],
+            "certificatesValid": counters["valid_certificates_used"],
+            "certificatesDuplicateIgnored": certificate_stats.get("duplicates_ignored", 0),
+            "certificateRecordsInvalid": certificate_stats.get("invalid_records", 0),
+            "certificateRecordsTotal": certificate_stats.get("records_total", 0),
+            "certificateRecordsAccepted": certificate_stats.get("valid_records", 0),
+            "certificateRecordsNonPassing": certificate_stats.get("non_passing_ignored", 0),
+            "certificateRecordsNonDownloadable": certificate_stats.get("non_downloadable_ignored", 0),
         },
         "totalCertifiable": total_certifiable,
     }
+
+
+def sha256_file(path):
+    resolved = ensure_file(path, "source_file")
+    hasher = hashlib.sha256()
+    with resolved.open("rb") as file_obj:
+        for chunk in iter(lambda: file_obj.read(1024 * 1024), b""):
+            hasher.update(chunk)
+    return hasher.hexdigest()
+
+
+def extract_date_from_filename(filename):
+    match = re.search(r"(20\d{6})", str(filename or ""))
+    if not match:
+        return None
+    value = match.group(1)
+    try:
+        return datetime.strptime(value, "%Y%m%d").date().isoformat()
+    except ValueError:
+        return None
 
 
 def build_source_files_info(paths):
@@ -493,11 +571,19 @@ def build_source_files_info(paths):
     for label, path in paths.items():
         resolved = ensure_file(path, label)
         stat = resolved.stat()
-        info[label] = {
+        entry = {
             "name": resolved.name,
             "size": stat.st_size,
+            "sha256": sha256_file(resolved),
             "modified_at": datetime.fromtimestamp(stat.st_mtime).isoformat(timespec="seconds"),
         }
+        if label == "certificates":
+            csv_date = extract_date_from_filename(resolved.name)
+            if csv_date:
+                entry["csv_date"] = csv_date
+        info[label] = entry
+    info["source_type"] = "checker_full_with_local_certificates_csv"
+    info["total_certifiable"] = COURSE_CONSUMPTION_TOTAL_CERTIFIABLE
     return info
 
 
@@ -575,6 +661,7 @@ def build_consumption_payload(
         "grades": grades_path,
         "certificates": certificates_path,
     })
+    payload["sourceFilesInfo"]["certificate_records"] = payload["totals"].get("certificateRecordsTotal", 0)
     enrich_payload_with_existing_consumption(payload, enrichment_by_email=enrichment_by_email)
     return payload
 

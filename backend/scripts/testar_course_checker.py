@@ -1,5 +1,6 @@
 import csv
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -19,6 +20,7 @@ from course_checker import (
     build_consumption_payload,
     enrich_payload_with_existing_consumption,
     link_payload_students,
+    load_users,
     resolve_student_name,
 )
 
@@ -53,7 +55,19 @@ def write_json(path, data):
 
 def write_csv(path, rows):
     with path.open("w", encoding="utf-8", newline="") as file_obj:
-        writer = csv.DictWriter(file_obj, fieldnames=["username", "course_id", "certificates"])
+        writer = csv.DictWriter(file_obj, fieldnames=[
+            "username",
+            "course_display_name",
+            "course_id",
+            "course_organization",
+            "grade",
+            "certificate_type",
+            "status",
+            "is_passing",
+            "created_date",
+            "modified_date",
+            "download_url",
+        ])
         writer.writeheader()
         writer.writerows(rows)
 
@@ -73,6 +87,10 @@ def create_fake_files(tmpdir):
             "name": "Aluno Vinculado",
         },
         "ava_sem_vinculo": "sem.vinculo@example.com",
+        "ava_sem_email": {
+            "email": "",
+            "name": "Sem Email",
+        },
     })
     write_json(paths["catalog"], [
         {
@@ -101,6 +119,7 @@ def create_fake_files(tmpdir):
         "course-v1:test+zero+2026": [
             {"username": "ava_vinculado", "percent": 0},
             {"username": "ava_sem_vinculo", "percent": 0},
+            {"username": "ava_sem_email", "percent": 1},
         ],
         "course-v1:test+python1+2026": [
             {"username": "ava_vinculado", "percent": 0.14},
@@ -120,18 +139,45 @@ def create_fake_files(tmpdir):
     write_csv(paths["certificates"], [
         {
             "username": "ava_vinculado",
+            "course_display_name": "Curso Avancado",
             "course_id": "course-v1:test+avancado+2026",
-            "certificates": 1,
+            "status": "downloadable",
+            "is_passing": "true",
         },
         {
             "username": "ava_vinculado",
+            "course_display_name": "Curso Avancado",
+            "course_id": "course-v1:test+avancado+2026",
+            "status": "downloadable",
+            "is_passing": "true",
+        },
+        {
+            "username": "ava_vinculado",
+            "course_display_name": "Python 1",
             "course_id": "course-v1:test+python1+2026",
-            "certificates": 1,
+            "status": "downloadable",
+            "is_passing": "true",
         },
         {
             "username": "ava_sem_vinculo",
+            "course_display_name": "Curso Avancado",
             "course_id": "course-v1:test+avancado+2026",
-            "certificates": 1,
+            "status": "downloadable",
+            "is_passing": "false",
+        },
+        {
+            "username": "ava_sem_vinculo",
+            "course_display_name": "Curso Zero",
+            "course_id": "course-v1:test+zero+2026",
+            "status": "generating",
+            "is_passing": "true",
+        },
+        {
+            "username": "ava_vinculado",
+            "course_display_name": "Intensivão Desenvolve 2025",
+            "course_id": "course-v1:test+intensivao+2026",
+            "status": "downloadable",
+            "is_passing": "true",
         },
     ])
     return paths
@@ -156,6 +202,16 @@ def main():
     tmpdir.mkdir()
     try:
         paths = create_fake_files(tmpdir)
+        relative_users = Path("backend") / ".course_checker_test_tmp" / "users_fake.json"
+        original_cwd = Path.cwd()
+        try:
+            os.chdir(BACKEND_DIR.parent)
+            assert_equal("path relativo funciona da raiz", len(load_users(relative_users)), 2)
+            os.chdir(BACKEND_DIR)
+            assert_equal("path relativo funciona de backend", len(load_users(relative_users)), 2)
+        finally:
+            os.chdir(original_cwd)
+
         payload = build_consumption_payload(
             users_path=paths["users"],
             catalog_path=paths["catalog"],
@@ -189,6 +245,14 @@ def main():
         assert_equal("cursos sem certificado", aluno["cursosSemCertificado"], 21)
         assert_equal("consumo calculado em 0..100", aluno["consumoPercentual"], 4.41)
         assert_between("consumo dentro da escala", aluno["consumoPercentual"], 0, 100)
+        assert_equal("certificado duplicado ignorado", payload["totals"]["certificatesDuplicateIgnored"], 1)
+        assert_equal("certificado is_passing false ignorado", payload["totals"]["certificateRecordsNonPassing"], 1)
+        assert_equal("certificado status nao downloadable ignorado", payload["totals"]["certificateRecordsNonDownloadable"], 1)
+        assert_equal("certificado intensivao ignorado no csv", payload["totals"].get("certificateRecordsTotal"), 6)
+        assert_true(
+            "username sem email gera warning",
+            any("sem usuario mapeado" in warning for warning in payload["warnings"]),
+        )
 
         link_payload_students(payload, [
             {

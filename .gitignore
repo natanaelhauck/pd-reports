@@ -16,6 +16,8 @@ backend/.pycache_compile/
 backend/.pytest_cache/
 backend/.integralizacao_test_tmp/
 backend/.course_checker_test_tmp/
+backend/.certificates_api_client_test_tmp/
+backend/tmp/
 __pycache__/
 .pytest_cache/
 *.pyc
@@ -32,6 +34,7 @@ logs/
 *.pid
 *.seed
 *.stackdump
+*.part
 
 # Dumps e bancos locais
 *.db

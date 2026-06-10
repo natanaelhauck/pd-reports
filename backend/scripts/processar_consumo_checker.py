@@ -23,7 +23,12 @@ from course_checker import (
     build_consumption_payload,
     build_source_files_info,
     create_consumption_run,
+    fetch_pd_students,
+    link_payload_students,
     load_existing_consumption_enrichment,
+    load_course_catalog,
+    load_ignored_courses,
+    load_users,
     mark_consumption_run_error,
     parse_total_certifiable,
     persist_consumption_run,
@@ -41,6 +46,7 @@ CHECKER_PATH_ENV = {
     "COURSE_CHECKER_GRADES_PATH": "grades",
     "COURSE_CHECKER_CERTIFICATES_PATH": "certificates",
 }
+SOURCE_TYPE_FULL_CHECKER_LOCAL_CSV = "checker_full_with_local_certificates_csv"
 
 
 def conectar_db():
@@ -93,12 +99,98 @@ def parse_args():
         description="Processa arquivos do checker do AVA e grava uma execucao no Neon."
     )
     parser.add_argument(
+        "--validar",
+        action="store_true",
+        help="Valida e processa os arquivos configurados sem gravar no Neon.",
+    )
+    parser.add_argument(
         CONFIRM_FLAG,
         action="store_true",
         dest="confirmar_dados_reais",
         help="Confirma que os arquivos configurados contem dados reais e podem ser processados.",
     )
     return parser.parse_args()
+
+
+def tentar_carregar_enriquecimento():
+    try:
+        return load_existing_consumption_enrichment(env=os.environ), []
+    except Exception as exc:
+        return {}, [
+            "Enriquecimento por XLSX indisponivel; desafioFinal=false e ingresso=null "
+            f"para emails sem dado auxiliar ({exc.__class__.__name__})."
+        ]
+
+
+def tentar_vincular_alunos(payload):
+    conn = None
+    try:
+        conn = conectar_db()
+        link_payload_students(payload, fetch_pd_students(conn))
+        return []
+    except Exception as exc:
+        payload.setdefault("totals", {})
+        payload["totals"].setdefault("linkedStudents", 0)
+        payload["totals"].setdefault("unlinkedStudents", len(payload.get("students", [])))
+        return [f"Vinculo com PD Reports indisponivel na validacao ({exc.__class__.__name__})."]
+    finally:
+        if conn:
+            conn.close()
+
+
+def print_validation_summary(paths, total_certifiable, payload, users_count, catalog_count, ignored_count):
+    totals = payload.get("totals", {})
+    warnings = payload.get("warnings", [])
+    print(json.dumps({
+        "modo": "validacao_sem_persistir",
+        "total_oficial_cursos": total_certifiable,
+        "arquivos": {label: {"nome": path.name, "tamanho_bytes": path.stat().st_size} for label, path in paths.items()},
+        "usuarios_encontrados": users_count,
+        "cursos_catalogo": catalog_count,
+        "cursos_ignorados_configurados": ignored_count,
+        "cursos_encontrados_all_grades": totals.get("coursesFound", 0),
+        "cursos_mapeados": totals.get("coursesMapped", 0),
+        "cursos_ignorados": totals.get("ignoredCourses", 0),
+        "alunos_processados": totals.get("students", 0),
+        "alunos_vinculados": totals.get("linkedStudents", 0),
+        "alunos_sem_vinculo": totals.get("unlinkedStudents", 0),
+        "certificados_validos": totals.get("certificatesValid", 0),
+        "certificados_duplicados_ignorados": totals.get("certificatesDuplicateIgnored", 0),
+        "registros_invalidos": totals.get("invalidGradeRecords", 0) + totals.get("certificateRecordsInvalid", 0),
+        "certificados_csv_registros": totals.get("certificateRecordsTotal", 0),
+        "certificados_csv_aceitos": totals.get("certificateRecordsAccepted", 0),
+        "certificados_csv_nao_passing": totals.get("certificateRecordsNonPassing", 0),
+        "certificados_csv_nao_downloadable": totals.get("certificateRecordsNonDownloadable", 0),
+        "warnings": warnings,
+    }, ensure_ascii=False, indent=2))
+
+
+def validar_sem_persistir(paths, total_certifiable):
+    users = load_users(paths["users"])
+    catalog = load_course_catalog(paths["catalog"])
+    ignored_courses = load_ignored_courses(paths["ignore"])
+    enrichment_by_email, warnings = tentar_carregar_enriquecimento()
+    source_files_info = build_source_files_info(paths)
+    payload = build_consumption_payload(
+        users_path=paths["users"],
+        catalog_path=paths["catalog"],
+        ignore_path=paths["ignore"],
+        grades_path=paths["grades"],
+        certificates_path=paths["certificates"],
+        total_certifiable=total_certifiable,
+        enrichment_by_email=enrichment_by_email,
+        source_files_info=source_files_info,
+    )
+    payload.setdefault("warnings", []).extend(warnings)
+    payload["warnings"].extend(tentar_vincular_alunos(payload))
+    print_validation_summary(
+        paths,
+        total_certifiable,
+        payload,
+        users_count=len(users),
+        catalog_count=len(catalog),
+        ignored_count=len(ignored_courses),
+    )
 
 
 def main():
@@ -109,6 +201,10 @@ def main():
     paths = load_paths_from_env()
     validate_files(paths)
     print_safe_summary(paths, total_certifiable)
+
+    if args.validar:
+        validar_sem_persistir(paths, total_certifiable)
+        return
 
     if not args.confirmar_dados_reais:
         print()
@@ -122,7 +218,11 @@ def main():
     warnings = []
     payload = None
     try:
-        run_id = create_consumption_run(conn, source_files_info=source_files_info)
+        run_id = create_consumption_run(
+            conn,
+            source_files_info=source_files_info,
+            source_type=SOURCE_TYPE_FULL_CHECKER_LOCAL_CSV,
+        )
         print(f"Run criada: {run_id}")
 
         try:
@@ -150,6 +250,7 @@ def main():
             conn,
             payload,
             source_files_info=source_files_info,
+            source_type=SOURCE_TYPE_FULL_CHECKER_LOCAL_CSV,
             run_id=run_id,
         )
         print(json.dumps({
