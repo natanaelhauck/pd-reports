@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
-import { AlertTriangle, Clock3, FileSpreadsheet, Upload, X } from 'lucide-react';
+import { AlertTriangle, Clock3, FileJson, FileText, Upload, X } from 'lucide-react';
 import { CourseHoursStudentCard } from './CourseHoursStudentCard.jsx';
 
 const TABS = [
@@ -10,7 +10,8 @@ const TABS = [
   ['naoVinculados', 'Não vinculados'],
 ];
 
-const MIME_XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+const MIME_JSON = ['application/json', 'text/plain', 'application/octet-stream'];
+const MIME_CSV = ['text/csv', 'application/csv', 'application/vnd.ms-excel', 'text/plain', 'application/octet-stream'];
 
 const formatarAtualizacao = (valor) => {
   if (!valor) return '';
@@ -34,10 +35,11 @@ const statusAtualizacaoInfo = (status) => {
     return { label: 'Sem atualização recente', tone: 'neutral', detail: '' };
   }
   if (status.status === 'running' || status.status === 'pending') {
+    const aguardando = status.status === 'pending';
     return {
-      label: 'Processando',
+      label: aguardando ? 'Aguardando' : 'Processando',
       tone: 'progress',
-      detail: status.started_at ? `Iniciada em ${formatarAtualizacao(status.started_at)}` : 'Processamento em andamento',
+      detail: status.started_at ? `Iniciada em ${formatarAtualizacao(status.started_at)}` : (aguardando ? 'Aguardando processamento' : 'Processamento em andamento'),
     };
   }
   if (status.status === 'success') {
@@ -66,7 +68,8 @@ export function CourseHoursDashboard({ apiBaseUrl, authHeaders, onSelectStudent,
   const [statusAtualizacao, setStatusAtualizacao] = useState(null);
   const [carregandoStatus, setCarregandoStatus] = useState(false);
   const [modalAberto, setModalAberto] = useState(false);
-  const [arquivoSelecionado, setArquivoSelecionado] = useState(null);
+  const [arquivoGrades, setArquivoGrades] = useState(null);
+  const [arquivoCertificados, setArquivoCertificados] = useState(null);
   const [enviandoUpload, setEnviandoUpload] = useState(false);
   const [erroUpload, setErroUpload] = useState('');
   const [mensagemUpload, setMensagemUpload] = useState('');
@@ -92,8 +95,10 @@ export function CourseHoursDashboard({ apiBaseUrl, authHeaders, onSelectStudent,
     try {
       const res = await axios.get(`${apiBaseUrl}/api/consumo/atualizacao/status`, { headers: authHeaders, timeout: 15000 });
       setStatusAtualizacao(res.data);
+      return res.data;
     } catch {
       setStatusAtualizacao(null);
+      return null;
     } finally {
       setCarregandoStatus(false);
     }
@@ -103,6 +108,18 @@ export function CourseHoursDashboard({ apiBaseUrl, authHeaders, onSelectStudent,
     carregar();
     carregarStatus();
   }, [apiBaseUrl, authHeaders]);
+
+  useEffect(() => {
+    const status = statusAtualizacao?.status;
+    if (status !== 'pending' && status !== 'running') return undefined;
+    const timer = window.setInterval(async () => {
+      const atualizado = await carregarStatus();
+      if (atualizado?.status === 'success') {
+        await carregar();
+      }
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [statusAtualizacao?.status, apiBaseUrl, authHeaders]);
 
   const alunos = dados?.alunos || [];
   const podeVerNaoVinculados = dados?.permissoes?.podeVerNaoVinculados;
@@ -129,29 +146,31 @@ export function CourseHoursDashboard({ apiBaseUrl, authHeaders, onSelectStudent,
       .sort((a, b) => Number(b.percentualIntegralizacao || 0) - Number(a.percentualIntegralizacao || 0));
   }, [alunos, filtro, tab]);
 
-  const atualizarStatus = async () => {
-    await carregar();
-    await carregarStatus();
-  };
-
   const abrirModalUpload = () => {
     setErroUpload('');
     setMensagemUpload('');
     setWarningsUpload([]);
-    setArquivoSelecionado(null);
+    setArquivoGrades(null);
+    setArquivoCertificados(null);
     setModalAberto(true);
   };
 
   const enviarUpload = async () => {
-    if (!arquivoSelecionado || enviandoUpload) return;
-    const mimeOk = !arquivoSelecionado.type || [MIME_XLSX, 'application/octet-stream', 'application/zip'].includes(arquivoSelecionado.type);
-    if (!arquivoSelecionado.name.toLowerCase().endsWith('.xlsx') || !mimeOk) {
-      setErroUpload('Selecione um arquivo .xlsx válido.');
+    if (!arquivoGrades || !arquivoCertificados || enviandoUpload) return;
+    const gradesMimeOk = !arquivoGrades.type || MIME_JSON.includes(arquivoGrades.type);
+    const certificatesMimeOk = !arquivoCertificados.type || MIME_CSV.includes(arquivoCertificados.type);
+    if (!arquivoGrades.name.toLowerCase().endsWith('.json') || !gradesMimeOk) {
+      setErroUpload('Selecione um all_grades.json valido.');
+      return;
+    }
+    if (!arquivoCertificados.name.toLowerCase().endsWith('.csv') || !certificatesMimeOk) {
+      setErroUpload('Selecione um CSV de certificados valido.');
       return;
     }
 
     const formData = new FormData();
-    formData.append('arquivo', arquivoSelecionado, arquivoSelecionado.name);
+    formData.append('all_grades', arquivoGrades, arquivoGrades.name);
+    formData.append('certificates', arquivoCertificados, arquivoCertificados.name);
 
     setEnviandoUpload(true);
     setErroUpload('');
@@ -159,27 +178,27 @@ export function CourseHoursDashboard({ apiBaseUrl, authHeaders, onSelectStudent,
     setWarningsUpload([]);
     try {
       const res = await axios.post(
-        `${apiBaseUrl}/api/admin/consumo/importar-relatorio`,
+        `${apiBaseUrl}/api/admin/consumo/atualizar`,
         formData,
         {
           headers: { ...authHeaders, 'Content-Type': 'multipart/form-data' },
-          timeout: 900000,
+          timeout: 60000,
         },
       );
       const warnings = Array.isArray(res.data?.warnings) ? res.data.warnings : [];
-      setMensagemUpload(res.data?.mensagem || 'Atualização concluída com sucesso.');
+      setMensagemUpload(res.data?.mensagem || 'Atualizacao recebida. Acompanhe o processamento pelo status.');
       setWarningsUpload(warnings);
       setModalAberto(false);
-      setArquivoSelecionado(null);
-      await atualizarStatus();
+      setArquivoGrades(null);
+      setArquivoCertificados(null);
+      await carregarStatus();
     } catch (err) {
-      setErroUpload(err.response?.data?.erro || 'Não foi possível importar o relatório.');
+      setErroUpload(err.response?.data?.erro || 'Nao foi possivel iniciar a atualizacao.');
       await carregarStatus();
     } finally {
       setEnviandoUpload(false);
     }
   };
-
   const statusInfo = statusAtualizacaoInfo(statusAtualizacao);
   const ultimoSucesso = statusAtualizacao?.ultimaAtualizacaoBemSucedida;
   const atualizadoEm = formatarAtualizacao(ultimoSucesso?.finished_at);
@@ -212,7 +231,7 @@ export function CourseHoursDashboard({ apiBaseUrl, authHeaders, onSelectStudent,
             <>
               <button className="ui-button monitoring-refresh-button" type="button" onClick={abrirModalUpload}>
                 <Upload size={16} />
-                Atualizar
+                Atualizar consumo
               </button>
               <span className="consumption-last-update-only">{textoStatusTopo}</span>
             </>
@@ -268,7 +287,7 @@ export function CourseHoursDashboard({ apiBaseUrl, authHeaders, onSelectStudent,
             <div className="consumption-upload-modal-head">
               <div>
                 <h3 id="consumption-upload-title">Atualizar consumo</h3>
-                <p>Envie o relatório final gerado pelo checker para atualizar os dados de consumo.</p>
+                <p>Envie o JSON de notas e o CSV de certificados gerados pelo checker.</p>
               </div>
               <button className="consumption-upload-close" type="button" onClick={() => setModalAberto(false)} disabled={enviandoUpload} aria-label="Fechar">
                 <X size={16} />
@@ -276,34 +295,62 @@ export function CourseHoursDashboard({ apiBaseUrl, authHeaders, onSelectStudent,
             </div>
 
             <div className="consumption-upload-drop">
-              <FileSpreadsheet size={18} />
+              <FileJson size={18} />
               <label className="consumption-upload-file">
-                <span>Selecionar arquivo .xlsx</span>
+                <span>Selecionar all_grades.json</span>
                 <input
                   type="file"
-                  accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                  accept=".json,application/json"
                   onChange={(e) => {
                     const file = e.target.files?.[0] || null;
                     setErroUpload('');
                     setMensagemUpload('');
                     setWarningsUpload([]);
-                    setArquivoSelecionado(file);
+                    setArquivoGrades(file);
                   }}
                   disabled={enviandoUpload}
                 />
               </label>
-              <p>Somente planilhas do relatório final são aceitas. O arquivo precisa conter as abas Resumo por aluno e Cursos por aluno.</p>
+              <p>Arquivo de notas exportado pelo checker. O processamento pode demorar alguns minutos.</p>
             </div>
 
-            {arquivoSelecionado ? (
+            {arquivoGrades ? (
               <div className="consumption-upload-file-meta">
-                <strong>{arquivoSelecionado.name}</strong>
-                <span>{formatarTamanhoArquivo(arquivoSelecionado.size)}</span>
+                <strong>{arquivoGrades.name}</strong>
+                <span>{formatarTamanhoArquivo(arquivoGrades.size)}</span>
               </div>
             ) : (
-              <div className="consumption-upload-file-meta empty">Nenhum arquivo selecionado.</div>
+              <div className="consumption-upload-file-meta empty">Nenhum JSON selecionado.</div>
             )}
 
+            <div className="consumption-upload-drop">
+              <FileText size={18} />
+              <label className="consumption-upload-file">
+                <span>Selecionar certificados.csv</span>
+                <input
+                  type="file"
+                  accept=".csv,text/csv"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] || null;
+                    setErroUpload('');
+                    setMensagemUpload('');
+                    setWarningsUpload([]);
+                    setArquivoCertificados(file);
+                  }}
+                  disabled={enviandoUpload}
+                />
+              </label>
+              <p>CSV de certificados correspondente ao mesmo ciclo de exportacao do all_grades.</p>
+            </div>
+
+            {arquivoCertificados ? (
+              <div className="consumption-upload-file-meta">
+                <strong>{arquivoCertificados.name}</strong>
+                <span>{formatarTamanhoArquivo(arquivoCertificados.size)}</span>
+              </div>
+            ) : (
+              <div className="consumption-upload-file-meta empty">Nenhum CSV selecionado.</div>
+            )}
             {erroUpload && (
               <div className="consumption-upload-feedback error">
                 <AlertTriangle size={16} />
@@ -319,9 +366,9 @@ export function CourseHoursDashboard({ apiBaseUrl, authHeaders, onSelectStudent,
                 className="ui-button monitoring-refresh-button"
                 type="button"
                 onClick={enviarUpload}
-                disabled={!arquivoSelecionado || enviandoUpload}
+                disabled={!arquivoGrades || !arquivoCertificados || enviandoUpload}
               >
-                {enviandoUpload ? 'Enviando...' : 'Confirmar envio'}
+                {enviandoUpload ? 'Enviando...' : 'Confirmar atualizacao'}
               </button>
             </div>
           </div>

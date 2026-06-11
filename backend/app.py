@@ -37,6 +37,10 @@ from consumption_repository import (
     get_run_counts,
     list_recent_runs,
 )
+from consumption_update_service import (
+    ConsumptionUpdateConflictError,
+    stage_manual_consumption_update,
+)
 from checker_report_importer import (
     CourseCheckerError,
     SOURCE_TYPE_CHECKER_REPORT_XLSX,
@@ -105,6 +109,9 @@ COURSE_CONSUMPTION_TOTAL_CERTIFIABLE = os.getenv(
     str(DEFAULT_COURSE_CONSUMPTION_TOTAL_CERTIFIABLE),
 )
 CONSUMPTION_UPLOAD_MAX_BYTES = int(os.getenv('CONSUMPTION_UPLOAD_MAX_BYTES', str(25 * 1024 * 1024)))
+CONSUMPTION_UPLOAD_MAX_GRADES_MB = int(os.getenv('CONSUMPTION_UPLOAD_MAX_GRADES_MB', '150'))
+CONSUMPTION_UPLOAD_MAX_CERTIFICATES_MB = int(os.getenv('CONSUMPTION_UPLOAD_MAX_CERTIFICATES_MB', '20'))
+CONSUMPTION_UPDATE_ENABLED = os.getenv('CONSUMPTION_UPDATE_ENABLED', 'true').strip().lower() in {'true', '1', 'sim', 'yes'}
 CONSUMPTION_UPLOAD_RATE_LIMIT_WINDOW_SECONDS = int(os.getenv('CONSUMPTION_UPLOAD_RATE_LIMIT_WINDOW_SECONDS', '300'))
 CONSUMPTION_UPLOAD_RATE_LIMIT_MAX_ATTEMPTS = int(os.getenv('CONSUMPTION_UPLOAD_RATE_LIMIT_MAX_ATTEMPTS', '3'))
 PREFEITURA_ITABIRA_ROLE = 'prefeitura_itabira'
@@ -685,6 +692,18 @@ def sanitizar_source_files_info(info):
         valor = info.get(chave)
         if valor is not None:
             retorno[chave] = valor
+    for chave in ('grades', 'certificates'):
+        valor = info.get(chave)
+        if isinstance(valor, dict):
+            retorno[chave] = {
+                subchave: valor.get(subchave)
+                for subchave in ('name', 'size', 'sha256', 'csv_date')
+                if valor.get(subchave) is not None
+            }
+    for chave in ('source_type', 'total_certifiable', 'warning', 'certificate_records'):
+        valor = info.get(chave)
+        if valor is not None:
+            retorno[chave] = valor
     return retorno
 
 def resumir_run_consumo(run, conn=None):
@@ -699,7 +718,9 @@ def resumir_run_consumo(run, conn=None):
         'status': run.get('status'),
         'started_at': run.get('started_at'),
         'finished_at': run.get('finished_at'),
-        'error_message': run.get('error_message'),
+        'error_message': str(run.get('error_message') or '')[:500] or None,
+        'mensagem': mensagem_status_consumo(run if run.get('status') in {'pending', 'running'} else None, run if run.get('status') == 'success' else None)
+            if run.get('status') in {'pending', 'running', 'success'} else 'Atualizacao do consumo falhou. A ultima versao bem-sucedida permanece ativa.',
         'source_type': run.get('source_type'),
         'triggered_by_user_id': run.get('triggered_by_user_id'),
         'source_files_info': sanitizar_source_files_info(run.get('source_files_info') or {}),
@@ -709,8 +730,10 @@ def resumir_run_consumo(run, conn=None):
     }
 
 def mensagem_status_consumo(status_atual, ultima_success):
-    if status_atual and status_atual.get('status') in {'pending', 'running'}:
-        return 'Atualização do consumo em processamento.'
+    if status_atual and status_atual.get('status') == 'pending':
+        return 'Atualizacao do consumo aguardando processamento.'
+    if status_atual and status_atual.get('status') == 'running':
+        return 'Atualizacao do consumo em processamento.'
     if ultima_success:
         return 'Última atualização bem-sucedida disponível.'
     return 'Ainda não há atualização bem-sucedida do consumo.'
@@ -2484,6 +2507,110 @@ def importar_relatorio_consumo_admin():
                 temp_path.unlink()
             except OSError:
                 pass
+
+def _salvar_upload_temporario(arquivo, suffix):
+    temp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
+    temp_path = Path(temp.name)
+    temp.close()
+    arquivo.save(temp_path)
+    return temp_path
+
+def _validar_upload_checker_basico(arquivo, extensao, mimes_permitidos, nome_campo):
+    if not arquivo or not arquivo.filename:
+        return None, jsonify({'erro': f'Envie o arquivo {nome_campo}.'}), 400
+    original_filename = secure_filename(arquivo.filename)
+    if not original_filename.lower().endswith(extensao):
+        return None, jsonify({'erro': f'O arquivo {nome_campo} precisa ter extensao {extensao}.'}), 400
+    if arquivo.mimetype and arquivo.mimetype not in mimes_permitidos:
+        return None, jsonify({'erro': f'O arquivo {nome_campo} nao parece ter um tipo valido.'}), 400
+    return original_filename, None, None
+
+@app.route('/api/admin/consumo/atualizar', methods=['POST'])
+def atualizar_consumo_checker_admin():
+    usuario, erro = require_admin()
+    if erro:
+        return erro
+
+    if not CONSUMPTION_UPDATE_ENABLED:
+        return jsonify({'erro': 'Atualizacao manual do consumo desabilitada.'}), 503
+
+    chaves_rate_limit = upload_consumo_rate_limit_key(usuario)
+    if upload_consumo_bloqueado(*chaves_rate_limit):
+        return jsonify({'erro': 'Muitas tentativas de importacao. Aguarde alguns minutos e tente novamente.'}), 429
+    registrar_tentativa_upload_consumo(*chaves_rate_limit)
+
+    all_grades = request.files.get('all_grades')
+    certificates = request.files.get('certificates')
+    grades_name, erro_resp, status = _validar_upload_checker_basico(
+        all_grades,
+        '.json',
+        {'application/json', 'text/plain', 'application/octet-stream'},
+        'all_grades',
+    )
+    if erro_resp:
+        return erro_resp, status
+    certificates_name, erro_resp, status = _validar_upload_checker_basico(
+        certificates,
+        '.csv',
+        {'text/csv', 'application/csv', 'application/vnd.ms-excel', 'text/plain', 'application/octet-stream'},
+        'certificates',
+    )
+    if erro_resp:
+        return erro_resp, status
+
+    grades_temp_path = None
+    certificates_temp_path = None
+    conn = None
+    try:
+        grades_temp_path = _salvar_upload_temporario(all_grades, '.json')
+        certificates_temp_path = _salvar_upload_temporario(certificates, '.csv')
+        if grades_temp_path.stat().st_size > CONSUMPTION_UPLOAD_MAX_GRADES_MB * 1024 * 1024:
+            return jsonify({'erro': f'all_grades excede o limite de {CONSUMPTION_UPLOAD_MAX_GRADES_MB} MB.'}), 413
+        if certificates_temp_path.stat().st_size > CONSUMPTION_UPLOAD_MAX_CERTIFICATES_MB * 1024 * 1024:
+            return jsonify({'erro': f'CSV de certificados excede o limite de {CONSUMPTION_UPLOAD_MAX_CERTIFICATES_MB} MB.'}), 413
+
+        conn = conectar_db()
+        resultado = stage_manual_consumption_update(
+            conn,
+            grades_temp_path,
+            certificates_temp_path,
+            grades_name,
+            certificates_name,
+            triggered_by_user_id=usuario.get('id'),
+            env=os.environ,
+            max_grades_mb=CONSUMPTION_UPLOAD_MAX_GRADES_MB,
+            max_certificates_mb=CONSUMPTION_UPLOAD_MAX_CERTIFICATES_MB,
+        )
+        limpar_tentativas_upload_consumo(*chaves_rate_limit)
+        grades_temp_path = None
+        certificates_temp_path = None
+        return jsonify({
+            'run_id': resultado['run_id'],
+            'status': resultado['status'],
+            'mensagem': resultado['message'],
+            'limites': {
+                'all_grades_mb': CONSUMPTION_UPLOAD_MAX_GRADES_MB,
+                'certificates_mb': CONSUMPTION_UPLOAD_MAX_CERTIFICATES_MB,
+            },
+        }), 202
+    except ConsumptionUpdateConflictError as exc:
+        return jsonify({'erro': str(exc)}), 409
+    except CourseCheckerError as exc:
+        return jsonify({'erro': str(exc)}), 400
+    except psycopg2.Error as exc:
+        return erro_banco(exc)
+    except Exception:
+        app.logger.exception('Erro ao iniciar atualizacao manual do consumo')
+        return jsonify({'erro': 'Nao foi possivel iniciar a atualizacao do consumo.'}), 500
+    finally:
+        if conn:
+            conn.close()
+        for temp_path in (grades_temp_path, certificates_temp_path):
+            if temp_path and Path(temp_path).exists():
+                try:
+                    Path(temp_path).unlink()
+                except OSError:
+                    pass
 
 @app.route('/api/consumo/atualizacao/status', methods=['GET'])
 def status_atualizacao_consumo():

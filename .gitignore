@@ -18,6 +18,7 @@ backend/.integralizacao_test_tmp/
 backend/.course_checker_test_tmp/
 backend/.certificates_api_client_test_tmp/
 backend/tmp/
+backend/private/
 __pycache__/
 .pytest_cache/
 *.pyc

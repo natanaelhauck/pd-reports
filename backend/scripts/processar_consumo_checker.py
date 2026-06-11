@@ -20,20 +20,22 @@ from dotenv import load_dotenv
 
 from course_checker import (
     CourseCheckerError,
-    build_consumption_payload,
     build_source_files_info,
-    create_consumption_run,
     fetch_pd_students,
     link_payload_students,
     load_existing_consumption_enrichment,
     load_course_catalog,
     load_ignored_courses,
     load_users,
-    mark_consumption_run_error,
     parse_total_certifiable,
-    persist_consumption_run,
 )
 from course_rules import COURSE_CONSUMPTION_TOTAL_CERTIFIABLE
+from consumption_update_service import (
+    SOURCE_TYPE_FULL_CHECKER_LOCAL_CSV,
+    build_payload_from_checker_paths,
+    process_checker_paths_now,
+    validate_checker_inputs,
+)
 
 
 load_dotenv(dotenv_path=BACKEND_DIR / ".env", override=True)
@@ -46,7 +48,6 @@ CHECKER_PATH_ENV = {
     "COURSE_CHECKER_GRADES_PATH": "grades",
     "COURSE_CHECKER_CERTIFICATES_PATH": "certificates",
 }
-SOURCE_TYPE_FULL_CHECKER_LOCAL_CSV = "checker_full_with_local_certificates_csv"
 
 
 def conectar_db():
@@ -81,6 +82,7 @@ def validate_files(paths):
     missing = [f"{label}: {path}" for label, path in paths.items() if not path.is_file()]
     if missing:
         raise CourseCheckerError("Arquivos do checker nao encontrados:\n- " + "\n- ".join(missing))
+    validate_checker_inputs(paths)
 
 
 def print_safe_summary(paths, total_certifiable):
@@ -169,19 +171,7 @@ def validar_sem_persistir(paths, total_certifiable):
     users = load_users(paths["users"])
     catalog = load_course_catalog(paths["catalog"])
     ignored_courses = load_ignored_courses(paths["ignore"])
-    enrichment_by_email, warnings = tentar_carregar_enriquecimento()
-    source_files_info = build_source_files_info(paths)
-    payload = build_consumption_payload(
-        users_path=paths["users"],
-        catalog_path=paths["catalog"],
-        ignore_path=paths["ignore"],
-        grades_path=paths["grades"],
-        certificates_path=paths["certificates"],
-        total_certifiable=total_certifiable,
-        enrichment_by_email=enrichment_by_email,
-        source_files_info=source_files_info,
-    )
-    payload.setdefault("warnings", []).extend(warnings)
+    payload = build_payload_from_checker_paths(paths, total_certifiable=total_certifiable, env=os.environ)
     payload["warnings"].extend(tentar_vincular_alunos(payload))
     print_validation_summary(
         paths,
@@ -212,47 +202,15 @@ def main():
         print(f"Para processar dados reais, rode novamente com {CONFIRM_FLAG}.")
         raise SystemExit(1)
 
-    source_files_info = build_source_files_info(paths)
     conn = conectar_db()
-    run_id = None
-    warnings = []
-    payload = None
     try:
-        run_id = create_consumption_run(
+        result = process_checker_paths_now(
             conn,
-            source_files_info=source_files_info,
-            source_type=SOURCE_TYPE_FULL_CHECKER_LOCAL_CSV,
+            paths,
+            env=os.environ,
+            source_files_info=build_source_files_info(paths),
         )
-        print(f"Run criada: {run_id}")
-
-        try:
-            enrichment_by_email = load_existing_consumption_enrichment(env=os.environ)
-        except Exception as exc:
-            enrichment_by_email = {}
-            warnings.append(
-                "Enriquecimento por XLSX indisponivel; desafioFinal=false e ingresso=null "
-                f"para emails sem dado auxiliar ({exc.__class__.__name__})."
-            )
-
-        payload = build_consumption_payload(
-            users_path=paths["users"],
-            catalog_path=paths["catalog"],
-            ignore_path=paths["ignore"],
-            grades_path=paths["grades"],
-            certificates_path=paths["certificates"],
-            total_certifiable=total_certifiable,
-            enrichment_by_email=enrichment_by_email,
-            source_files_info=source_files_info,
-        )
-        payload.setdefault("warnings", []).extend(warnings)
-
-        result = persist_consumption_run(
-            conn,
-            payload,
-            source_files_info=source_files_info,
-            source_type=SOURCE_TYPE_FULL_CHECKER_LOCAL_CSV,
-            run_id=run_id,
-        )
+        print(f"Run criada: {result['run_id']}")
         print(json.dumps({
             "status": result["status"],
             "run_id": result["run_id"],
@@ -261,17 +219,11 @@ def main():
             "warnings": result["warnings"],
         }, ensure_ascii=False, indent=2))
     except Exception as exc:
-        if run_id is not None:
-            warnings_to_save = payload.get("warnings", warnings) if payload else warnings
-            try:
-                mark_consumption_run_error(conn, run_id, str(exc), warnings_to_save)
-            except Exception:
-                conn.rollback()
         print(json.dumps({
             "status": "error",
-            "run_id": run_id,
+            "run_id": None,
             "erro": str(exc),
-            "warnings": warnings,
+            "warnings": [],
         }, ensure_ascii=False, indent=2))
         raise SystemExit(1) from exc
     finally:
