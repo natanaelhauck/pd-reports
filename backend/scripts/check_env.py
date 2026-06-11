@@ -126,6 +126,7 @@ def print_expected_local_env():
     print("- CONSUMPTION_UPLOAD_MAX_GRADES_MB=150")
     print("- CONSUMPTION_UPLOAD_MAX_CERTIFICATES_MB=20")
     print("- CONSUMPTION_UPDATE_ENABLED=true")
+    print("- CONSUMPTION_PROCESSING_MODE=external")
     print("- CERTIFICATES_API_ENABLED=false")
     print("- CERTIFICATES_API_BASE_URL=https://certificados-api.pdinfinita.com/api/certificados")
     print("- CERTIFICATES_API_USERNAME=...")

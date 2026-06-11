@@ -534,6 +534,10 @@ def process_grades_stream(
             "coursesFound": counters["courses_found"],
             "coursesMapped": counters["courses_mapped"],
             "invalidGradeRecords": counters["linhas_invalidas"],
+            "unmappedUserRecords": counters["sem_usuario_mapeado"],
+            "invalidMappedEmailRecords": counters["sem_email_mapeado"],
+            "missingUsernameRecords": counters["sem_username"],
+            "invalidCoursePayloads": counters["cursos_com_formato_invalido"],
             "certificatesValid": counters["valid_certificates_used"],
             "certificatesDuplicateIgnored": certificate_stats.get("duplicates_ignored", 0),
             "certificateRecordsInvalid": certificate_stats.get("invalid_records", 0),
@@ -751,6 +755,22 @@ def create_consumption_run(conn, triggered_by_user_id=None, source_files_info=No
     return run_id
 
 
+def build_data_quality_summary(payload):
+    totals = payload.get("totals") or {}
+    return {
+        "students": int(totals.get("students") or 0),
+        "courses": int(totals.get("courses") or 0),
+        "unmapped_user_records": int(totals.get("unmappedUserRecords") or 0),
+        "duplicate_certificate_records": int(totals.get("certificatesDuplicateIgnored") or 0),
+        "unlinked_students": int(totals.get("unlinkedStudents") or 0),
+        "invalid_grade_records": int(totals.get("invalidGradeRecords") or 0),
+        "invalid_certificate_records": int(totals.get("certificateRecordsInvalid") or 0),
+        "non_passing_certificate_records": int(totals.get("certificateRecordsNonPassing") or 0),
+        "non_downloadable_certificate_records": int(totals.get("certificateRecordsNonDownloadable") or 0),
+        "ignored_courses": int(totals.get("ignoredCourses") or 0),
+    }
+
+
 def mark_consumption_run_error(conn, run_id, error_message, warnings=None):
     safe_message = text(error_message)[:2000]
     with conn.cursor() as cursor:
@@ -885,6 +905,8 @@ def persist_consumption_run(
 
     try:
         link_payload_students(payload, fetch_pd_students(conn))
+        payload.setdefault("sourceFilesInfo", {})
+        payload["sourceFilesInfo"]["quality_summary"] = build_data_quality_summary(payload)
         students = payload.get("students", [])
         warnings = payload.get("warnings", [])
         with conn.cursor() as cursor:

@@ -1,6 +1,7 @@
 import csv
 import os
 import shutil
+from datetime import date, datetime
 from pathlib import Path
 
 import psycopg2
@@ -11,6 +12,7 @@ from course_checker import (
     CourseCheckerError,
     build_consumption_payload,
     build_source_files_info,
+    extract_date_from_filename,
     load_certificates_csv,
     load_course_catalog,
     load_existing_consumption_enrichment,
@@ -177,8 +179,39 @@ def build_manual_source_files_info(paths, original_names=None):
     info["warning"] = "CSV de certificados enviado manualmente; verifique se foi exportado junto do all_grades."
     for label in ("grades", "certificates"):
         if label in info and original_names.get(label):
-            info[label]["name"] = Path(original_names[label]).name
+            original_name = Path(original_names[label]).name
+            info[label]["name"] = original_name
+            if label == "certificates":
+                csv_date = extract_date_from_filename(original_name)
+                if csv_date:
+                    info[label]["csv_date"] = csv_date
     return info
+
+
+def _parse_iso_date(value):
+    if isinstance(value, date):
+        return value
+    if not value:
+        return None
+    try:
+        return datetime.strptime(str(value)[:10], "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+
+def old_certificates_csv_warnings(source_files_info, today=None):
+    info = source_files_info or {}
+    certificates_info = info.get("certificates") if isinstance(info, dict) else None
+    if not isinstance(certificates_info, dict):
+        return []
+    csv_date = _parse_iso_date(certificates_info.get("csv_date"))
+    today = today or date.today()
+    if not csv_date or csv_date >= today:
+        return []
+    return [
+        "O arquivo de certificados utilizado foi gerado em "
+        f"{csv_date.strftime('%d/%m/%Y')}. Certificados emitidos posteriormente podem nao estar incluidos."
+    ]
 
 
 def create_pending_consumption_run(conn, triggered_by_user_id, source_files_info):
@@ -277,7 +310,8 @@ def mark_run_running(conn, run_id):
 
 def build_payload_from_checker_paths(paths, total_certifiable=None, env=None, source_files_info=None):
     total = parse_total_certifiable(total_certifiable or COURSE_CONSUMPTION_TOTAL_CERTIFIABLE)
-    warnings = []
+    source_files_info = source_files_info or build_manual_source_files_info(paths)
+    warnings = old_certificates_csv_warnings(source_files_info)
     try:
         enrichment_by_email = load_existing_consumption_enrichment(env=env)
     except Exception as exc:
@@ -286,7 +320,6 @@ def build_payload_from_checker_paths(paths, total_certifiable=None, env=None, so
             "Enriquecimento por XLSX indisponivel; desafioFinal=false e ingresso=null "
             f"para emails sem dado auxiliar ({exc.__class__.__name__})."
         )
-    source_files_info = source_files_info or build_manual_source_files_info(paths)
     payload = build_consumption_payload(
         users_path=paths["users"],
         catalog_path=paths["catalog"],
@@ -306,19 +339,19 @@ def process_consumption_update_run(conn, run_id, env=None, storage_root=None, cl
     static_paths = checker_static_paths_from_env(env)
     upload_paths = run_upload_paths(run_id, storage_root=storage_root)
     paths = {**static_paths, **upload_paths}
-    for label in ("grades", "certificates"):
-        if not paths[label].is_file():
-            raise CourseCheckerError(f"Arquivo da run nao encontrado: {label}.")
-
-    with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-        cursor.execute("SELECT source_files_info FROM course_consumption_runs WHERE id = %s", (run_id,))
-        run = cursor.fetchone()
-    existing_source_files_info = (dict(run).get("source_files_info") if run else None) or None
-
-    mark_run_running(conn, run_id)
     payload = None
     warnings = []
     try:
+        for label in ("grades", "certificates"):
+            if not paths[label].is_file():
+                raise CourseCheckerError(f"Arquivo da run nao encontrado: {label}.")
+
+        with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+            cursor.execute("SELECT source_files_info FROM course_consumption_runs WHERE id = %s", (run_id,))
+            run = cursor.fetchone()
+        existing_source_files_info = (dict(run).get("source_files_info") if run else None) or None
+
+        mark_run_running(conn, run_id)
         payload = build_payload_from_checker_paths(paths, env=env, source_files_info=existing_source_files_info)
         warnings = payload.get("warnings", [])
         result = persist_consumption_run(

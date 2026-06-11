@@ -39,6 +39,7 @@ from consumption_repository import (
 )
 from consumption_update_service import (
     ConsumptionUpdateConflictError,
+    process_consumption_update_run,
     stage_manual_consumption_update,
 )
 from checker_report_importer import (
@@ -112,6 +113,7 @@ CONSUMPTION_UPLOAD_MAX_BYTES = int(os.getenv('CONSUMPTION_UPLOAD_MAX_BYTES', str
 CONSUMPTION_UPLOAD_MAX_GRADES_MB = int(os.getenv('CONSUMPTION_UPLOAD_MAX_GRADES_MB', '150'))
 CONSUMPTION_UPLOAD_MAX_CERTIFICATES_MB = int(os.getenv('CONSUMPTION_UPLOAD_MAX_CERTIFICATES_MB', '20'))
 CONSUMPTION_UPDATE_ENABLED = os.getenv('CONSUMPTION_UPDATE_ENABLED', 'true').strip().lower() in {'true', '1', 'sim', 'yes'}
+CONSUMPTION_PROCESSING_MODE = os.getenv('CONSUMPTION_PROCESSING_MODE', 'external').strip().lower()
 CONSUMPTION_UPLOAD_RATE_LIMIT_WINDOW_SECONDS = int(os.getenv('CONSUMPTION_UPLOAD_RATE_LIMIT_WINDOW_SECONDS', '300'))
 CONSUMPTION_UPLOAD_RATE_LIMIT_MAX_ATTEMPTS = int(os.getenv('CONSUMPTION_UPLOAD_RATE_LIMIT_MAX_ATTEMPTS', '3'))
 PREFEITURA_ITABIRA_ROLE = 'prefeitura_itabira'
@@ -700,11 +702,35 @@ def sanitizar_source_files_info(info):
                 for subchave in ('name', 'size', 'sha256', 'csv_date')
                 if valor.get(subchave) is not None
             }
-    for chave in ('source_type', 'total_certifiable', 'warning', 'certificate_records'):
+    for chave in ('source_type', 'total_certifiable', 'warning', 'certificate_records', 'quality_summary'):
         valor = info.get(chave)
         if valor is not None:
             retorno[chave] = valor
     return retorno
+
+def modo_processamento_consumo():
+    modo = (CONSUMPTION_PROCESSING_MODE or 'external').strip().lower()
+    if modo not in {'sync', 'external'}:
+        return 'external'
+    return modo
+
+def sanitizar_erro_consumo(exc=None, mensagem=None):
+    texto_erro = str(mensagem if mensagem is not None else (exc or '')).strip()
+    if not texto_erro:
+        return 'Nao foi possivel processar a atualizacao do consumo.'
+    if re.search(r'([A-Za-z]:\\|/[^ ]+|\\\\)', texto_erro):
+        return 'Nao foi possivel processar a atualizacao do consumo.'
+    if len(texto_erro) > 240:
+        return texto_erro[:240].rstrip() + '...'
+    return texto_erro
+
+def warnings_consumo_visiveis(run, usuario=None):
+    if not run or (usuario or {}).get('role') != 'admin':
+        return []
+    warnings = run.get('warnings') or []
+    if not isinstance(warnings, list):
+        warnings = [str(warnings)]
+    return warnings
 
 def resumir_run_consumo(run, conn=None):
     if not run:
@@ -718,7 +744,7 @@ def resumir_run_consumo(run, conn=None):
         'status': run.get('status'),
         'started_at': run.get('started_at'),
         'finished_at': run.get('finished_at'),
-        'error_message': str(run.get('error_message') or '')[:500] or None,
+        'error_message': sanitizar_erro_consumo(mensagem=run.get('error_message')) if run.get('error_message') else None,
         'mensagem': mensagem_status_consumo(run if run.get('status') in {'pending', 'running'} else None, run if run.get('status') == 'success' else None)
             if run.get('status') in {'pending', 'running', 'success'} else 'Atualizacao do consumo falhou. A ultima versao bem-sucedida permanece ativa.',
         'source_type': run.get('source_type'),
@@ -738,12 +764,12 @@ def mensagem_status_consumo(status_atual, ultima_success):
         return 'Última atualização bem-sucedida disponível.'
     return 'Ainda não há atualização bem-sucedida do consumo.'
 
-def _serializar_resumo_consumo(run, conn):
+def _serializar_resumo_consumo(run, conn, usuario=None):
     if not run:
         return None
     resumo = resumir_run_consumo(run, conn)
     if resumo and resumo.get('warnings'):
-        resumo['warnings'] = resumo['warnings'][:8]
+        resumo['warnings'] = warnings_consumo_visiveis(run, usuario)[:8]
     return resumo
 
 def admin_ativo_count(cursor):
@@ -2561,6 +2587,8 @@ def atualizar_consumo_checker_admin():
     grades_temp_path = None
     certificates_temp_path = None
     conn = None
+    run_id = None
+    upload_concluido = False
     try:
         grades_temp_path = _salvar_upload_temporario(all_grades, '.json')
         certificates_temp_path = _salvar_upload_temporario(certificates, '.csv')
@@ -2570,6 +2598,7 @@ def atualizar_consumo_checker_admin():
             return jsonify({'erro': f'CSV de certificados excede o limite de {CONSUMPTION_UPLOAD_MAX_CERTIFICATES_MB} MB.'}), 413
 
         conn = conectar_db()
+        modo = modo_processamento_consumo()
         resultado = stage_manual_consumption_update(
             conn,
             grades_temp_path,
@@ -2581,9 +2610,35 @@ def atualizar_consumo_checker_admin():
             max_grades_mb=CONSUMPTION_UPLOAD_MAX_GRADES_MB,
             max_certificates_mb=CONSUMPTION_UPLOAD_MAX_CERTIFICATES_MB,
         )
-        limpar_tentativas_upload_consumo(*chaves_rate_limit)
+        run_id = resultado['run_id']
         grades_temp_path = None
         certificates_temp_path = None
+
+        if modo == 'sync':
+            resultado_processamento = process_consumption_update_run(
+                conn,
+                run_id,
+                env=os.environ,
+            )
+            if resultado_processamento.get('status') != 'success':
+                return jsonify({
+                    'run_id': run_id,
+                    'status': 'error',
+                    'erro': 'Nao foi possivel processar a atualizacao do consumo.',
+                    'message': 'Nao foi possivel processar a atualizacao do consumo.',
+                }), 500
+            upload_concluido = True
+            return jsonify({
+                'run_id': resultado_processamento.get('run_id', run_id),
+                'status': 'success',
+                'students': resultado_processamento.get('students', 0),
+                'courses': resultado_processamento.get('courses', 0),
+                'warnings': resultado_processamento.get('warnings', []),
+                'message': 'Atualizacao de consumo concluida com sucesso.',
+                'mensagem': 'Atualizacao de consumo concluida com sucesso.',
+            })
+
+        limpar_tentativas_upload_consumo(*chaves_rate_limit)
         return jsonify({
             'run_id': resultado['run_id'],
             'status': resultado['status'],
@@ -2594,17 +2649,30 @@ def atualizar_consumo_checker_admin():
             },
         }), 202
     except ConsumptionUpdateConflictError as exc:
-        return jsonify({'erro': str(exc)}), 409
+        return jsonify({'erro': sanitizar_erro_consumo(exc)}), 409
     except CourseCheckerError as exc:
-        return jsonify({'erro': str(exc)}), 400
+        status_code = 500 if run_id else 400
+        return jsonify({
+            'run_id': run_id,
+            'status': 'error' if run_id else 'rejected',
+            'erro': sanitizar_erro_consumo(exc),
+            'message': sanitizar_erro_consumo(exc),
+        }), status_code
     except psycopg2.Error as exc:
         return erro_banco(exc)
-    except Exception:
+    except Exception as exc:
         app.logger.exception('Erro ao iniciar atualizacao manual do consumo')
-        return jsonify({'erro': 'Nao foi possivel iniciar a atualizacao do consumo.'}), 500
+        return jsonify({
+            'run_id': run_id,
+            'status': 'error' if run_id else 'rejected',
+            'erro': sanitizar_erro_consumo(exc, 'Nao foi possivel processar a atualizacao do consumo.'),
+            'message': sanitizar_erro_consumo(exc, 'Nao foi possivel processar a atualizacao do consumo.'),
+        }), 500
     finally:
         if conn:
             conn.close()
+        if upload_concluido or run_id:
+            limpar_tentativas_upload_consumo(*chaves_rate_limit)
         for temp_path in (grades_temp_path, certificates_temp_path):
             if temp_path and Path(temp_path).exists():
                 try:
@@ -2628,11 +2696,11 @@ def status_atualizacao_consumo():
         return jsonify({
             'status': (ativa or sucesso or {}).get('status') or 'idle',
             'mensagem': mensagem_status_consumo(ativa, sucesso),
-            'execucaoAtual': _serializar_resumo_consumo(ativa, conn),
-            'ultimaAtualizacaoBemSucedida': _serializar_resumo_consumo(sucesso, conn),
+            'execucaoAtual': _serializar_resumo_consumo(ativa, conn, usuario),
+            'ultimaAtualizacaoBemSucedida': _serializar_resumo_consumo(sucesso, conn, usuario),
             'quantidadeAlunos': counts.get('students', 0),
             'quantidadeCursos': counts.get('courses', 0),
-            'warnings': (ativa or sucesso or {}).get('warnings') or [],
+            'warnings': warnings_consumo_visiveis(ativa or sucesso, usuario),
         })
     except psycopg2.Error as exc:
         return erro_banco(exc)
@@ -2649,7 +2717,7 @@ def historico_atualizacoes_consumo():
     conn = None
     try:
         conn = conectar_db()
-        execucoes = [_serializar_resumo_consumo(run, conn) for run in list_recent_runs(conn, limit=20)]
+        execucoes = [_serializar_resumo_consumo(run, conn, {'role': 'admin'}) for run in list_recent_runs(conn, limit=20)]
         return jsonify({'atualizacoes': execucoes})
     except psycopg2.Error as exc:
         return erro_banco(exc)

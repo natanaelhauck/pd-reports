@@ -210,6 +210,11 @@ def test_checker_payload_service(paths):
     assert_equal('checker manual total 22', payload['totalCertifiable'], 22)
     assert_equal('checker manual ignora intensivao', len(aluno['cursos']), 1)
     assert_equal('checker manual certificado valido', aluno['certificadosGerados'], 1)
+    assert_equal('checker manual data do csv inferida', payload['sourceFilesInfo']['certificates']['csv_date'], '2026-06-02')
+    assert_true(
+        'checker manual warning csv antigo',
+        any('02/06/2026' in warning for warning in payload['warnings']),
+    )
 
 
 def test_upload_success(client, report_path):
@@ -257,6 +262,7 @@ def test_checker_upload_start(client, paths):
                  upload_consumo_bloqueado=lambda *chaves: False,
                  registrar_tentativa_upload_consumo=lambda *chaves: None,
                  limpar_tentativas_upload_consumo=lambda *chaves: None,
+                 CONSUMPTION_PROCESSING_MODE='external',
                  stage_manual_consumption_update=fake_stage):
         response = post_checker_upload(client, paths['grades'], paths['certificates'])
     data = response.get_json()
@@ -265,6 +271,72 @@ def test_checker_upload_start(client, paths):
     assert_equal('checker upload run id', data['run_id'], 123)
     assert_true('checker upload recebeu json temporario', seen['grades_exists'])
     assert_true('checker upload recebeu csv temporario', seen['certificates_exists'])
+
+
+def test_checker_upload_sync_success(client, paths):
+    seen = {}
+
+    def fake_stage(conn, grades_path, certificates_path, grades_name, certificates_name, **kwargs):
+        seen['grades_exists'] = Path(grades_path).is_file()
+        seen['certificates_exists'] = Path(certificates_path).is_file()
+        seen['grades_name'] = grades_name
+        seen['certificates_name'] = certificates_name
+        Path(grades_path).unlink()
+        Path(certificates_path).unlink()
+        return {'run_id': 124, 'status': 'pending', 'message': 'Atualizacao recebida.'}
+
+    def fake_process(conn, run_id, **kwargs):
+        seen['processed_run_id'] = run_id
+        return {'run_id': run_id, 'status': 'success', 'students': 800, 'courses': 6230, 'warnings': ['csv antigo']}
+
+    with patched(app_module,
+                 require_admin=lambda: (ADMIN, None),
+                 conectar_db=lambda: type('Conn', (), {'close': lambda self: None})(),
+                 upload_consumo_bloqueado=lambda *chaves: False,
+                 registrar_tentativa_upload_consumo=lambda *chaves: None,
+                 limpar_tentativas_upload_consumo=lambda *chaves: None,
+                 CONSUMPTION_PROCESSING_MODE='sync',
+                 stage_manual_consumption_update=fake_stage,
+                 process_consumption_update_run=fake_process):
+        response = post_checker_upload(client, paths['grades'], paths['certificates'])
+
+    data = response.get_json()
+    assert_equal('checker sync retorna 200', response.status_code, 200)
+    assert_equal('checker sync status success', data['status'], 'success')
+    assert_equal('checker sync run id', data['run_id'], 124)
+    assert_equal('checker sync alunos', data['students'], 800)
+    assert_equal('checker sync cursos', data['courses'], 6230)
+    assert_equal('checker sync processou run criada', seen['processed_run_id'], 124)
+    assert_true('checker sync recebeu json temporario', seen['grades_exists'])
+    assert_true('checker sync recebeu csv temporario', seen['certificates_exists'])
+
+
+def test_checker_upload_sync_error(client, paths):
+    def fake_stage(conn, grades_path, certificates_path, grades_name, certificates_name, **kwargs):
+        Path(grades_path).unlink()
+        Path(certificates_path).unlink()
+        return {'run_id': 125, 'status': 'pending', 'message': 'Atualizacao recebida.'}
+
+    def fake_process(conn, run_id, **kwargs):
+        raise TimeoutError(r'timeout lendo C:\segredo\certificados.csv')
+
+    with patched(app_module,
+                 require_admin=lambda: (ADMIN, None),
+                 conectar_db=lambda: type('Conn', (), {'close': lambda self: None})(),
+                 upload_consumo_bloqueado=lambda *chaves: False,
+                 registrar_tentativa_upload_consumo=lambda *chaves: None,
+                 CONSUMPTION_PROCESSING_MODE='sync',
+                 stage_manual_consumption_update=fake_stage,
+                 process_consumption_update_run=fake_process):
+        with patched(app_module.app.logger, exception=lambda *args, **kwargs: None):
+            response = post_checker_upload(client, paths['grades'], paths['certificates'])
+
+    data = response.get_json()
+    assert_equal('checker sync erro retorna 500', response.status_code, 500)
+    assert_equal('checker sync erro status', data['status'], 'error')
+    assert_equal('checker sync erro run id', data['run_id'], 125)
+    assert_true('checker sync timeout nao vira sucesso', data['status'] != 'success')
+    assert_true('checker sync erro sanitizado', 'C:\\' not in data['erro'])
 
 
 def test_upload_restrictions(client, report_path):
@@ -408,6 +480,18 @@ def test_status_endpoint(client):
         assert_true('status mostra execucao atual', data['execucaoAtual'] is not None)
         assert_true('status mostra ultima sucesso', data['ultimaAtualizacaoBemSucedida'] is not None)
 
+    with patched(app_module,
+                 require_roles=lambda *roles: (MONITOR, None),
+                 conectar_db=lambda: type('Conn', (), {'close': lambda self: None})(),
+                 get_latest_active_run=lambda conn: None,
+                 get_latest_successful_run=lambda conn: {'id': 88, 'status': 'success', 'started_at': '2026-06-09T10:00:00', 'finished_at': '2026-06-09T10:10:00', 'error_message': None, 'source_type': 'checker_report_xlsx', 'triggered_by_user_id': 1, 'source_files_info': {'arquivoOriginal': 'relatorio_final.xlsx'}, 'warnings': ['Aviso administrativo']},
+                 get_run_counts=lambda conn, run_id: {'students': 11, 'courses': 33}):
+        response = client.get('/api/consumo/atualizacao/status')
+        data = response.get_json()
+        assert_equal('status nao admin 200', response.status_code, 200)
+        assert_equal('status nao admin oculta warnings', data['warnings'], [])
+        assert_equal('status nao admin oculta warnings ultima success', data['ultimaAtualizacaoBemSucedida']['warnings'], [])
+
 
 def main():
     tmpdir = BACKEND_DIR / '.upload_consumo_test_tmp'
@@ -427,6 +511,8 @@ def main():
         with app_module.app.test_client() as client:
             test_upload_success(client, minimal_report)
             test_checker_upload_start(client, checker_paths)
+            test_checker_upload_sync_success(client, checker_paths)
+            test_checker_upload_sync_error(client, checker_paths)
             test_upload_restrictions(client, minimal_report)
             test_checker_upload_restrictions(client, checker_paths)
             test_upload_failure_keeps_status(client, minimal_report)

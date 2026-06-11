@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
-import { AlertTriangle, Clock3, FileJson, FileText, Upload, X } from 'lucide-react';
+import { AlertTriangle, Clock3, FileJson, FileText, LoaderCircle, Upload, X } from 'lucide-react';
 import { CourseHoursStudentCard } from './CourseHoursStudentCard.jsx';
 
 const TABS = [
@@ -74,8 +74,11 @@ export function CourseHoursDashboard({ apiBaseUrl, authHeaders, onSelectStudent,
   const [erroUpload, setErroUpload] = useState('');
   const [mensagemUpload, setMensagemUpload] = useState('');
   const [warningsUpload, setWarningsUpload] = useState([]);
+  const [uploadStage, setUploadStage] = useState('idle');
 
   const isAdmin = usuario?.role === 'admin';
+  const statusRunAtiva = statusAtualizacao?.status === 'pending' || statusAtualizacao?.status === 'running';
+  const uploadEmAndamento = enviandoUpload || uploadStage === 'enviando' || uploadStage === 'processando';
 
   const carregar = async () => {
     setCarregando(true);
@@ -150,6 +153,7 @@ export function CourseHoursDashboard({ apiBaseUrl, authHeaders, onSelectStudent,
     setErroUpload('');
     setMensagemUpload('');
     setWarningsUpload([]);
+    setUploadStage('idle');
     setArquivoGrades(null);
     setArquivoCertificados(null);
     setModalAberto(true);
@@ -176,29 +180,54 @@ export function CourseHoursDashboard({ apiBaseUrl, authHeaders, onSelectStudent,
     setErroUpload('');
     setMensagemUpload('');
     setWarningsUpload([]);
+    setUploadStage('enviando');
+    let processandoTimer = null;
     try {
+      processandoTimer = window.setTimeout(() => {
+        setUploadStage((stage) => (stage === 'enviando' ? 'processando' : stage));
+      }, 1200);
       const res = await axios.post(
         `${apiBaseUrl}/api/admin/consumo/atualizar`,
         formData,
         {
           headers: { ...authHeaders, 'Content-Type': 'multipart/form-data' },
-          timeout: 60000,
+          timeout: 1200000,
+          onUploadProgress: (event) => {
+            if (event.total && event.loaded >= event.total) {
+              setUploadStage('processando');
+            }
+          },
         },
       );
       const warnings = Array.isArray(res.data?.warnings) ? res.data.warnings : [];
-      setMensagemUpload(res.data?.mensagem || 'Atualizacao recebida. Acompanhe o processamento pelo status.');
+      const statusResposta = res.data?.status;
+      const mensagemSucesso = statusResposta === 'success'
+        ? 'Atualizacao de consumo concluida com sucesso.'
+        : 'Atualizacao recebida. Acompanhe o processamento pelo status.';
+      setUploadStage('concluido');
+      setMensagemUpload(res.data?.mensagem || res.data?.message || mensagemSucesso);
       setWarningsUpload(warnings);
       setModalAberto(false);
       setArquivoGrades(null);
       setArquivoCertificados(null);
       await carregarStatus();
+      if (statusResposta === 'success') {
+        await carregar();
+      }
     } catch (err) {
-      setErroUpload(err.response?.data?.erro || 'Nao foi possivel iniciar a atualizacao.');
+      setUploadStage('falhou');
+      setErroUpload(err.response?.data?.erro || 'Nao foi possivel processar a atualizacao.');
       await carregarStatus();
     } finally {
+      if (processandoTimer) {
+        window.clearTimeout(processandoTimer);
+      }
       setEnviandoUpload(false);
     }
   };
+  const textoUploadStage = uploadStage === 'processando'
+    ? 'Processando dados de consumo. Esta operacao pode levar alguns minutos.'
+    : 'Enviando arquivos.';
   const statusInfo = statusAtualizacaoInfo(statusAtualizacao);
   const ultimoSucesso = statusAtualizacao?.ultimaAtualizacaoBemSucedida;
   const atualizadoEm = formatarAtualizacao(ultimoSucesso?.finished_at);
@@ -229,7 +258,7 @@ export function CourseHoursDashboard({ apiBaseUrl, authHeaders, onSelectStudent,
             <span className="consumption-last-update-only">{textoStatusTopo}</span>
           ) : (
             <>
-              <button className="ui-button monitoring-refresh-button" type="button" onClick={abrirModalUpload}>
+              <button className="ui-button monitoring-refresh-button" type="button" onClick={abrirModalUpload} disabled={uploadEmAndamento || statusRunAtiva}>
                 <Upload size={16} />
                 Atualizar consumo
               </button>
@@ -282,14 +311,14 @@ export function CourseHoursDashboard({ apiBaseUrl, authHeaders, onSelectStudent,
       )}
 
       {modalAberto && isAdmin && (
-        <div className="consumption-upload-modal-backdrop" role="presentation" onClick={() => !enviandoUpload && setModalAberto(false)}>
+        <div className="consumption-upload-modal-backdrop" role="presentation" onClick={() => !uploadEmAndamento && setModalAberto(false)}>
           <div className="consumption-upload-modal" role="dialog" aria-modal="true" aria-labelledby="consumption-upload-title" onClick={(e) => e.stopPropagation()}>
             <div className="consumption-upload-modal-head">
               <div>
                 <h3 id="consumption-upload-title">Atualizar consumo</h3>
                 <p>Envie o JSON de notas e o CSV de certificados gerados pelo checker.</p>
               </div>
-              <button className="consumption-upload-close" type="button" onClick={() => setModalAberto(false)} disabled={enviandoUpload} aria-label="Fechar">
+              <button className="consumption-upload-close" type="button" onClick={() => setModalAberto(false)} disabled={uploadEmAndamento} aria-label="Fechar">
                 <X size={16} />
               </button>
             </div>
@@ -306,9 +335,10 @@ export function CourseHoursDashboard({ apiBaseUrl, authHeaders, onSelectStudent,
                     setErroUpload('');
                     setMensagemUpload('');
                     setWarningsUpload([]);
+                    setUploadStage('idle');
                     setArquivoGrades(file);
                   }}
-                  disabled={enviandoUpload}
+                  disabled={uploadEmAndamento}
                 />
               </label>
               <p>Arquivo de notas exportado pelo checker. O processamento pode demorar alguns minutos.</p>
@@ -335,9 +365,10 @@ export function CourseHoursDashboard({ apiBaseUrl, authHeaders, onSelectStudent,
                     setErroUpload('');
                     setMensagemUpload('');
                     setWarningsUpload([]);
+                    setUploadStage('idle');
                     setArquivoCertificados(file);
                   }}
-                  disabled={enviandoUpload}
+                  disabled={uploadEmAndamento}
                 />
               </label>
               <p>CSV de certificados correspondente ao mesmo ciclo de exportacao do all_grades.</p>
@@ -357,18 +388,24 @@ export function CourseHoursDashboard({ apiBaseUrl, authHeaders, onSelectStudent,
                 <span>{erroUpload}</span>
               </div>
             )}
+            {uploadEmAndamento && (
+              <div className="consumption-upload-feedback progress">
+                <LoaderCircle className="consumption-upload-spinner" size={16} />
+                <span>{textoUploadStage}</span>
+              </div>
+            )}
 
             <div className="consumption-upload-actions">
-              <button className="ui-button" type="button" onClick={() => setModalAberto(false)} disabled={enviandoUpload}>
+              <button className="ui-button" type="button" onClick={() => setModalAberto(false)} disabled={uploadEmAndamento}>
                 Cancelar
               </button>
               <button
                 className="ui-button monitoring-refresh-button"
                 type="button"
                 onClick={enviarUpload}
-                disabled={!arquivoGrades || !arquivoCertificados || enviandoUpload}
+                disabled={!arquivoGrades || !arquivoCertificados || uploadEmAndamento}
               >
-                {enviandoUpload ? 'Enviando...' : 'Confirmar atualizacao'}
+                {uploadEmAndamento ? (uploadStage === 'processando' ? 'Processando...' : 'Enviando...') : 'Confirmar atualizacao'}
               </button>
             </div>
           </div>

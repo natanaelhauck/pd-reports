@@ -176,6 +176,7 @@ FRONTEND_URL=https://pdreports.vercel.app
 INTEGRALIZACAO_XLSX_PATH=dados/alunos_horas_extras_com_desafio_final.xlsx
 INTEGRALIZACAO_HORAS_TOTAIS=154
 INTEGRALIZACAO_PRAZO_FINAL=2026-11-30
+CONSUMPTION_PROCESSING_MODE=external
 ```
 
 ### Frontend
@@ -234,7 +235,7 @@ pip install -r requirements.txt
 - Start Command:
 
 ```bash
-gunicorn wsgi:app
+gunicorn wsgi:app --timeout 1200
 ```
 
 Variáveis:
@@ -245,7 +246,10 @@ ADMIN_PASSWORD=
 GOOGLE_SHEETS_ID=
 GOOGLE_SERVICE_ACCOUNT_JSON=
 FRONTEND_URL=https://pdreports.vercel.app
+CONSUMPTION_PROCESSING_MODE=sync
 ```
+
+O timeout de 1200 segundos suporta a atualizacao manual do consumo no proprio Web Service do Render. O modo `external` continua disponivel como fallback com `python backend/scripts/processar_atualizacao_consumo_pendente.py`.
 
 ---
 

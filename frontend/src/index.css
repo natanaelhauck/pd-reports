@@ -2121,6 +2121,14 @@ button.monitoring-metric-card {
   color: #991b1b;
 }
 
+.consumption-upload-feedback.progress {
+  color: #1d4ed8;
+}
+
+.consumption-upload-spinner {
+  animation: button-spin 0.8s linear infinite;
+}
+
 .consumption-upload-warnings {
   margin: 0;
   padding-left: 18px;
