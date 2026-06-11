@@ -13,7 +13,12 @@ if VENV_PYTHON.exists() and Path(sys.executable).resolve() != VENV_PYTHON.resolv
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from certificates_api_client import CertificatesApiClient, CertificatesApiConfig, CertificatesApiError  # noqa: E402
+from certificates_api_client import (  # noqa: E402
+    MISSING_CREDENTIALS_MESSAGE,
+    CertificatesApiClient,
+    CertificatesApiConfig,
+    CertificatesApiError,
+)
 
 
 class FakeResponse:
@@ -49,6 +54,7 @@ class FakeSession:
 
 def config(max_download_mb=150):
     return CertificatesApiConfig(
+        enabled=True,
         base_url="https://certificados-api.pdinfinita.com/api/certificados",
         username="usuario",
         password="senha",
@@ -87,6 +93,17 @@ def test_basic_auth_and_connection():
     assert_equal("Basic Auth configurada", session.calls[0]["auth"], ("usuario", "senha"))
     assert_equal("test_connection status", result.status_code, 200)
     assert_equal("test_connection content-type", result.content_type, "application/json")
+
+
+def test_disabled_api_is_friendly_and_does_not_call_network():
+    session = FakeSession([FakeResponse()])
+    disabled_config = CertificatesApiConfig(enabled=False)
+    assert_raises(
+        "api desabilitada sem credenciais",
+        MISSING_CREDENTIALS_MESSAGE,
+        lambda: CertificatesApiClient(disabled_config, session=session).test_connection(),
+    )
+    assert_equal("api desabilitada nao chama rede", len(session.calls), 0)
 
 
 def test_401_no_retry():
@@ -160,6 +177,7 @@ def main():
     tmpdir.mkdir()
     try:
         test_basic_auth_and_connection()
+        test_disabled_api_is_friendly_and_does_not_call_network()
         test_401_no_retry()
         test_timeout_retry_success()
         test_502_503_504_retry()

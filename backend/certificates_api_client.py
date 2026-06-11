@@ -16,6 +16,10 @@ from course_checker import CourseCheckerError, sha256_file
 
 DEFAULT_BASE_URL = "https://certificados-api.pdinfinita.com/api/certificados"
 RETRY_STATUS_CODES = {502, 503, 504}
+MISSING_CREDENTIALS_MESSAGE = (
+    "Credenciais da API de certificados não configuradas. "
+    "Use o fluxo manual com arquivos locais."
+)
 UNSUPPORTED_CSV_MESSAGE = (
     "Fluxo remoto de CSV indisponivel no momento: /fetch-csv/ retorna 504 "
     "e /csv-list/ retorna 500 na API externa."
@@ -36,6 +40,7 @@ class CertificatesApiUnsupportedError(CertificatesApiError):
 
 @dataclass
 class CertificatesApiConfig:
+    enabled: bool = False
     base_url: str = DEFAULT_BASE_URL
     username: str = ""
     password: str = ""
@@ -47,6 +52,7 @@ class CertificatesApiConfig:
     def from_env(cls, env=None):
         env = env or os.environ
         return cls(
+            enabled=str(env.get("CERTIFICATES_API_ENABLED", "false")).strip().lower() in {"true", "1", "sim", "yes"},
             base_url=(env.get("CERTIFICATES_API_BASE_URL") or DEFAULT_BASE_URL).rstrip("/"),
             username=env.get("CERTIFICATES_API_USERNAME", ""),
             password=env.get("CERTIFICATES_API_PASSWORD", ""),
@@ -74,10 +80,8 @@ class CertificatesApiClient:
         self.session = session or requests.Session()
 
     def _auth(self):
-        if not self.config.username or not self.config.password:
-            raise CertificatesApiConfigError(
-                "CERTIFICATES_API_USERNAME e CERTIFICATES_API_PASSWORD precisam estar configurados."
-            )
+        if not self.config.enabled or not self.config.username or not self.config.password:
+            raise CertificatesApiConfigError(MISSING_CREDENTIALS_MESSAGE)
         return (self.config.username, self.config.password)
 
     def _url(self, path):

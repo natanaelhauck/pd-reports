@@ -16,7 +16,13 @@ if VENV_PYTHON.exists() and Path(sys.executable).resolve() != VENV_PYTHON.resolv
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from certificates_api_client import CertificatesApiClient, CertificatesApiConfig, CertificatesApiError  # noqa: E402
+from certificates_api_client import (  # noqa: E402
+    MISSING_CREDENTIALS_MESSAGE,
+    CertificatesApiClient,
+    CertificatesApiConfig,
+    CertificatesApiConfigError,
+    CertificatesApiError,
+)
 
 
 load_dotenv(dotenv_path=BACKEND_DIR / ".env", override=True)
@@ -61,6 +67,12 @@ def main():
                 destination = PROJECT_ROOT / destination
             result = client.download_all_grades(destination)
             print(json.dumps(result_to_public_dict(result), ensure_ascii=False, indent=2))
+    except CertificatesApiConfigError as exc:
+        if str(exc) == MISSING_CREDENTIALS_MESSAGE:
+            print(str(exc))
+        else:
+            print(json.dumps({"status": "error", "erro": str(exc)}, ensure_ascii=False, indent=2))
+        raise SystemExit(1) from exc
     except CertificatesApiError as exc:
         print(json.dumps({"status": "error", "erro": str(exc)}, ensure_ascii=False, indent=2))
         raise SystemExit(1) from exc
