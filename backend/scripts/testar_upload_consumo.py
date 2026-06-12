@@ -109,10 +109,21 @@ def create_checker_files(tmpdir):
     users.write_text(json.dumps({
         'alisson': {'email': 'alisson.goncalves@example.com', 'name': 'alisson.goncalves'},
     }), encoding='utf-8')
-    catalog.write_text(json.dumps({
+    catalogo = {
         'course-v1:test+python1+2026': {'course_name': 'Python 1', 'certificavel': True, 'ordem': 1},
-        'course-v1:test+intensivao+2026': {'course_name': 'Intensivao Desenvolve 2025', 'certificavel': True, 'ordem': 2},
-    }), encoding='utf-8')
+    }
+    for indice in range(2, 23):
+        catalogo[f'course-v1:test+oficial{indice:02d}+2026'] = {
+            'course_name': f'Curso Oficial {indice:02d}',
+            'certificavel': True,
+            'ordem': indice,
+        }
+    catalogo['course-v1:test+intensivao+2026'] = {
+        'course_name': 'Intensivao Desenvolve 2025',
+        'certificavel': True,
+        'ordem': 23,
+    }
+    catalog.write_text(json.dumps(catalogo), encoding='utf-8')
     ignore.write_text('[]', encoding='utf-8')
     grades.write_text(json.dumps({
         'course-v1:test+python1+2026': [{'username': 'alisson', 'percent': 1}],
@@ -187,9 +198,11 @@ def test_payload_service(report_path):
     assert_equal('origem do upload temporario mantem nome original', payload['sourceFilesInfo']['arquivoOriginal'], 'relatorio_final.xlsx')
     assert_equal('origem identifica checker report', payload['sourceType'], 'checker_report_xlsx')
     assert_equal('total certificavel oficial 22', payload['totalCertifiable'], 22)
-    assert_equal('quantidade de cursos ignora intensivao', payload['sourceFilesInfo']['quantidadeCursos'], 2)
+    assert_equal('quantidade de cursos oficiais expandida', payload['sourceFilesInfo']['quantidadeCursos'], 22)
+    assert_equal('xlsx expande aluno para 22 cursos', len(aluno['cursos']), 22)
     assert_true('curso intensivao ignorado no payload', all(curso['courseName'] != 'Intensivão Desenvolve 2025' for curso in aluno['cursos']))
     assert_equal('não iniciados ajusta para total oficial', aluno['cursosNaoIniciados'], 20)
+    assert_equal('xlsx sem certificado bate com contador', sum(1 for curso in aluno['cursos'] if not curso['certificadoGerado']), aluno['cursosSemCertificado'])
     assert_equal('nome real do PD priorizado', aluno['nome'], 'Alisson Vinicius Ferreira Goncalves')
 
 
@@ -208,7 +221,7 @@ def test_checker_payload_service(paths):
     aluno = payload['students'][0]
     assert_equal('checker manual source type', payload['sourceType'], SOURCE_TYPE_FULL_CHECKER_LOCAL_CSV)
     assert_equal('checker manual total 22', payload['totalCertifiable'], 22)
-    assert_equal('checker manual ignora intensivao', len(aluno['cursos']), 1)
+    assert_equal('checker manual expande 22 cursos e ignora intensivao', len(aluno['cursos']), 22)
     assert_equal('checker manual certificado valido', aluno['certificadosGerados'], 1)
     assert_equal('checker manual data do csv inferida', payload['sourceFilesInfo']['certificates']['csv_date'], '2026-06-02')
     assert_true(

@@ -1810,11 +1810,21 @@ button.monitoring-metric-card {
   border-color: var(--course-success-border);
 }
 
-.course-pill.final,
 .course-stat.progress {
   color: var(--course-progress-text);
   background: var(--course-progress-bg);
   border-color: var(--course-progress-border);
+}
+
+.course-pill.final {
+  color: #854d0e;
+  background: #fffbeb;
+  border-color: #f59e0b;
+  box-shadow: 0 1px 0 rgba(245, 158, 11, 0.18);
+}
+
+.course-pill.final svg {
+  color: #d97706;
 }
 
 .course-pill.linked {
@@ -2409,7 +2419,7 @@ button.course-hours-card {
 }
 
 .consumption-hero-main p {
-  color: var(--pd-muted);
+  color: #475569;
   font-size: 13px;
   font-weight: 700;
   overflow-wrap: anywhere;
@@ -2419,7 +2429,7 @@ button.course-hours-card {
   margin-top: 1px;
   color: var(--pd-text);
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 760;
 }
 
 .consumption-hero-entry {
@@ -2431,7 +2441,7 @@ button.course-hours-card {
   border: 1px solid var(--pd-border);
   border-radius: 999px;
   background: var(--pd-subtle);
-  color: var(--pd-muted);
+  color: #475569;
   font-size: 11px;
   font-weight: 850;
 }
@@ -2653,10 +2663,10 @@ button.course-hours-card {
 }
 
 .schedule-head p {
-  color: var(--pd-text);
+  color: #475569;
   font-size: 14px;
   line-height: 1.45;
-  font-weight: 750;
+  font-weight: 650;
 }
 
 .schedule-stats {
@@ -3199,12 +3209,22 @@ body:has(.theme-dark) {
   border-color: var(--course-success-border);
 }
 
-.theme-dark .course-pill.final,
 .theme-dark .course-stat.progress,
 .theme-dark .course-cert-badge.progress {
   color: #fed7aa;
   background: rgba(154, 52, 18, 0.38);
   border-color: rgba(251, 146, 60, 0.58);
+}
+
+.theme-dark .course-pill.final {
+  color: #fde68a;
+  background: rgba(120, 53, 15, 0.52);
+  border-color: rgba(251, 191, 36, 0.68);
+  box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.12);
+}
+
+.theme-dark .course-pill.final svg {
+  color: #fbbf24;
 }
 
 .theme-dark .course-pill.linked {
@@ -3290,6 +3310,20 @@ body:has(.theme-dark) {
 
 .theme-dark .schedule-head p {
   color: #cbd5e1;
+}
+
+.theme-dark .consumption-hero-main p {
+  color: #cbd5e1;
+}
+
+.theme-dark .consumption-hero-main .consumption-hero-registration {
+  color: #e5edf7;
+}
+
+.theme-dark .consumption-hero-entry {
+  background: #111c2a;
+  border-color: #334155;
+  color: #dbe4ef;
 }
 
 .theme-dark .course-cert-badge,

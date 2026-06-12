@@ -8,7 +8,11 @@ from openpyxl import load_workbook
 from course_checker import (
     CourseCheckerError,
     course_name_is_excluded_from_consumption,
+    expand_student_courses_to_official,
     load_existing_consumption_enrichment,
+    normalize_student_result,
+    parse_boolish,
+    resolve_official_course_catalog,
     normalize_email,
     parse_percent_input,
     parse_total_certifiable,
@@ -145,7 +149,7 @@ def load_report_rows(report_path):
             status = text(pick_value(row, cursos_headers, "Status")) or (
                 "Concluído" if status_scale >= 0.6 else "Em andamento" if status_scale > 0 else "Não iniciado"
             )
-            certificado_gerado = bool(pick_value(row, cursos_headers, "Certificado gerado"))
+            certificado_gerado = parse_boolish(pick_value(row, cursos_headers, "Certificado gerado"))
 
             catalog_by_course.setdefault(course_id, {
                 "courseId": course_id,
@@ -178,46 +182,16 @@ def load_report_rows(report_path):
         workbook.close()
 
 
-def normalize_student_courses(student, total_certifiable):
-    cursos = student.get("cursos", [])
-    concluidos = sum(1 for curso in cursos if text(curso.get("status")).lower().startswith("conclu"))
-    em_andamento = sum(1 for curso in cursos if text(curso.get("status")) == "Em andamento")
-    nao_iniciados = sum(1 for curso in cursos if text(curso.get("status")) == "Não iniciado")
-    certificados = sum(1 for curso in cursos if curso.get("certificadoGerado"))
-    total_contado = concluidos + em_andamento + nao_iniciados
-    if total_contado < total_certifiable:
-        nao_iniciados += total_certifiable - total_contado
-    elif total_contado > total_certifiable:
-        excesso = total_contado - total_certifiable
-        nao_iniciados = max(0, nao_iniciados - excesso)
-
-    consumo = round(sum(float(curso.get("percentual") or 0) for curso in cursos) / total_certifiable, 2)
-    if student.get("desafioFinal"):
-        consumo = 100
-        concluidos = total_certifiable
-        em_andamento = 0
-        nao_iniciados = 0
-        certificados = total_certifiable
-        for curso in cursos:
-            curso["status"] = "Concluído"
-            curso["percentual"] = 100
-            curso["certificadoGerado"] = True
-
-    student["consumoPercentual"] = consumo
-    student["certificadosGerados"] = min(certificados, total_certifiable)
-    student["cursosConcluidos"] = min(concluidos, total_certifiable)
-    student["cursosEmAndamento"] = min(em_andamento, total_certifiable)
-    student["cursosNaoIniciados"] = min(nao_iniciados, total_certifiable)
-    student["cursosSemCertificado"] = max(total_certifiable - student["certificadosGerados"], 0)
-    return student
-
-
 def build_payload_from_report(report_path, enrichment_by_email=None, total_certifiable=None, source_type=SOURCE_TYPE_CHECKER_REPORT_XLSX, original_filename=None):
     total_certifiable = parse_total_certifiable(
         total_certifiable or COURSE_CONSUMPTION_TOTAL_CERTIFIABLE
     )
     report = load_report_rows(report_path)
     enrichment_by_email = enrichment_by_email or {}
+    official_catalog = resolve_official_course_catalog(
+        env=os.environ,
+        expected_total=total_certifiable,
+    )
     students = []
     emails = set(report["resumo"].keys()) | set(report["cursos_por_email"].keys())
     for email in sorted(emails):
@@ -242,13 +216,18 @@ def build_payload_from_report(report_path, enrichment_by_email=None, total_certi
         enrich = consumo_enrichment
         student["desafioFinal"] = bool(enrich.get("desafioFinal", False))
         student["ingresso"] = enrich.get("ingresso")
-        normalize_student_courses(student, total_certifiable)
+        student["cursos"] = expand_student_courses_to_official(
+            student.get("cursos", []),
+            official_catalog,
+            username=email,
+        )
+        normalize_student_result(student, total_certifiable)
         students.append(student)
 
     payload = {
         "students": students,
         "warnings": [],
-        "courseCatalog": report["catalogo"],
+        "courseCatalog": official_catalog,
         "sourceFilesInfo": build_source_files_info(
             report_path,
             payload_students=students,

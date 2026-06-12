@@ -408,28 +408,20 @@ def agrupar_cursos(cursos):
 
 def build_certificados(
     cells,
-    concluido_ou_desafio_final=False,
+    desafio_final=False,
     total_cursos_certificaveis=TOTAL_CURSOS_CERTIFICAVEIS,
 ):
     cursos = parse_cursos_json(cells.get("cursosDetalhesJson"))
-    if concluido_ou_desafio_final:
-        cursos = [
-            {
-                **curso,
-                "status": "Concluído",
-                "percentual": 100,
-                "certificadoGerado": True,
-            }
-            for curso in cursos
-        ]
+    if desafio_final:
         grupos = agrupar_cursos(cursos)
+        com_certificado = grupos["comCertificado"]
         return {
             "totalCursosCertificaveis": total_cursos_certificaveis,
             "cursosConcluidos": total_cursos_certificaveis,
             "certificadosGerados": total_cursos_certificaveis,
             "cursosEmAndamento": 0,
             "cursosNaoIniciados": 0,
-            "cursosComCertificado": "; ".join(f"{curso.get('curso')} (100%)" for curso in cursos),
+            "cursosComCertificado": texto_cursos_resumo(com_certificado),
             "cursosSemCertificado": "",
             "cursos": cursos,
             "grupos": grupos,
@@ -599,7 +591,7 @@ def montar_aluno_integralizacao(cells, config, hoje=None):
         "percentualIntegralizacao": percentual,
         "certificados": build_certificados(
             cells,
-            aluno_concluido,
+            desafio_final,
             total_cursos_certificaveis=config["total_cursos_certificaveis"],
         ),
         "metaDiaria": meta_diaria,
@@ -645,25 +637,17 @@ def texto_cursos_resumo(cursos):
     )
 
 
-def build_certificados_neon(aluno_row, cursos, concluido_ou_desafio_final=False, total_cursos_certificaveis=TOTAL_CURSOS_CERTIFICAVEIS):
-    if concluido_ou_desafio_final:
-        cursos = [
-            {
-                **curso,
-                "status": "Concluido",
-                "percentual": 100,
-                "certificadoGerado": True,
-            }
-            for curso in cursos
-        ]
+def build_certificados_neon(aluno_row, cursos, desafio_final=False, total_cursos_certificaveis=TOTAL_CURSOS_CERTIFICAVEIS):
+    if desafio_final:
         grupos = agrupar_cursos(cursos)
+        com_certificado = grupos["comCertificado"]
         return {
             "totalCursosCertificaveis": total_cursos_certificaveis,
             "cursosConcluidos": total_cursos_certificaveis,
             "certificadosGerados": total_cursos_certificaveis,
             "cursosEmAndamento": 0,
             "cursosNaoIniciados": 0,
-            "cursosComCertificado": texto_cursos_resumo(cursos),
+            "cursosComCertificado": texto_cursos_resumo(com_certificado),
             "cursosSemCertificado": "",
             "cursos": cursos,
             "grupos": grupos,
@@ -733,7 +717,7 @@ def montar_aluno_integralizacao_neon(aluno_row, cursos, config, hoje=None):
         "certificados": build_certificados_neon(
             aluno_row,
             cursos,
-            aluno_concluido,
+            desafio_final,
             total_cursos_certificaveis=config["total_cursos_certificaveis"],
         ),
         "metaDiaria": meta_diaria,

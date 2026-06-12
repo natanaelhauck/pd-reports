@@ -29,6 +29,18 @@ const TIPO_MATRICULA_FILTROS = [
   ['pdita', 'Itabira - PDITA'],
   ['pdbd', 'Bom Despacho - PDBD'],
 ];
+const PREFEITURA_MUNICIPAL_SCOPES = {
+  prefeitura_itabira: {
+    label: 'Itabira - Prefeitura',
+    tipoMatricula: 'pdita',
+    filtroLabel: 'Itabira - PDITA',
+  },
+  prefeitura_bom_despacho: {
+    label: 'Bom Despacho - Prefeitura',
+    tipoMatricula: 'pdbd',
+    filtroLabel: 'Bom Despacho - PDBD',
+  },
+};
 
 const PERFIL_INICIAL = (matricula = '') => ({
   matricula,
@@ -98,8 +110,6 @@ const CAMPO_LABELS = {
   'perfil.filhos_descricao': 'Perfil · Filhos',
   'perfil.nivel_engajamento': 'Perfil · Nível de Engajamento',
   'perfil.nivel_programacao': 'Perfil · Nível de Conhecimento em Programação',
-  'perfil.previsao_formacao_ano': 'Perfil · Ano de previsão de formação',
-  'perfil.previsao_formacao_semestre': 'Perfil · Semestre de previsão de formação',
   'perfil.dia_monitoria': 'Perfil · Dia da monitoria',
   'perfil.horario_monitoria': 'Perfil · Horário da monitoria',
   'perfil.acompanhamento_psicologico': 'Perfil · Faz acompanhamento?',
@@ -282,8 +292,11 @@ const PERFIS_USUARIO = [
   ['monitor', 'Monitor'],
   ['admin', 'Admin'],
   ['psicologa', 'Psicóloga'],
-  ['prefeitura_itabira', 'Prefeitura Itabira'],
+  ['prefeitura_itabira', 'Itabira - Prefeitura'],
+  ['prefeitura_bom_despacho', 'Bom Despacho - Prefeitura'],
 ];
+
+const prefeituraMunicipalScope = (usuario) => PREFEITURA_MUNICIPAL_SCOPES[usuario?.role] || null;
 
 const parseFilhos = (valor) => {
   if (!valor) return { filhos: [], textoLivre: '' };
@@ -333,7 +346,8 @@ const formatarUsuario = (usuario) => {
   const perfil = String(usuario.role || '').trim().toLowerCase();
   const email = String(usuario.email || '').trim().toLowerCase();
   let nome = String(usuario.nome || usuario.email || '').trim();
-  if (perfil === 'prefeitura_itabira') return nome || 'Itabira - Prefeitura';
+  const prefeitura = prefeituraMunicipalScope(usuario);
+  if (prefeitura) return nome || prefeitura.label;
   if (perfil === 'admin' && nome.toLowerCase() === 'admin') nome = 'Natanael';
   if (!nome && email === 'natanaelhauck@projetodesenvolve.com.br') nome = 'Natanael';
   const perfilLabel = rotuloPerfilUsuario({ ...usuario, nome });
@@ -345,7 +359,8 @@ const rotuloPerfilUsuario = (usuario) => {
   const nome = String(usuario?.nome || '').trim().toLowerCase();
   if (perfil === 'admin') return 'Admin';
   if (perfil === 'psicologa') return 'Psicóloga';
-  if (perfil === 'prefeitura_itabira') return 'Prefeitura Itabira';
+  const prefeitura = prefeituraMunicipalScope(usuario);
+  if (prefeitura) return prefeitura.label;
   if (perfil === 'monitor' && nome.startsWith('kellen')) return 'Monitora';
   if (perfil === 'monitor') return 'Monitor';
   return perfil ? perfil.charAt(0).toUpperCase() + perfil.slice(1) : '';
@@ -457,7 +472,7 @@ export default function App() {
   const [salvandoUsuario, setSalvandoUsuario] = useState(false);
   const cardRef = useRef(null);
   const isAdmin = usuario?.role === 'admin';
-  const isPrefeituraItabira = usuario?.role === 'prefeitura_itabira';
+  const isPrefeituraMunicipal = Boolean(prefeituraMunicipalScope(usuario));
   const autenticado = Boolean(usuario?.token);
   const authHeaders = useMemo(() => (
     usuario?.token ? { Authorization: `Bearer ${usuario.token}` } : {}
@@ -468,8 +483,8 @@ export default function App() {
   });
   const temaEscuro = tema === 'dark';
   const tabsVisiveis = useMemo(() => (
-    isPrefeituraItabira ? TABS.filter((tab) => tab !== 'Histórico') : TABS
-  ), [isPrefeituraItabira]);
+    isPrefeituraMunicipal ? TABS.filter((tab) => tab !== 'Relatórios Monitoria' && tab !== 'Histórico') : TABS
+  ), [isPrefeituraMunicipal]);
 
   const alunosOrdenados = useMemo(() => {
     const porMatricula = new Map();
@@ -573,7 +588,7 @@ export default function App() {
     if (!tabsVisiveis.includes(tab)) return;
     setActiveTab(tab);
     if (tab === 'Perfil do aluno' && aluno) buscarPerfilAluno(aluno.matricula);
-    if (tab === 'Histórico' && aluno && !isPrefeituraItabira) carregarHistorico(aluno.matricula);
+    if (tab === 'Histórico' && aluno && !isPrefeituraMunicipal) carregarHistorico(aluno.matricula);
   };
 
   const atualizarAlunoLocal = (atualizado) => {
@@ -1007,7 +1022,7 @@ export default function App() {
       </header>
 
       <div className="main-actions">
-        {!isPrefeituraItabira && (
+        {!isPrefeituraMunicipal && (
           <button className="ui-button" type="button" onClick={abrirMonitores} style={styles.neutralBtn}><Users size={17} /> Monitores</button>
         )}
         <button className="ui-button" type="button" onClick={abrirIntegralizacao} style={styles.neutralBtn}><GraduationCap size={17} /> Consumo</button>
@@ -1223,7 +1238,7 @@ export default function App() {
               cancelarEdicao={cancelarEdicao}
               salvando={salvando}
               corStatus={corStatus}
-              somenteLeitura={isPrefeituraItabira}
+              somenteLeitura={isPrefeituraMunicipal}
             />
           )}
 
@@ -1236,7 +1251,7 @@ export default function App() {
               setEditPerfil={setEditPerfil}
               salvarPerfilAluno={salvarPerfilAluno}
               salvandoPerfil={salvandoPerfil}
-              somenteLeitura={isPrefeituraItabira}
+              somenteLeitura={isPrefeituraMunicipal}
             />
           )}
 
@@ -1382,7 +1397,6 @@ function PerfilAluno({ perfil, perfilTemp, setPerfilTemp, editPerfil, setEditPer
               <ProfileBadge label="Nível de Engajamento" value={p.nivel_engajamento} color={pillColor(p.nivel_engajamento, ENG_COLORS)} />
               <ProfileBadge label="Nível de Conhecimento em Programação" value={p.nivel_programacao} color={pillColor(p.nivel_programacao, PROG_COLORS)} />
             </div>
-            <DisplayItem label="Previsão de formação" value={[p.previsao_formacao_ano, p.previsao_formacao_semestre].filter(Boolean).join(' - ')} />
           </section>
           <section style={styles.section}>
             <h3><Calendar size={18} /> Monitoria</h3>
@@ -1484,8 +1498,6 @@ function PerfilAluno({ perfil, perfilTemp, setPerfilTemp, editPerfil, setEditPer
           <h3><GraduationCap size={18} /> Curso</h3>
           <ProfileSelect label="Nível de Engajamento" value={p.nivel_engajamento || ''} disabled={!editPerfil} onChange={(v) => setCampo('nivel_engajamento', v)} options={[['', 'Não informado'], ['baixo', 'Baixo'], ['médio', 'Médio'], ['alto', 'Alto']]} color={pillColor(p.nivel_engajamento, ENG_COLORS)} />
           <ProfileSelect label="Nível de Conhecimento em Programação" value={p.nivel_programacao || ''} disabled={!editPerfil} onChange={(v) => setCampo('nivel_programacao', v)} options={[['', 'Não informado'], ['básico', 'Básico'], ['intermediário', 'Intermediário'], ['avançado', 'Avançado']]} color={pillColor(p.nivel_programacao, PROG_COLORS)} />
-          <ProfileField label="Ano de previsão de formação" type="number" value={p.previsao_formacao_ano || ''} disabled={!editPerfil} onChange={(v) => setCampo('previsao_formacao_ano', v)} />
-          <ProfileSelect label="Semestre de previsão" value={p.previsao_formacao_semestre || ''} disabled={!editPerfil} onChange={(v) => setCampo('previsao_formacao_semestre', v)} options={[['', 'Não informado'], ['1º semestre', '1º semestre'], ['2º semestre', '2º semestre']]} />
         </section>
         <section style={styles.section}>
           <h3><Calendar size={18} /> Monitoria</h3>
@@ -1544,7 +1556,8 @@ function MonitoresDashboard({ usuario, authHeaders }) {
   const [mensagemAtualizacao, setMensagemAtualizacao] = useState('');
 
   const isAdmin = usuario?.role === 'admin';
-  const isPrefeituraItabira = usuario?.role === 'prefeitura_itabira';
+  const prefeituraScope = prefeituraMunicipalScope(usuario);
+  const isPrefeituraMunicipal = Boolean(prefeituraScope);
   const monitorUsuario = monitorDoUsuario(usuario);
   const monitorEfetivo = usuario?.role === 'monitor' ? monitorUsuario : (isAdmin ? monitorFiltro : '');
   const semanasPeriodo = useMemo(() => semanasUteisMonitoriaMes(mes), [mes]);
@@ -1562,11 +1575,11 @@ function MonitoresDashboard({ usuario, authHeaders }) {
       monitor: monitorEfetivo || 'Todos',
       status: statusFiltro || 'Todos',
       periodo: periodoFiltroEfetivo,
-      tipo_matricula: isPrefeituraItabira ? 'pdita' : tipoMatriculaFiltro,
+      tipo_matricula: prefeituraScope?.tipoMatricula || tipoMatriculaFiltro,
     };
     if (periodoFiltroEfetivo === 'dia') params.data_periodo = dataPeriodoEfetiva;
     return params;
-  }, [mes, monitorEfetivo, statusFiltro, periodoFiltroEfetivo, tipoMatriculaFiltro, dataPeriodoEfetiva, isPrefeituraItabira]);
+  }, [mes, monitorEfetivo, statusFiltro, periodoFiltroEfetivo, tipoMatriculaFiltro, dataPeriodoEfetiva, prefeituraScope]);
 
   useEffect(() => {
     let cancelado = false;
@@ -1650,7 +1663,7 @@ function MonitoresDashboard({ usuario, authHeaders }) {
           <ProfileField label="Mês" type="month" value={mes} onChange={setMes} />
           {isAdmin ? (
             <ProfileSelect label="Monitor" value={monitorFiltro} onChange={setMonitorFiltro} options={[['', 'Todos'], ...MONITORES_DASHBOARD.map((monitor) => [monitor, monitor])]} />
-          ) : isPrefeituraItabira ? (
+          ) : isPrefeituraMunicipal ? (
             <ProfileField label="Monitor" value="Todos" disabled onChange={() => {}} />
           ) : (
             <ProfileField label="Monitor" value={monitorUsuario || 'Monitor'} disabled onChange={() => {}} />
@@ -1658,8 +1671,8 @@ function MonitoresDashboard({ usuario, authHeaders }) {
           <ProfileSelect label="Status" value={statusFiltro} onChange={setStatusFiltro} options={STATUS_MONITORIA_FILTROS} />
           <ProfileSelect label="Período" value={periodoFiltroEfetivo} onChange={setPeriodoFiltro} options={periodoOptions} />
           {periodoFiltroEfetivo === 'dia' && <ProfileField label="Data" type="date" value={dataPeriodoEfetiva} onChange={setDataPeriodo} />}
-          {isPrefeituraItabira ? (
-            <ProfileField label="Cidade - Matrícula" value="Itabira - PDITA" disabled onChange={() => {}} />
+          {isPrefeituraMunicipal ? (
+            <ProfileField label="Cidade - Matrícula" value={prefeituraScope?.filtroLabel || ''} disabled onChange={() => {}} />
           ) : (
             <ProfileSelect label="Cidade - Matrícula" value={tipoMatriculaFiltro} onChange={setTipoMatriculaFiltro} options={TIPO_MATRICULA_FILTROS} />
           )}
@@ -1916,8 +1929,6 @@ function NovoAlunoPerfilForm({ perfil, setPerfil }) {
         <h3><GraduationCap size={18} /> Curso</h3>
         <ProfileSelect label="Nível de Engajamento" value={perfil.nivel_engajamento || ''} onChange={(v) => setCampo('nivel_engajamento', v)} options={[['', 'Não informado'], ['baixo', 'Baixo'], ['médio', 'Médio'], ['alto', 'Alto']]} color={pillColor(perfil.nivel_engajamento, ENG_COLORS)} />
         <ProfileSelect label="Nível de Conhecimento em Programação" value={perfil.nivel_programacao || ''} onChange={(v) => setCampo('nivel_programacao', v)} options={[['', 'Não informado'], ['básico', 'Básico'], ['intermediário', 'Intermediário'], ['avançado', 'Avançado']]} color={pillColor(perfil.nivel_programacao, PROG_COLORS)} />
-        <ProfileField label="Ano de previsão de formação" type="number" value={perfil.previsao_formacao_ano || ''} onChange={(v) => setCampo('previsao_formacao_ano', v)} />
-        <ProfileSelect label="Semestre de previsão" value={perfil.previsao_formacao_semestre || ''} onChange={(v) => setCampo('previsao_formacao_semestre', v)} options={[['', 'Não informado'], ['1º semestre', '1º semestre'], ['2º semestre', '2º semestre']]} />
       </section>
       <section style={styles.section}>
         <h3><Calendar size={18} /> Monitoria</h3>

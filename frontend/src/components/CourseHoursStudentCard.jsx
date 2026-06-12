@@ -32,7 +32,7 @@ export function CourseHoursStudentCard({ aluno, compact = false, onClick }) {
             <span className={aluno?.ativo ? 'course-pill success' : 'course-pill muted'}>
               {statusLabel(aluno)}
             </span>
-            {aluno?.desafioFinal && <span className="course-pill final"><Trophy size={13} /> Desafio Final</span>}
+            {aluno?.desafioFinal && <span className="course-pill final challenge-final-badge"><Trophy size={14} /> Desafio Final</span>}
             {!aluno?.vinculado && (
               <span className="course-pill warning">Não vinculado</span>
             )}

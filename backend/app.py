@@ -117,9 +117,10 @@ CONSUMPTION_PROCESSING_MODE = os.getenv('CONSUMPTION_PROCESSING_MODE', 'external
 CONSUMPTION_UPLOAD_RATE_LIMIT_WINDOW_SECONDS = int(os.getenv('CONSUMPTION_UPLOAD_RATE_LIMIT_WINDOW_SECONDS', '300'))
 CONSUMPTION_UPLOAD_RATE_LIMIT_MAX_ATTEMPTS = int(os.getenv('CONSUMPTION_UPLOAD_RATE_LIMIT_MAX_ATTEMPTS', '3'))
 PREFEITURA_ITABIRA_ROLE = 'prefeitura_itabira'
+PREFEITURA_BOM_DESPACHO_ROLE = 'prefeitura_bom_despacho'
 PREFEITURA_ITABIRA_EMAIL = os.getenv('PREFEITURA_ITABIRA_EMAIL', 'prefeitura.itabira@projetodesenvolve.com.br')
 PREFEITURA_ITABIRA_PASSWORD_HASH = os.getenv('PREFEITURA_ITABIRA_PASSWORD_HASH')
-USUARIO_ROLES_VALIDOS = {'admin', 'monitor', 'psicologa', PREFEITURA_ITABIRA_ROLE}
+USUARIO_ROLES_VALIDOS = {'admin', 'monitor', 'psicologa', PREFEITURA_ITABIRA_ROLE, PREFEITURA_BOM_DESPACHO_ROLE}
 AUTH_TOKEN_MAX_AGE_SECONDS = 60 * 60 * 12
 APP_TIMEZONE_NAME = os.getenv('APP_TIMEZONE', 'America/Sao_Paulo')
 try:
@@ -1727,6 +1728,14 @@ def matricula_corresponde_tipo(matricula, tipo_matricula):
 def usuario_eh_prefeitura_itabira(usuario):
     return (usuario or {}).get('role') == PREFEITURA_ITABIRA_ROLE
 
+
+def usuario_tem_escopo_municipal(usuario):
+    return bool(get_user_city_scope(usuario).get('restricted'))
+
+
+def usuario_eh_prefeitura_municipal(usuario):
+    return usuario_tem_escopo_municipal(usuario)
+
 def usuario_tipo_matricula_obrigatorio(usuario):
     scope = get_user_city_scope(usuario)
     prefixo = scope.get('primary_prefix')
@@ -2034,7 +2043,7 @@ def filtrar_integralizacao_por_usuario(alunos, usuario):
     role = usuario.get('role')
     if role in {'admin', 'psicologa'}:
         return apply_student_scope_filter(usuario, alunos)
-    if role == PREFEITURA_ITABIRA_ROLE:
+    if role in {PREFEITURA_ITABIRA_ROLE, PREFEITURA_BOM_DESPACHO_ROLE}:
         return apply_student_scope_filter(usuario, alunos)
     if role != 'monitor':
         return []
@@ -2682,7 +2691,7 @@ def atualizar_consumo_checker_admin():
 
 @app.route('/api/consumo/atualizacao/status', methods=['GET'])
 def status_atualizacao_consumo():
-    usuario, erro = require_roles('admin', 'monitor', 'psicologa', PREFEITURA_ITABIRA_ROLE)
+    usuario, erro = require_roles('admin', 'monitor', 'psicologa', PREFEITURA_ITABIRA_ROLE, PREFEITURA_BOM_DESPACHO_ROLE)
     if erro:
         return erro
 
@@ -2727,7 +2736,7 @@ def historico_atualizacoes_consumo():
 
 @app.route('/api/integralizacao', methods=['GET'])
 def get_integralizacao():
-    usuario, erro = require_roles('admin', 'monitor', 'psicologa', PREFEITURA_ITABIRA_ROLE)
+    usuario, erro = require_roles('admin', 'monitor', 'psicologa', PREFEITURA_ITABIRA_ROLE, PREFEITURA_BOM_DESPACHO_ROLE)
     if erro:
         return erro
 
@@ -2763,7 +2772,7 @@ def get_integralizacao():
 
 @app.route('/api/alunos/<matricula>/integralizacao', methods=['GET'])
 def get_integralizacao_aluno(matricula):
-    usuario, erro = require_roles('admin', 'monitor', 'psicologa', PREFEITURA_ITABIRA_ROLE)
+    usuario, erro = require_roles('admin', 'monitor', 'psicologa', PREFEITURA_ITABIRA_ROLE, PREFEITURA_BOM_DESPACHO_ROLE)
     if erro:
         return erro
 
@@ -2822,7 +2831,7 @@ def get_historico_aluno(matricula):
     usuario, erro = require_auth()
     if erro:
         return erro
-    if usuario_eh_prefeitura_itabira(usuario):
+    if usuario_eh_prefeitura_municipal(usuario):
         return jsonify({'erro': 'Você não tem permissão para ver o histórico deste aluno.'}), 403
     if not usuario_pode_ver_matricula(usuario, matricula):
         return jsonify({'erro': 'Você não tem permissão para ver este aluno.'}), 403
@@ -2851,6 +2860,8 @@ def get_relatorios_monitoria_aluno(matricula):
     usuario, erro = require_auth()
     if erro:
         return erro
+    if usuario_eh_prefeitura_municipal(usuario):
+        return jsonify({'erro': 'Você não tem permissão para ver os relatórios de monitoria deste aluno.'}), 403
     if not usuario_pode_ver_matricula(usuario, matricula):
         return jsonify({'erro': 'Você não tem permissão para ver este aluno.'}), 403
     try:
@@ -3079,7 +3090,7 @@ def get_resumo_monitoria_monitores():
     usuario, erro = require_auth()
     if erro:
         return erro
-    if usuario_eh_prefeitura_itabira(usuario):
+    if usuario_eh_prefeitura_municipal(usuario):
         return jsonify({'erro': 'Você não tem permissão para acessar o painel de monitores.'}), 403
     try:
         ano, mes, mes_param = parse_mes_monitoria(request.args.get('mes'))
@@ -3092,7 +3103,7 @@ def get_resumo_monitoria_monitores():
             request.args.get('data_periodo') or request.args.get('data'),
         )
         periodo_mes = parse_periodo_monitoria(ano, mes)
-        historico = None if usuario_eh_prefeitura_itabira(usuario) else consolidado_historico_monitoria(mes_param, monitor_filtro, status_filtro, periodo_mes)
+        historico = None if usuario_eh_prefeitura_municipal(usuario) else consolidado_historico_monitoria(mes_param, monitor_filtro, status_filtro, periodo_mes)
         if historico:
             try:
                 dados = buscar_relatorios_monitoria()

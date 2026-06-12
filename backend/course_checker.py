@@ -2,6 +2,7 @@ import csv
 import hashlib
 import json
 import math
+import os
 import re
 import unicodedata
 from collections import defaultdict
@@ -23,6 +24,7 @@ except ImportError:  # pragma: no cover - covered by runtime validation message
 
 
 TOTAL_CERTIFICABLE_DEFAULT = COURSE_CONSUMPTION_TOTAL_CERTIFIABLE
+COURSE_COMPLETION_PERCENTUAL = 60
 BACKEND_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = BACKEND_DIR.parent
 VALID_STATUSES = {
@@ -100,7 +102,7 @@ def status_from_percent(value):
     _, status_scale = parse_percent_input(value)
     if status_scale == 0:
         return VALID_STATUSES["not_started"]
-    if status_scale < 0.6:
+    if status_scale < (COURSE_COMPLETION_PERCENTUAL / 100):
         return VALID_STATUSES["in_progress"]
     return VALID_STATUSES["completed"]
 
@@ -382,6 +384,8 @@ def load_certificates_csv(path):
 
 
 def is_course_ignored(course_id, course_name, catalog_entry, ignored_courses):
+    if not catalog_entry:
+        return True
     if course_id in ignored_courses:
         return True
     if catalog_entry:
@@ -390,11 +394,160 @@ def is_course_ignored(course_id, course_name, catalog_entry, ignored_courses):
     return course_name_is_excluded_from_consumption(course_name)
 
 
+def official_course_sort_key(course):
+    ordem = course.get("ordem")
+    try:
+        ordem = int(ordem)
+    except (TypeError, ValueError):
+        ordem = 10**9
+    return (
+        ordem,
+        field_key(course.get("courseName")),
+        field_key(course.get("courseId")),
+    )
+
+
+def sort_student_courses(courses):
+    def key(course):
+        percentual = to_float(course.get("percentual"), 0)
+        return (
+            0 if percentual > 0 else 1,
+            -percentual if percentual > 0 else 0,
+            field_key(course.get("courseName")),
+            field_key(course.get("courseId")),
+        )
+
+    return sorted(courses or [], key=key)
+
+
+def build_official_course_catalog(catalog, ignored_courses=None):
+    ignored_courses = ignored_courses or set()
+    official = []
+    for entry in (catalog or {}).values():
+        if not isinstance(entry, dict):
+            continue
+        course_id = text(entry.get("courseId"))
+        course_name = text(entry.get("courseName") or course_id)
+        if is_course_ignored(course_id, course_name, entry, ignored_courses):
+            continue
+        official.append({
+            "courseId": course_id,
+            "courseName": course_name,
+            "certificavel": bool(entry.get("certificavel", True)),
+            "ignored": bool(entry.get("ignored", False)),
+            "ordem": entry.get("ordem"),
+        })
+    official.sort(key=official_course_sort_key)
+    return official
+
+
+def validate_official_course_catalog(official_catalog, expected_total=None):
+    expected_total = parse_total_certifiable(expected_total or COURSE_CONSUMPTION_TOTAL_CERTIFIABLE)
+    official_catalog = list(official_catalog or [])
+    if len(official_catalog) != expected_total:
+        raise CourseCheckerError(
+            "Catalogo oficial de cursos possui "
+            f"{len(official_catalog)} cursos certificaveis; esperado {expected_total}."
+        )
+    return official_catalog
+
+
+def resolve_official_course_catalog(env=None, expected_total=COURSE_CONSUMPTION_TOTAL_CERTIFIABLE):
+    env = env or os.environ
+    catalog_path = env.get("COURSE_CHECKER_CATALOG_PATH", "checker/cursos_new.json")
+    ignore_path = env.get("COURSE_CHECKER_IGNORE_PATH", "checker/ignore_courses.json")
+    catalog = load_course_catalog(catalog_path)
+    ignored_courses = load_ignored_courses(ignore_path)
+    return validate_official_course_catalog(
+        build_official_course_catalog(catalog, ignored_courses),
+        expected_total=expected_total,
+    )
+
+
+def expand_student_courses_to_official(courses, official_catalog, certificates_map=None, username=None):
+    certificates_map = certificates_map or {}
+    official_catalog = official_catalog or []
+    official_by_id = {}
+    official_by_name = {}
+    for entry in official_catalog:
+        course_id = text(entry.get("courseId"))
+        if course_id:
+            official_by_id[course_id] = entry
+        course_name = text(entry.get("courseName"))
+        if course_name:
+            official_by_name[field_key(course_name)] = entry
+
+    raw_by_course = {}
+    for raw_course in courses or []:
+        if not isinstance(raw_course, dict):
+            continue
+        course_id = text(raw_course.get("courseId"))
+        course_name = text(raw_course.get("courseName") or raw_course.get("curso") or course_id)
+        official = official_by_id.get(course_id) or official_by_name.get(field_key(course_name))
+        if not official:
+            continue
+        official_id = official["courseId"]
+        percentual, _ = parse_percent_input(raw_course.get("percentual"))
+        status = text(raw_course.get("status")) or status_from_percent(raw_course.get("percentual"))
+        certificado_gerado = bool(raw_course.get("certificadoGerado"))
+        if username and certificates_map.get((username, official_id), False):
+            certificado_gerado = course_is_completed(status)
+        current = {
+            "courseId": official_id,
+            "courseName": official.get("courseName") or official_id,
+            "status": status,
+            "percentual": percentual,
+            "certificadoGerado": bool(certificado_gerado),
+        }
+        existing = raw_by_course.get(official_id)
+        if not existing:
+            raw_by_course[official_id] = current
+            continue
+        existing_percentual = to_float(existing.get("percentual"), 0)
+        current_percentual = to_float(current.get("percentual"), 0)
+        if current_percentual > existing_percentual:
+            raw_by_course[official_id] = current
+            continue
+        if current_percentual == existing_percentual and current["certificadoGerado"] and not existing.get("certificadoGerado"):
+            raw_by_course[official_id] = current
+
+    expanded = []
+    for official in official_catalog:
+        course_id = official["courseId"]
+        course = raw_by_course.get(course_id)
+        if not course:
+            expanded.append({
+                "courseId": course_id,
+                "courseName": official.get("courseName") or course_id,
+                "status": VALID_STATUSES["not_started"],
+                "percentual": 0,
+                "certificadoGerado": False,
+            })
+            continue
+        expanded.append(course)
+    return sort_student_courses(expanded)
+
+
+def course_counts_as_completed(course):
+    percentual = to_float((course or {}).get("percentual"), 0)
+    return bool((course or {}).get("certificadoGerado")) or percentual >= COURSE_COMPLETION_PERCENTUAL
+
+
+def course_counts_as_in_progress(course):
+    percentual = to_float((course or {}).get("percentual"), 0)
+    return 0 < percentual < COURSE_COMPLETION_PERCENTUAL and not bool((course or {}).get("certificadoGerado"))
+
+
+def course_counts_as_not_started(course):
+    percentual = to_float((course or {}).get("percentual"), 0)
+    return percentual <= 0 and not bool((course or {}).get("certificadoGerado"))
+
+
 def normalize_student_result(student, total_certifiable):
     courses = student["cursos"]
-    concluded = sum(1 for course in courses if course_is_completed(course["status"]))
-    in_progress = sum(1 for course in courses if field_key(course["status"]) == "em andamento")
-    not_started = sum(1 for course in courses if field_key(course["status"]) == "nao iniciado")
+    concluded = sum(1 for course in courses if course_counts_as_completed(course))
+    in_progress = sum(1 for course in courses if course_counts_as_in_progress(course))
+    not_started = sum(1 for course in courses if course_counts_as_not_started(course))
 
     counted = concluded + in_progress + not_started
     if counted < total_certifiable:
@@ -417,6 +570,8 @@ def normalize_student_result(student, total_certifiable):
         "desafioFinal": bool(student.get("desafioFinal", False)),
         "ingresso": parse_date(student.get("ingresso")),
     })
+    if student["desafioFinal"]:
+        apply_desafio_final_override(student, total_certifiable)
     return student
 
 
@@ -439,6 +594,10 @@ def process_grades_stream(
     warnings = []
     counters = defaultdict(int)
     certificate_stats = getattr(certificates_map, "stats", {})
+    official_courses = validate_official_course_catalog(
+        build_official_course_catalog(catalog, ignored_courses),
+        expected_total=total_certifiable,
+    )
 
     with grades_path.open("rb") as file_obj:
         try:
@@ -518,10 +677,15 @@ def process_grades_stream(
     if counters["cursos_com_formato_invalido"]:
         warnings.append(f"{counters['cursos_com_formato_invalido']} cursos tinham formato invalido no payload.")
 
-    students = [
-        normalize_student_result(student, total_certifiable)
-        for student in students_by_email.values()
-    ]
+    students = []
+    for student in students_by_email.values():
+        student["cursos"] = expand_student_courses_to_official(
+            student.get("cursos", []),
+            official_courses,
+            certificates_map=certificates_map,
+            username=student.get("username"),
+        )
+        students.append(normalize_student_result(student, total_certifiable))
     students.sort(key=lambda item: (field_key(item.get("nome")), item.get("email")))
 
     return {
@@ -547,6 +711,7 @@ def process_grades_stream(
             "certificateRecordsNonDownloadable": certificate_stats.get("non_downloadable_ignored", 0),
         },
         "totalCertifiable": total_certifiable,
+        "courseCatalog": official_courses,
     }
 
 
@@ -616,10 +781,6 @@ def apply_desafio_final_override(student, total_certifiable):
     student["cursosEmAndamento"] = 0
     student["cursosNaoIniciados"] = 0
     student["cursosSemCertificado"] = 0
-    for course in student.get("cursos", []):
-        course["status"] = VALID_STATUSES["completed"]
-        course["percentual"] = 100
-        course["certificadoGerado"] = True
     return student
 
 
@@ -657,7 +818,6 @@ def build_consumption_payload(
         certificates,
         total_certifiable=total_certifiable,
     )
-    payload["courseCatalog"] = list(catalog.values())
     payload["sourceFilesInfo"] = source_files_info or build_source_files_info({
         "users": users_path,
         "catalog": catalog_path,

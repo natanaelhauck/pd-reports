@@ -91,6 +91,14 @@ CONS_BD = {
     'percentualIntegralizacao': 70,
 }
 
+CONS_SEM_VINCULO = {
+    'matricula': '',
+    'pdita': '',
+    'vinculado': False,
+    'alunoPd': None,
+    'percentualIntegralizacao': 10,
+}
+
 
 @contextmanager
 def patched(module, **replacements):
@@ -148,9 +156,13 @@ def testar_acesso_individual():
     assert_true('futura prefeitura bd acessa PDBD', can_access_student(PREFEITURA_BD, ALUNO_PDBD))
     assert_false('futura prefeitura bd nao acessa PDITA', can_access_student(PREFEITURA_BD, ALUNO_PDITA))
     assert_true('prefeitura itabira acesso manual PDITA', app_module.usuario_pode_ver_matricula(PREFEITURA_ITABIRA, 'PDITA001'))
-    assert_false('prefeitura itabira acesso manual PDBD', app_module.usuario_pode_ver_matricula(PREFEITURA_ITABIRA, 'PDBD001'))
+    assert_false('prefeitura itabira nao acessa manual PDBD', app_module.usuario_pode_ver_matricula(PREFEITURA_ITABIRA, 'PDBD001'))
+    assert_true('prefeitura bom despacho acesso manual PDBD', app_module.usuario_pode_ver_matricula(PREFEITURA_BD, 'PDBD001'))
+    assert_false('prefeitura bom despacho nao acessa manual PDITA', app_module.usuario_pode_ver_matricula(PREFEITURA_BD, 'PDITA001'))
     assert_false('prefeitura itabira nao acessa consumo PDBD', app_module.usuario_pode_ver_aluno_pd(PREFEITURA_ITABIRA, ALUNO_PDBD))
     assert_true('prefeitura itabira acessa consumo PDITA', app_module.usuario_pode_ver_aluno_pd(PREFEITURA_ITABIRA, ALUNO_PDITA))
+    assert_false('prefeitura bom despacho nao acessa consumo PDITA', app_module.usuario_pode_ver_aluno_pd(PREFEITURA_BD, ALUNO_PDITA))
+    assert_true('prefeitura bom despacho acessa consumo PDBD', app_module.usuario_pode_ver_aluno_pd(PREFEITURA_BD, ALUNO_PDBD))
     assert_true('monitor continua podendo ver matricula', app_module.usuario_pode_ver_matricula(MONITOR, 'PDBD001'))
     assert_true('monitor acessa consumo do proprio aluno', app_module.usuario_pode_ver_aluno_pd(MONITOR, ALUNO_PDITA))
     assert_false('monitor nao acessa consumo de outro monitor', app_module.usuario_pode_ver_aluno_pd(MONITOR, ALUNO_PDBD))
@@ -163,16 +175,21 @@ def testar_filtros_de_lista():
     assert_equal('admin lista geral retorna tudo', [item['matricula'] for item in apply_student_scope_filter(ADMIN, alunos)], ['PDITA001', 'PDBD001'])
     assert_equal('monitor lista geral continua sem restricao de cidade', [item['matricula'] for item in app_module.filtrar_alunos_por_usuario(alunos, MONITOR)], ['PDITA001', 'PDBD001'])
 
-    consumo = [CONS_ITA, CONS_BD]
+    consumo = [CONS_ITA, CONS_BD, CONS_SEM_VINCULO]
     assert_equal(
         'prefeitura itabira consumo geral retorna apenas PDITA',
         [item['matricula'] for item in app_module.filtrar_integralizacao_por_usuario(consumo, PREFEITURA_ITABIRA)],
         ['PDITA001'],
     )
     assert_equal(
+        'prefeitura bom despacho consumo geral retorna apenas PDBD',
+        [item['matricula'] for item in app_module.filtrar_integralizacao_por_usuario(consumo, PREFEITURA_BD)],
+        ['PDBD001'],
+    )
+    assert_equal(
         'admin consumo geral retorna tudo',
         [item['matricula'] for item in app_module.filtrar_integralizacao_por_usuario(consumo, ADMIN)],
-        ['PDITA001', 'PDBD001'],
+        ['PDITA001', 'PDBD001', ''],
     )
     assert_equal(
         'monitor consumo geral retorna apenas alunos monitorados',
@@ -185,10 +202,16 @@ def testar_gates_de_edicao():
     with app_module.app.app_context():
         with patched(app_module, require_auth=lambda: (PREFEITURA_ITABIRA, None)):
             assert_status('prefeitura itabira nao edita aluno', app_module.require_student_edit_permission, 403)
+        with patched(app_module, require_auth=lambda: (PREFEITURA_BD, None)):
+            assert_status('prefeitura bom despacho nao edita aluno', app_module.require_student_edit_permission, 403)
         with patched(app_module, require_auth=lambda: (PREFEITURA_ITABIRA, None)):
             assert_status('prefeitura itabira nao cria usuario', app_module.require_admin, 403)
+        with patched(app_module, require_auth=lambda: (PREFEITURA_BD, None)):
+            assert_status('prefeitura bom despacho nao cria usuario', app_module.require_admin, 403)
         with patched(app_module, require_auth=lambda: (PREFEITURA_ITABIRA, None)):
             assert_status('prefeitura itabira nao cadastra aluno', app_module.require_admin, 403)
+        with patched(app_module, require_auth=lambda: (PREFEITURA_BD, None)):
+            assert_status('prefeitura bom despacho nao cadastra aluno', app_module.require_admin, 403)
         with patched(app_module, require_auth=lambda: (MONITOR, None)):
             usuario, erro = app_module.require_student_edit_permission()
             assert_equal('monitor continua podendo editar', erro, None)
@@ -199,11 +222,48 @@ def testar_gates_de_edicao():
             assert_equal('psicologa continua podendo editar usuario retornado', usuario['role'], 'psicologa')
 
 
+def assert_endpoint_status(client, descricao, method, path, status_esperado, **kwargs):
+    response = getattr(client, method.lower())(path, **kwargs)
+    if response.status_code != status_esperado:
+        raise AssertionError(
+            f'{descricao}: esperado {status_esperado}, recebido {response.status_code} - {response.get_json(silent=True)}'
+        )
+    print(f'OK - {descricao}: {response.status_code}')
+
+
+def testar_endpoints_bloqueados_prefeitura():
+    bloqueios = [
+        ('GET', '/api/alunos/historico/PDITA001', 'nao ve historico'),
+        ('GET', '/api/alunos/PDITA001/relatorios-monitoria', 'nao ve relatorios monitoria do aluno'),
+        ('GET', '/api/relatorios-monitoria/resumo-monitores', 'nao ve painel de monitores'),
+        ('POST', '/api/admin/consumo/atualizar', 'nao atualiza consumo'),
+        ('POST', '/api/alunos/update', 'nao edita aluno'),
+        ('POST', '/api/alunos/create', 'nao cria aluno'),
+        ('GET', '/api/usuarios', 'nao lista usuarios'),
+    ]
+    with app_module.app.test_client() as client:
+        for prefeitura in (PREFEITURA_ITABIRA, PREFEITURA_BD):
+            with patched(app_module, get_current_user=lambda prefeitura=prefeitura: prefeitura):
+                for method, path, descricao in bloqueios:
+                    kwargs = {}
+                    if method == 'POST':
+                        kwargs['json'] = {}
+                    assert_endpoint_status(
+                        client,
+                        f"{prefeitura['role']} {descricao}",
+                        method,
+                        path,
+                        403,
+                        **kwargs,
+                    )
+
+
 def main():
     testar_helper_cidade()
     testar_acesso_individual()
     testar_filtros_de_lista()
     testar_gates_de_edicao()
+    testar_endpoints_bloqueados_prefeitura()
     print('Todos os testes de permissao por cidade passaram.')
 
 

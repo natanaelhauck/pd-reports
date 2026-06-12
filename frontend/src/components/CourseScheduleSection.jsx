@@ -1,11 +1,20 @@
-const fmtHM = (horas) => {
-  const numero = Number(horas || 0);
-  if (numero <= 0) return '-';
-  const totalMin = Math.round(numero * 60);
+const plural = (valor, singular, pluralizado) => `${valor} ${valor === 1 ? singular : pluralizado}`;
+
+const formatarMinutos = (minutos) => {
+  const numero = Number(minutos || 0);
+  const totalMin = Number.isFinite(numero) ? Math.max(0, Math.round(numero)) : 0;
   const hh = Math.floor(totalMin / 60);
   const mm = totalMin % 60;
-  if (hh === 0) return `${mm}min`;
-  return `${hh}h${String(mm).padStart(2, '0')}`;
+  const partes = [];
+  if (hh > 0) partes.push(plural(hh, 'hora', 'horas'));
+  if (mm > 0) partes.push(plural(mm, 'minuto', 'minutos'));
+  return partes.length ? partes.join(' e ') : '0 minutos';
+};
+
+const formatarDuracao = (horas) => {
+  const numero = Number(horas || 0);
+  const totalMin = Number.isFinite(numero) ? Math.max(0, Math.round(numero * 60)) : 0;
+  return formatarMinutos(totalMin);
 };
 
 const DIAS = [
@@ -44,12 +53,12 @@ export function CourseScheduleSection({ aluno }) {
         <div>
           <h3 className="course-section-kicker">META DIÁRIA - HORAS DO CURSO</h3>
           <p>
-            Faltam {fmtHM(meta.horasRestantesCurso)} até {meta.prazoFinalFormatado}.
-            Ritmo mínimo de {meta.minMinutosPorDia} min por dia útil.
+            Faltam {formatarDuracao(meta.horasRestantesCurso)} até {meta.prazoFinalFormatado}.
+            Ritmo mínimo de {formatarMinutos(meta.minMinutosPorDia)} por dia útil.
           </p>
         </div>
         <div className="daily-goal-score">
-          <strong>{fmtHM(meta.horasPorDia)}</strong>
+          <strong>{formatarDuracao(meta.horasPorDia)}</strong>
           <span>por dia útil</span>
         </div>
       </div>
@@ -73,8 +82,8 @@ export function CourseScheduleSection({ aluno }) {
         {DIAS.map(([key, label]) => (
           <div key={key}>
             <span>{label}</span>
-            <strong>{fmtHM(meta.semana?.[key])}</strong>
-            <em>horas de curso</em>
+            <strong>{formatarDuracao(meta.semana?.[key])}</strong>
+            <em>de curso</em>
           </div>
         ))}
       </div>

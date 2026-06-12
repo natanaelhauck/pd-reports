@@ -27,4 +27,4 @@ python backend/scripts/processar_atualizacao_consumo_pendente.py --run-id 123
 
 Enquanto o job nao roda, a tela exibe a run como `pending` e continua mostrando a ultima run `success`. Se o processamento falhar, a run vira `error`, os uploads da run sao removidos e a ultima run `success` continua sendo a fonte da tela.
 
-Em qualquer modo, somente Admin pode iniciar a atualizacao. Prefeitura Itabira, Psicologa e Monitor podem consultar os dados permitidos, mas nao disparam o processamento.
+Em qualquer modo, somente Admin pode iniciar a atualizacao. Prefeituras municipais, Psicologa e Monitor podem consultar os dados permitidos, mas nao disparam o processamento.

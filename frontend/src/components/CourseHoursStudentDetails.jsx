@@ -26,12 +26,12 @@ function ConsumptionHeader({ aluno }) {
       <div className="consumption-hero-main">
         <div className="consumption-hero-identity">
           <h2>{alunoNome(aluno)}</h2>
-          <p>{alunoEmail(aluno)}</p>
+          <p className="consumption-hero-email">{alunoEmail(aluno)}</p>
           {matricula && <p className="consumption-hero-registration">Matrícula: {matricula}</p>}
           <span className="consumption-hero-entry">Ingresso: {ingresso(aluno)}</span>
           {(aluno?.desafioFinal || !aluno?.vinculado) && (
             <div className="course-hours-badges consumption-hero-badges">
-              {aluno?.desafioFinal && <span className="course-pill final"><Trophy size={13} /> Desafio Final</span>}
+              {aluno?.desafioFinal && <span className="course-pill final challenge-final-badge"><Trophy size={14} /> Desafio Final</span>}
               {!aluno?.vinculado && (
                 <span className="course-pill warning">Não vinculado</span>
               )}
