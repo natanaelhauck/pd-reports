@@ -2113,11 +2113,15 @@ button.monitoring-metric-card {
   padding: 5px 10px;
   border: 1px solid var(--pd-border);
   border-radius: 999px;
-  background: var(--pd-subtle);
-  color: var(--pd-text);
+  background: color-mix(in srgb, var(--pd-subtle) 88%, #64748b 12%);
+  color: #475569;
   font-size: 12px;
   font-weight: 800;
   line-height: 1.2;
+}
+
+.consumption-status-line svg {
+  color: currentColor;
 }
 
 .consumption-status-line strong {
@@ -2126,21 +2130,21 @@ button.monitoring-metric-card {
 }
 
 .consumption-status-line.progress {
-  color: #b45309;
-  background: color-mix(in srgb, var(--pd-surface) 86%, #f59e0b 14%);
-  border-color: color-mix(in srgb, #f59e0b 32%, var(--pd-border));
+  color: #7c5b22;
+  background: color-mix(in srgb, var(--pd-surface) 91%, #f2c36b 9%);
+  border-color: color-mix(in srgb, #d6ad5d 24%, var(--pd-border));
 }
 
 .consumption-status-line.success {
-  color: #166534;
-  background: color-mix(in srgb, var(--pd-surface) 86%, #22c55e 14%);
-  border-color: color-mix(in srgb, #22c55e 30%, var(--pd-border));
+  color: #2f6f4d;
+  background: color-mix(in srgb, var(--pd-surface) 90%, #d9eadf 10%);
+  border-color: color-mix(in srgb, #96c8a7 26%, var(--pd-border));
 }
 
 .consumption-status-line.error {
-  color: #991b1b;
-  background: color-mix(in srgb, var(--pd-surface) 86%, #ef4444 14%);
-  border-color: color-mix(in srgb, #ef4444 30%, var(--pd-border));
+  color: #934d56;
+  background: color-mix(in srgb, var(--pd-surface) 91%, #f4c7cd 9%);
+  border-color: color-mix(in srgb, #d99aa3 24%, var(--pd-border));
 }
 
 .consumption-status-line.neutral {
@@ -3136,9 +3140,31 @@ body:has(.theme-dark) {
 }
 
 .theme-dark .consumption-status-line {
-  background: #111c2a;
-  border-color: #334155;
-  color: #dbe4ef;
+  background: rgba(30, 41, 59, 0.46);
+  border-color: rgba(148, 163, 184, 0.2);
+  color: #cbd5e1;
+}
+
+.theme-dark .consumption-status-line.success {
+  color: #b7e4c7;
+  background: rgba(20, 83, 45, 0.18);
+  border-color: rgba(134, 239, 172, 0.2);
+}
+
+.theme-dark .consumption-status-line.progress {
+  color: #ead59c;
+  background: rgba(120, 53, 15, 0.16);
+  border-color: rgba(251, 191, 36, 0.2);
+}
+
+.theme-dark .consumption-status-line.error {
+  color: #f0b6bd;
+  background: rgba(127, 29, 29, 0.16);
+  border-color: rgba(248, 113, 113, 0.2);
+}
+
+.theme-dark .consumption-status-line.neutral {
+  color: #cbd5e1;
 }
 
 .theme-dark .consumption-controls,
