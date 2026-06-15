@@ -23,6 +23,7 @@ from course_checker import (
     load_users,
     resolve_student_name,
 )
+from course_rules import official_course_sort_key
 
 
 def assert_equal(description, received, expected):
@@ -92,10 +93,31 @@ def create_fake_files(tmpdir):
             "name": "Sem Email",
         },
     })
+    nomes_oficiais_restantes = [
+        "No Code 1",
+        "Introdução à Web",
+        "JavaScript 1",
+        "Banco de Dados 1",
+        "Programação Orientada a Objetos (POO) 1",
+        "Python 2",
+        "Fundamentos de Interface",
+        "React JS",
+        "Desenvolvimento de websites com mentalidade ágil",
+        "Desenvolvimento de Interfaces Web Frameworks Front-End",
+        "Programação Multiplataforma com React Native",
+        "Programação Multiplataforma com Flutter",
+        "Padrão de Projeto de Software",
+        "Desenvolvimento de APIs RESTful",
+        "Desenvolvimento Nativo para Android",
+        "Banco de Dados não relacional",
+        "Framework Fullstack para Web",
+        "Teste de Software Para Web",
+        "Testes de Software para Mobile",
+    ]
     catalogo_oficial = [
         {
             "course_id": "course-v1:test+zero+2026",
-            "course_name": "Curso Zero",
+            "course_name": "Scratch 1",
         },
         {
             "course_id": "course-v1:test+python1+2026",
@@ -103,13 +125,13 @@ def create_fake_files(tmpdir):
         },
         {
             "course_id": "course-v1:test+avancado+2026",
-            "course_name": "Curso Avancado",
+            "course_name": "Linux 1",
         },
     ]
-    for indice in range(1, 20):
+    for indice, course_name in enumerate(nomes_oficiais_restantes, start=1):
         catalogo_oficial.append({
             "course_id": f"course-v1:test+oficial{indice:02d}+2026",
-            "course_name": f"Curso Oficial {indice:02d}",
+            "course_name": course_name,
         })
     catalogo_oficial.extend([
         {
@@ -238,6 +260,14 @@ def main():
 
         assert_equal("total oficial 22", payload["totalCertifiable"], 22)
         assert_equal("catalogo oficial expandido tem 22 cursos", len(payload["courseCatalog"]), 22)
+        ordem_catalogo = [course["courseName"] for course in payload["courseCatalog"]]
+        assert_equal("catalogo segue ordem oficial da trilha", ordem_catalogo[:5], [
+            "Scratch 1",
+            "No Code 1",
+            "Linux 1",
+            "Introdução à Web",
+            "Python 1",
+        ])
         assert_equal("percentuais em escala 0..100 - total alunos", payload["totals"]["students"], 2)
 
         aluno = find_student(payload, "vinculado@example.com")
@@ -261,11 +291,23 @@ def main():
         assert_equal("cursos nao iniciados ajusta ate 22", aluno["cursosNaoIniciados"], 19)
         assert_equal("certificados gerados", aluno["certificadosGerados"], 2)
         assert_equal("cursos sem certificado", aluno["cursosSemCertificado"], 20)
+        com_certificado = [course for course in aluno["cursos"] if course["certificadoGerado"]]
         sem_certificado = [course for course in aluno["cursos"] if not course["certificadoGerado"]]
+        assert_equal("lista com certificado segue ordem oficial", [course["courseName"] for course in com_certificado], ["Scratch 1", "Linux 1"])
         assert_equal("lista sem certificado bate com contador", len(sem_certificado), aluno["cursosSemCertificado"])
-        assert_equal("curso em andamento fica no topo dos sem certificado", sem_certificado[0]["courseName"], "Python 1")
-        cursos_zero = [course["courseName"] for course in sem_certificado if course["percentual"] == 0]
-        assert_equal("cursos 0% ordenados alfabeticamente", cursos_zero, sorted(cursos_zero))
+        assert_equal("lista sem certificado segue ordem oficial", [course["courseName"] for course in sem_certificado[:4]], [
+            "No Code 1",
+            "Introdução à Web",
+            "Python 1",
+            "JavaScript 1",
+        ])
+        cursos_zero = [course for course in sem_certificado if course["percentual"] == 0]
+        assert_equal("cursos 0% continuam nao iniciados", cursos_zero[0]["status"], VALID_STATUSES["not_started"])
+        assert_equal(
+            "cursos 0% seguem ordem oficial",
+            [course["courseName"] for course in cursos_zero],
+            [course["courseName"] for course in sorted(cursos_zero, key=official_course_sort_key)],
+        )
         assert_true(
             "intensivao continua fora dos detalhes",
             all("Intensiv" not in course["courseName"] for course in aluno["cursos"]),

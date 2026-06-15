@@ -14,6 +14,7 @@ from openpyxl import load_workbook
 from course_rules import (
     COURSE_CONSUMPTION_TOTAL_CERTIFIABLE,
     course_name_is_excluded_from_consumption,
+    official_course_sort_key,
 )
 from course_checker import (
     CourseCheckerError,
@@ -415,12 +416,9 @@ def curso_para_certificados(curso):
 
 def expandir_cursos_certificados(cursos, total_cursos_certificaveis):
     cursos = [curso for curso in (cursos or []) if curso and not curso_removido_certificados(curso)]
-    if len(cursos) >= total_cursos_certificaveis:
-        return cursos
-
     catalogo = carregar_catalogo_oficial_seguro(total_cursos_certificaveis)
     if not catalogo:
-        return cursos
+        return sorted(cursos, key=official_course_sort_key)
 
     expandidos = expand_student_courses_to_official(cursos, catalogo)
     return [curso_para_certificados(curso) for curso in expandidos]

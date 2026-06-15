@@ -20,8 +20,8 @@ from integralizacao import (
     cruzar_com_alunos_pd,
     limpar_cache_integralizacao,
     normalizar_email,
-    sem_acentos,
 )
+from course_rules import official_course_sort_key
 
 
 HEADERS = [
@@ -209,13 +209,19 @@ def main():
             aluno['certificados']['totalCursosCertificaveis'] - aluno['certificados']['certificadosGerados'],
             len(aluno['certificados']['grupos']['semCertificado']),
         )
-        assert_equal('curso em andamento fica no topo sem certificado', aluno['certificados']['grupos']['semCertificado'][0]['curso'], 'Python 1')
+        assert_equal('lista com certificado segue ordem oficial', [curso['curso'] for curso in aluno['certificados']['grupos']['comCertificado']], ['Linux 1', 'Banco de Dados 1'])
+        assert_equal('lista sem certificado segue ordem oficial', [curso['curso'] for curso in aluno['certificados']['grupos']['semCertificado'][:4]], ['Scratch 1', 'No Code 1', 'Introdução à Web', 'Python 1'])
         cursos_zero = [
-            curso['curso']
+            curso
             for curso in aluno['certificados']['grupos']['semCertificado']
             if curso['percentual'] == 0
         ]
-        assert_equal('cursos 0% em ordem alfabetica', cursos_zero, sorted(cursos_zero, key=lambda nome: sem_acentos(nome).lower()))
+        assert_equal('cursos 0% continuam nao iniciados', cursos_zero[0]['status'], 'Não iniciado')
+        assert_equal(
+            'cursos 0% seguem ordem oficial',
+            [curso['curso'] for curso in cursos_zero],
+            [curso['curso'] for curso in sorted(cursos_zero, key=official_course_sort_key)],
+        )
         assert_equal(
             'intensivao continua ignorado',
             any('Intensiv' in curso['curso'] for curso in aluno['certificados']['cursos']),

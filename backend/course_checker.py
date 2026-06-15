@@ -15,6 +15,7 @@ from psycopg2.extras import Json, RealDictCursor, execute_values
 from course_rules import (
     COURSE_CONSUMPTION_TOTAL_CERTIFIABLE,
     course_name_is_excluded_from_consumption,
+    official_course_sort_key as official_trail_course_sort_key,
 )
 
 try:
@@ -394,13 +395,14 @@ def is_course_ignored(course_id, course_name, catalog_entry, ignored_courses):
     return course_name_is_excluded_from_consumption(course_name)
 
 
-def official_course_sort_key(course):
+def catalog_course_sort_key(course):
     ordem = course.get("ordem")
     try:
         ordem = int(ordem)
     except (TypeError, ValueError):
         ordem = 10**9
     return (
+        official_trail_course_sort_key(course)[0],
         ordem,
         field_key(course.get("courseName")),
         field_key(course.get("courseId")),
@@ -408,16 +410,7 @@ def official_course_sort_key(course):
 
 
 def sort_student_courses(courses):
-    def key(course):
-        percentual = to_float(course.get("percentual"), 0)
-        return (
-            0 if percentual > 0 else 1,
-            -percentual if percentual > 0 else 0,
-            field_key(course.get("courseName")),
-            field_key(course.get("courseId")),
-        )
-
-    return sorted(courses or [], key=key)
+    return sorted(courses or [], key=official_trail_course_sort_key)
 
 
 def build_official_course_catalog(catalog, ignored_courses=None):
@@ -437,7 +430,7 @@ def build_official_course_catalog(catalog, ignored_courses=None):
             "ignored": bool(entry.get("ignored", False)),
             "ordem": entry.get("ordem"),
         })
-    official.sort(key=official_course_sort_key)
+    official.sort(key=catalog_course_sort_key)
     return official
 
 

@@ -8,22 +8,22 @@
   --accent-bg: rgba(170, 59, 255, 0.1);
   --accent-border: rgba(170, 59, 255, 0.5);
   --social-bg: rgba(244, 243, 236, 0.5);
-  --course-pct-good: #15803d;
-  --course-pct-mid: #ea580c;
-  --course-pct-low: #dc2626;
-  --course-progress-track-bg: #e5e7eb;
-  --course-success-text: #047857;
-  --course-success-bg: #ecfdf5;
-  --course-success-border: #a7f3d0;
-  --course-progress-text: #9a3412;
-  --course-progress-bg: #fff7ed;
-  --course-progress-border: #fed7aa;
-  --course-muted-text: #475569;
-  --course-muted-bg: #f1f5f9;
-  --course-muted-border: #cbd5e1;
-  --course-risk-text: #be123c;
-  --course-risk-bg: #fff1f2;
-  --course-risk-border: #fecdd3;
+  --course-pct-good: #2f8f5b;
+  --course-pct-mid: #b7791f;
+  --course-pct-low: #b4535f;
+  --course-progress-track-bg: #e8edf3;
+  --course-success-text: #176c43;
+  --course-success-bg: #f0f8f3;
+  --course-success-border: #cde8d8;
+  --course-progress-text: #8a5a13;
+  --course-progress-bg: #fbf6e8;
+  --course-progress-border: #ead9aa;
+  --course-muted-text: #556577;
+  --course-muted-bg: #f3f6f9;
+  --course-muted-border: #d7dee8;
+  --course-risk-text: #a64d5b;
+  --course-risk-bg: #fbf1f3;
+  --course-risk-border: #efd0d5;
   --shadow:
     rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
 
@@ -1788,6 +1788,11 @@ button.monitoring-metric-card {
   box-shadow: 0 8px 20px rgba(15, 23, 42, 0.05);
 }
 
+.certificates-section,
+.schedule-section {
+  background: color-mix(in srgb, var(--pd-surface) 96%, #64748b 4%);
+}
+
 .course-hours-card.compact {
   box-shadow: none;
 }
@@ -1855,20 +1860,20 @@ button.monitoring-metric-card {
 }
 
 .course-pill.final {
-  color: #854d0e;
-  background: #fffbeb;
-  border-color: #f59e0b;
-  box-shadow: 0 1px 0 rgba(245, 158, 11, 0.18);
+  color: var(--course-progress-text);
+  background: var(--course-progress-bg);
+  border-color: var(--course-progress-border);
+  box-shadow: 0 1px 0 rgba(120, 113, 108, 0.08);
 }
 
 .course-pill.final svg {
-  color: #d97706;
+  color: var(--course-progress-text);
 }
 
 .course-pill.linked {
-  color: #1d4ed8;
-  background: #eff6ff;
-  border-color: #bfdbfe;
+  color: #3f5f86;
+  background: #f1f6fb;
+  border-color: #d2deea;
 }
 
 .course-pill.warning,
@@ -1893,23 +1898,23 @@ button.monitoring-metric-card {
 }
 
 .course-stat.done {
-  border-left: 4px solid #22c55e;
+  border-left: 3px solid color-mix(in srgb, var(--course-success-text) 46%, var(--pd-border));
 }
 
 .course-stat.progress {
-  border-left: 4px solid #f59e0b;
+  border-left: 3px solid color-mix(in srgb, var(--course-progress-text) 42%, var(--pd-border));
 }
 
 .course-stat.risk {
-  border-left: 4px solid #ef4444;
+  border-left: 3px solid color-mix(in srgb, var(--course-risk-text) 40%, var(--pd-border));
 }
 
 .course-stat.muted {
-  border-left: 4px solid #94a3b8;
+  border-left: 3px solid color-mix(in srgb, var(--course-muted-text) 35%, var(--pd-border));
 }
 
 .course-stat.done strong {
-  color: #22c55e;
+  color: var(--course-success-text);
 }
 
 .course-stat.progress strong {
@@ -1969,8 +1974,8 @@ button.monitoring-metric-card {
 }
 
 .course-complete {
-  border-color: #bbf7d0;
-  background: color-mix(in srgb, var(--pd-surface) 88%, #22c55e 12%);
+  border-color: var(--course-success-border);
+  background: color-mix(in srgb, var(--pd-surface) 90%, var(--course-success-bg) 10%);
 }
 
 .course-list-box {
@@ -2048,15 +2053,15 @@ button.monitoring-metric-card {
 }
 
 .course-cert-badge.ok {
-  color: #166534;
-  background: #dcfce7;
-  border-color: #4ade80;
+  color: var(--course-success-text);
+  background: var(--course-success-bg);
+  border-color: var(--course-success-border);
 }
 
 .course-cert-badge.done {
-  color: #166534;
-  background: #dcfce7;
-  border-color: #4ade80;
+  color: var(--course-success-text);
+  background: var(--course-success-bg);
+  border-color: var(--course-success-border);
 }
 
 .course-empty-text {
@@ -2399,8 +2404,13 @@ button.course-hours-card {
 }
 
 .course-back-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  justify-self: end;
   width: fit-content;
   min-height: 38px;
+  margin-left: auto;
   border: 1px solid var(--pd-button-border);
   border-radius: 9px;
   padding: 8px 13px;
@@ -2423,8 +2433,8 @@ button.course-hours-card {
   padding: 18px;
   border: 1px solid var(--pd-border);
   border-radius: 12px;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--pd-surface) 94%, #2563eb 6%), var(--pd-surface));
-  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--pd-surface) 96%, #64748b 4%), var(--pd-surface));
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
   text-align: left;
 }
 
@@ -2482,7 +2492,7 @@ button.course-hours-card {
   width: fit-content;
   min-height: 24px;
   margin: 0;
-  padding: 4px 9px;
+  padding: 4px 9px 4px 0;
   border: 1px solid var(--pd-border);
   border-radius: 999px;
   background: var(--pd-subtle);
@@ -2526,9 +2536,9 @@ button.course-hours-card {
 .consumption-hero-score-card {
   min-width: 126px;
   padding: 12px 14px;
-  border: 1px solid color-mix(in srgb, currentColor 24%, var(--pd-border));
+  border: 1px solid color-mix(in srgb, currentColor 16%, var(--pd-border));
   border-radius: 12px;
-  background: color-mix(in srgb, var(--pd-surface) 92%, currentColor 8%);
+  background: color-mix(in srgb, var(--pd-surface) 95%, currentColor 5%);
   justify-items: center;
   align-content: center;
   text-align: center;
@@ -2653,19 +2663,19 @@ button.course-hours-card {
 }
 
 .course-list-box.done {
-  border-color: #bbf7d0;
+  border-color: var(--course-success-border);
 }
 
 .course-list-box.progress {
-  border-color: #fde68a;
+  border-color: var(--course-progress-border);
 }
 
 .course-list-box.muted {
-  border-color: #cbd5e1;
+  border-color: var(--course-muted-border);
 }
 
 .course-list-box.risk {
-  border-color: #fecaca;
+  border-color: var(--course-risk-border);
 }
 
 .course-list-box ul {
@@ -2674,9 +2684,9 @@ button.course-hours-card {
 }
 
 .course-cert-badge.progress {
-  color: #9a3412;
-  background: #ffedd5;
-  border-color: #fb923c;
+  color: var(--course-progress-text);
+  background: var(--course-progress-bg);
+  border-color: var(--course-progress-border);
 }
 
 .course-cert-badge.muted {
@@ -2686,9 +2696,9 @@ button.course-hours-card {
 }
 
 .course-cert-badge.risk {
-  color: #b91c1c;
-  background: #fee2e2;
-  border-color: #f87171;
+  color: var(--course-risk-text);
+  background: var(--course-risk-bg);
+  border-color: var(--course-risk-border);
 }
 
 .schedule-head {
@@ -2701,7 +2711,7 @@ button.course-hours-card {
   font-size: 12px;
   letter-spacing: 0.02em;
   text-transform: uppercase;
-  color: #3b82f6;
+  color: #526b8a;
   text-align: left;
 }
 
@@ -2722,7 +2732,7 @@ button.course-hours-card {
 
 .daily-goal-score strong,
 .daily-goal-score span {
-  color: #3b82f6;
+  color: #526b8a;
 }
 
 .course-week-note {
