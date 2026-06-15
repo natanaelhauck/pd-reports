@@ -56,8 +56,8 @@ from integralizacao import (
     IntegralizacaoNeonSemDados,
     IntegralizacaoPlanilhaInvalida,
     aluno_pd_resumo,
-    buscar_por_email,
     carregar_integralizacao,
+    carregar_integralizacao_aluno,
     cruzar_com_alunos_pd,
     montar_resumo_geral,
     normalizar_email as normalizar_email_integralizacao,
@@ -1954,6 +1954,11 @@ def integralizacao_config_env():
         'total_cursos_certificaveis': COURSE_CONSUMPTION_TOTAL_CERTIFIABLE,
     }
 
+def source_mode_consumo_endpoint():
+    if CONSUMPTION_SOURCE_MODE == 'auto' and os.getenv('RENDER'):
+        return 'neon'
+    return CONSUMPTION_SOURCE_MODE
+
 def resposta_erro_integralizacao(exc):
     if isinstance(exc, IntegralizacaoArquivoNaoEncontrado):
         return jsonify({
@@ -2035,6 +2040,35 @@ def fonte_consumo_publica(fonte):
         'totalCursosCertificaveis',
     )
     return {campo: fonte.get(campo) for campo in campos_publicos if campo in fonte}
+
+def resumir_aluno_integralizacao_lista(aluno):
+    campos = (
+        'nome',
+        'email',
+        'emailNormalizado',
+        'alunoSlug',
+        'horasVistas',
+        'dataIngresso',
+        'dataEntradaCurso',
+        'dataEntradaCursoFormatada',
+        'decisao',
+        'ativo',
+        'pdita',
+        'matriculaPd',
+        'cidade',
+        'linkedStudentId',
+        'statusCruzamento',
+        'desafioFinal',
+        'alunoConcluido',
+        'horasTotaisCurso',
+        'percentualIntegralizacao',
+        'fonteConsumo',
+        'vinculado',
+    )
+    resumo = {campo: aluno.get(campo) for campo in campos if campo in aluno}
+    if aluno.get('alunoPd'):
+        resumo['alunoPd'] = aluno.get('alunoPd')
+    return resumo
 
 def usuario_pode_ver_aluno_pd(usuario, aluno):
     return can_access_student(
@@ -2758,30 +2792,34 @@ def get_integralizacao():
         return erro
 
     inicio = time.perf_counter()
-    app.logger.info('consumo.integralizacao.start source_mode=%s', CONSUMPTION_SOURCE_MODE)
+    etapas = {}
+    source_mode = source_mode_consumo_endpoint()
+    app.logger.info('consumo.integralizacao.start source_mode=%s configured_source_mode=%s', source_mode, CONSUMPTION_SOURCE_MODE)
     conn = None
     try:
-        dados_integralizacao = carregar_integralizacao(**integralizacao_config_env())
+        etapa = time.perf_counter()
+        dados_integralizacao = carregar_integralizacao(
+            incluir_cursos=False,
+            **{**integralizacao_config_env(), 'source_mode': source_mode},
+        )
+        etapas['carregar_integralizacao_ms'] = int((time.perf_counter() - etapa) * 1000)
+        etapa = time.perf_counter()
         conn = conectar_db()
         cursor = cursor_db(conn)
         alunos_pd = carregar_alunos_pd_para_integralizacao(cursor)
+        etapas['alunos_pd_ms'] = int((time.perf_counter() - etapa) * 1000)
+        etapa = time.perf_counter()
         cruzamento = cruzar_com_alunos_pd(dados_integralizacao['alunos'], alunos_pd)
+        etapas['cruzamento_ms'] = int((time.perf_counter() - etapa) * 1000)
+        etapa = time.perf_counter()
         alunos_visiveis = filtrar_integralizacao_por_usuario(cruzamento['alunos'], usuario)
+        etapas['filtro_usuario_ms'] = int((time.perf_counter() - etapa) * 1000)
         alunos_visiveis.sort(key=lambda item: item.get('percentualIntegralizacao', 0), reverse=True)
         resumo = montar_resumo_geral(alunos_visiveis)
         fonte = dados_integralizacao.get('fonte') or {}
-        app.logger.info(
-            'consumo.integralizacao.done elapsed_ms=%s source=%s mode=%s fallback=%s run_id=%s total=%s visible=%s',
-            int((time.perf_counter() - inicio) * 1000),
-            fonte.get('tipo'),
-            fonte.get('modoFonte'),
-            fonte.get('fallback'),
-            fonte.get('runId'),
-            len(cruzamento['alunos']),
-            len(alunos_visiveis),
-        )
-        return jsonify({
-            'alunos': alunos_visiveis,
+        etapa = time.perf_counter()
+        payload = {
+            'alunos': [resumir_aluno_integralizacao_lista(aluno) for aluno in alunos_visiveis],
             'resumo': resumo,
             'fonte': fonte_consumo_publica(fonte),
             'permissoes': {
@@ -2791,7 +2829,27 @@ def get_integralizacao():
                 **montar_resumo_geral(cruzamento['alunos']),
                 **cruzamento.get('resumoVinculos', {}),
             },
-        })
+        }
+        payload_bytes = len(json.dumps(payload, ensure_ascii=False, default=str).encode('utf-8'))
+        etapas['serializacao_ms'] = int((time.perf_counter() - etapa) * 1000)
+        app.logger.info(
+            'consumo.integralizacao.done elapsed_ms=%s carregar_integralizacao_ms=%s alunos_pd_ms=%s cruzamento_ms=%s filtro_usuario_ms=%s serializacao_ms=%s source=%s mode=%s fallback=%s run_id=%s total=%s visible=%s role=%s payload_bytes=%s',
+            int((time.perf_counter() - inicio) * 1000),
+            etapas.get('carregar_integralizacao_ms'),
+            etapas.get('alunos_pd_ms'),
+            etapas.get('cruzamento_ms'),
+            etapas.get('filtro_usuario_ms'),
+            etapas.get('serializacao_ms'),
+            fonte.get('tipo'),
+            fonte.get('modoFonte'),
+            fonte.get('fallback'),
+            fonte.get('runId'),
+            len(cruzamento['alunos']),
+            len(alunos_visiveis),
+            usuario.get('role'),
+            payload_bytes,
+        )
+        return jsonify(payload)
     except psycopg2.Error as exc:
         app.logger.exception('consumo.integralizacao.db_error elapsed_ms=%s', int((time.perf_counter() - inicio) * 1000))
         return erro_banco(exc)
@@ -2839,15 +2897,18 @@ def get_integralizacao_aluno(matricula):
                 'alunoPd': aluno_pd_payload,
             })
 
-        dados_integralizacao = carregar_integralizacao(**integralizacao_config_env())
-        aluno_integralizacao = buscar_por_email(dados_integralizacao, email)
+        dados_aluno = carregar_integralizacao_aluno(
+            email,
+            **{**integralizacao_config_env(), 'source_mode': source_mode_consumo_endpoint()},
+        )
+        aluno_integralizacao = dados_aluno.get('aluno')
         if not aluno_integralizacao:
             return jsonify({
                 'encontrado': False,
                 'mensagem': 'Sem dados de consumo para este e-mail.',
                 'alunoPd': aluno_pd_payload,
                 'emailConsultado': email,
-                'fonte': fonte_consumo_publica(dados_integralizacao.get('fonte')),
+                'fonte': fonte_consumo_publica(dados_aluno.get('fonte')),
             })
 
         aluno_integralizacao['vinculado'] = True
@@ -2855,7 +2916,7 @@ def get_integralizacao_aluno(matricula):
         return jsonify({
             'encontrado': True,
             'aluno': aluno_integralizacao,
-            'fonte': fonte_consumo_publica(dados_integralizacao.get('fonte')),
+            'fonte': fonte_consumo_publica(dados_aluno.get('fonte')),
         })
     except psycopg2.Error as exc:
         return erro_banco(exc)

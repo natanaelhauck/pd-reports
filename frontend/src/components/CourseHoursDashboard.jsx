@@ -142,7 +142,7 @@ export function CourseHoursDashboard({ apiBaseUrl, authHeaders, onSelectStudent,
       if (carregarRequestId.current !== requestId) return;
       if (isRequestCanceledOrTimeout(err)) {
         if (isDev) console.info('Request de consumo abortado/timeout após retry.', err.code || err.name || err.message);
-        setErro('Não foi possível carregar os dados de consumo. O servidor demorou para responder; tente novamente em instantes.');
+        setErro('Não foi possível carregar a lista de consumo. Tente novamente em instantes.');
       } else if (consumoErroEhEstadoVazio(err)) {
         setDados({ alunos: [], resumo: {}, permissoes: { podeVerNaoVinculados: isAdmin }, resumoGeralFonte: {} });
         setEstadoVazio(consumoErroMensagem(err, usuario));

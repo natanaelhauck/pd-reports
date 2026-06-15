@@ -23,7 +23,9 @@ from course_checker import (
     resolve_official_course_catalog,
 )
 from consumption_repository import (
+    get_consumption_courses_from_run_by_email,
     get_consumption_courses_from_run,
+    get_consumption_student_from_run_by_email,
     get_consumption_students_from_run,
     get_latest_successful_run,
 )
@@ -287,7 +289,7 @@ def config_integralizacao(env=None, **overrides):
     }
 
 
-def cache_key(config, hoje):
+def cache_key(config, hoje, incluir_cursos=True):
     hoje_key = hoje.isoformat() if hoje else date.today().isoformat()
     return (
         str(config["xlsx_path"]),
@@ -297,6 +299,7 @@ def cache_key(config, hoje):
         config["source_mode"],
         bool(config.get("database_url")),
         config["total_cursos_certificaveis"],
+        bool(incluir_cursos),
         hoje_key,
     )
 
@@ -776,6 +779,46 @@ def montar_aluno_integralizacao_neon(aluno_row, cursos, config, hoje=None):
     }
 
 
+def montar_aluno_integralizacao_neon_resumo(aluno_row, config):
+    email = texto(aluno_row.get("student_email"))
+    email_normalizado = normalizar_email(email)
+    if not email_normalizado:
+        return None
+
+    percentual = parse_percentual(aluno_row.get("consumo_percentual"))
+    desafio_final = bool(aluno_row.get("desafio_final"))
+    if desafio_final:
+        percentual = 100
+
+    data_entrada = parse_data_excel(aluno_row.get("ingresso"))
+    matricula = texto(aluno_row.get("matricula_pd"))
+    horas_totais = config["horas_totais"]
+    horas_vistas = round((horas_totais * percentual) / 100, 2)
+
+    return {
+        "nome": texto(aluno_row.get("student_name")) or email,
+        "email": email,
+        "emailNormalizado": email_normalizado,
+        "alunoSlug": email_normalizado.split("@", 1)[0],
+        "horasVistas": horas_vistas,
+        "dataIngresso": formatar_data_br_date(data_entrada),
+        "dataEntradaCurso": formatar_data_iso(data_entrada),
+        "dataEntradaCursoFormatada": formatar_data_br_date(data_entrada),
+        "decisao": "",
+        "ativo": True,
+        "pdita": matricula,
+        "matriculaPd": matricula,
+        "cidade": texto(aluno_row.get("cidade")),
+        "linkedStudentId": aluno_row.get("linked_student_id"),
+        "statusCruzamento": "",
+        "desafioFinal": desafio_final,
+        "alunoConcluido": bool(desafio_final or percentual >= 100),
+        "horasTotaisCurso": horas_totais,
+        "percentualIntegralizacao": percentual,
+        "fonteConsumo": "neon",
+    }
+
+
 def fonte_neon(run, alunos, config):
     finished_at = run.get("finished_at") or run.get("created_at")
     started_at = run.get("started_at")
@@ -847,6 +890,92 @@ def ler_neon_integralizacao(config, hoje=None):
         "alunos": alunos,
         "porEmail": {aluno["emailNormalizado"]: aluno for aluno in alunos},
         "fonte": fonte_neon(run, alunos, config),
+    }
+
+
+def ler_neon_integralizacao_resumo(config):
+    database_url = config.get("database_url")
+    if not database_url:
+        raise IntegralizacaoNeonIndisponivel(
+            "DATABASE_URL nao configurada para leitura de consumo no Neon."
+        )
+
+    conn = None
+    try:
+        conn = psycopg2.connect(database_url)
+        run = get_latest_successful_run(conn)
+        if not run:
+            raise IntegralizacaoNeonSemDados(
+                "Nao ha dados de consumo no banco. Nenhuma execucao success foi encontrada."
+            )
+
+        alunos_rows = get_consumption_students_from_run(conn, run["id"])
+    except IntegralizacaoNeonSemDados:
+        raise
+    except psycopg2.Error as exc:
+        raise IntegralizacaoNeonIndisponivel(
+            "Nao foi possivel ler os dados de consumo no Neon."
+        ) from exc
+    finally:
+        if conn:
+            conn.close()
+
+    alunos = []
+    for aluno_row in alunos_rows:
+        aluno = montar_aluno_integralizacao_neon_resumo(aluno_row, config)
+        if aluno:
+            alunos.append(aluno)
+
+    return {
+        "alunos": alunos,
+        "porEmail": {aluno["emailNormalizado"]: aluno for aluno in alunos},
+        "fonte": fonte_neon(run, alunos, config),
+    }
+
+
+def ler_neon_integralizacao_aluno(config, email, hoje=None):
+    database_url = config.get("database_url")
+    if not database_url:
+        raise IntegralizacaoNeonIndisponivel(
+            "DATABASE_URL nao configurada para leitura de consumo no Neon."
+        )
+
+    conn = None
+    try:
+        conn = psycopg2.connect(database_url)
+        run = get_latest_successful_run(conn)
+        if not run:
+            raise IntegralizacaoNeonSemDados(
+                "Nao ha dados de consumo no banco. Nenhuma execucao success foi encontrada."
+            )
+
+        aluno_row = get_consumption_student_from_run_by_email(conn, run["id"], email)
+        if not aluno_row:
+            return {
+                "aluno": None,
+                "fonte": fonte_neon(run, [], config),
+            }
+        cursos_rows = get_consumption_courses_from_run_by_email(conn, run["id"], email)
+    except IntegralizacaoNeonSemDados:
+        raise
+    except psycopg2.Error as exc:
+        raise IntegralizacaoNeonIndisponivel(
+            "Nao foi possivel ler os dados de consumo no Neon."
+        ) from exc
+    finally:
+        if conn:
+            conn.close()
+
+    cursos = []
+    for row in cursos_rows:
+        curso = montar_curso_neon(row)
+        if curso:
+            cursos.append(curso)
+
+    aluno = montar_aluno_integralizacao_neon(aluno_row, cursos, config, hoje=hoje)
+    return {
+        "aluno": aluno,
+        "fonte": fonte_neon(run, [aluno] if aluno else [], config),
     }
 
 
@@ -931,15 +1060,17 @@ def ler_planilha_integralizacao(config, hoje=None):
     }
 
 
-def carregar_por_fonte(config, hoje=None):
+def carregar_por_fonte(config, hoje=None, incluir_cursos=True):
     modo = config["source_mode"]
     if modo == "xlsx":
         return ler_planilha_integralizacao(config, hoje=hoje)
     if modo == "neon":
-        return ler_neon_integralizacao(config, hoje=hoje)
+        if incluir_cursos:
+            return ler_neon_integralizacao(config, hoje=hoje)
+        return ler_neon_integralizacao_resumo(config)
 
     try:
-        dados = ler_neon_integralizacao(config, hoje=hoje)
+        dados = ler_neon_integralizacao(config, hoje=hoje) if incluir_cursos else ler_neon_integralizacao_resumo(config)
         dados["fonte"]["modoFonte"] = "auto"
         return dados
     except (IntegralizacaoNeonSemDados, IntegralizacaoNeonIndisponivel) as exc:
@@ -950,19 +1081,47 @@ def carregar_por_fonte(config, hoje=None):
         return dados
 
 
-def carregar_integralizacao(env=None, usar_cache=True, hoje=None, **overrides):
+def carregar_integralizacao(env=None, usar_cache=True, hoje=None, incluir_cursos=True, **overrides):
     config = config_integralizacao(env=env, **overrides)
-    key = cache_key(config, hoje)
+    key = cache_key(config, hoje, incluir_cursos=incluir_cursos)
     agora = time.time()
     if usar_cache and _CACHE["key"] == key and _CACHE["data"] and agora < _CACHE["expires_at"]:
         return copy.deepcopy(_CACHE["data"])
 
-    dados = carregar_por_fonte(config, hoje=hoje)
+    dados = carregar_por_fonte(config, hoje=hoje, incluir_cursos=incluir_cursos)
     if usar_cache and config["cache_ttl"] > 0:
         _CACHE["key"] = key
         _CACHE["expires_at"] = agora + config["cache_ttl"]
         _CACHE["data"] = copy.deepcopy(dados)
     return dados
+
+
+def carregar_integralizacao_aluno(email, env=None, hoje=None, **overrides):
+    config = config_integralizacao(env=env, **overrides)
+    modo = config["source_mode"]
+    if modo == "xlsx":
+        dados = carregar_por_fonte(config, hoje=hoje, incluir_cursos=True)
+        return {
+            "aluno": buscar_por_email(dados, email),
+            "fonte": dados.get("fonte"),
+        }
+
+    try:
+        resultado = ler_neon_integralizacao_aluno(config, email, hoje=hoje)
+        if resultado.get("fonte") is not None and modo == "auto":
+            resultado["fonte"]["modoFonte"] = "auto"
+        return resultado
+    except (IntegralizacaoNeonSemDados, IntegralizacaoNeonIndisponivel) as exc:
+        if modo == "neon":
+            raise
+        dados = ler_planilha_integralizacao(config, hoje=hoje)
+        dados["fonte"]["modoFonte"] = "auto"
+        dados["fonte"]["fallback"] = "xlsx"
+        dados["fonte"]["neonFallbackMotivo"] = exc.__class__.__name__
+        return {
+            "aluno": buscar_por_email(dados, email),
+            "fonte": dados.get("fonte"),
+        }
 
 
 def aluno_pd_resumo(aluno):

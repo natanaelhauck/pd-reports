@@ -93,6 +93,25 @@ def get_consumption_student_detail_from_latest_run(conn, email):
         return _row_to_dict(cursor.fetchone())
 
 
+def get_consumption_student_from_run_by_email(conn, run_id, email):
+    email_normalized = normalize_email(email)
+    if not email_normalized:
+        return None
+
+    with _cursor(conn) as cursor:
+        cursor.execute(
+            """
+            SELECT *
+            FROM course_consumption_students
+            WHERE run_id = %s AND lower(trim(student_email)) = %s
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (run_id, email_normalized),
+        )
+        return _row_to_dict(cursor.fetchone())
+
+
 def get_consumption_courses_from_run(conn, run_id):
     with _cursor(conn) as cursor:
         cursor.execute(
@@ -103,6 +122,24 @@ def get_consumption_courses_from_run(conn, run_id):
             ORDER BY student_email, course_name
             """,
             (run_id,),
+        )
+        return [dict(row) for row in cursor.fetchall()]
+
+
+def get_consumption_courses_from_run_by_email(conn, run_id, email):
+    email_normalized = normalize_email(email)
+    if not email_normalized:
+        return []
+
+    with _cursor(conn) as cursor:
+        cursor.execute(
+            """
+            SELECT *
+            FROM course_consumption_courses
+            WHERE run_id = %s AND lower(trim(student_email)) = %s
+            ORDER BY course_name
+            """,
+            (run_id, email_normalized),
         )
         return [dict(row) for row in cursor.fetchall()]
 
