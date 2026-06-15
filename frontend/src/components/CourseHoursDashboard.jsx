@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import { AlertTriangle, Clock3, FileJson, FileText, LoaderCircle, Upload, X } from 'lucide-react';
 import { CourseHoursStudentCard } from './CourseHoursStudentCard.jsx';
@@ -12,6 +12,37 @@ const TABS = [
 
 const MIME_JSON = ['application/json', 'text/plain', 'application/octet-stream'];
 const MIME_CSV = ['text/csv', 'application/csv', 'application/vnd.ms-excel', 'text/plain', 'application/octet-stream'];
+const CONSUMPTION_REQUEST_TIMEOUT_MS = 60000;
+const CONSUMPTION_STATUS_TIMEOUT_MS = 45000;
+const CONSUMPTION_RETRY_DELAY_MS = 3000;
+const isDev = import.meta.env.DEV;
+
+const aguardar = (ms) => new Promise((resolve) => {
+  window.setTimeout(resolve, ms);
+});
+
+const isRequestCanceledOrTimeout = (err) => (
+  axios.isCancel?.(err)
+  || err?.name === 'AbortError'
+  || err?.code === 'ERR_CANCELED'
+  || err?.code === 'ECONNABORTED'
+  || /timeout|aborted|canceled|cancelled/i.test(String(err?.message || ''))
+);
+
+const consumoErroEhEstadoVazio = (err) => (
+  err?.response?.status === 404
+  && (err?.response?.data?.code === 'consumption_not_found' || err?.response?.data?.error === 'consumption_not_found')
+);
+
+const consumoErroMensagem = (err, usuario) => {
+  const code = err?.response?.data?.code || err?.response?.data?.error;
+  if (code === 'consumption_not_found') {
+    return usuario?.role === 'admin'
+      ? 'Nenhuma atualização de consumo encontrada. Clique em "Atualizar consumo" para carregar os dados.'
+      : 'Nenhuma atualização de consumo disponível no momento.';
+  }
+  return err?.response?.data?.erro || err?.response?.data?.message || 'Não foi possível carregar os dados de consumo.';
+};
 
 const formatarAtualizacao = (valor) => {
   if (!valor) return '';
@@ -63,6 +94,8 @@ export function CourseHoursDashboard({ apiBaseUrl, authHeaders, onSelectStudent,
   const [dados, setDados] = useState(null);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState('');
+  const [avisoCarregamento, setAvisoCarregamento] = useState('');
+  const [estadoVazio, setEstadoVazio] = useState('');
   const [tab, setTab] = useState('ativos');
   const [filtro, setFiltro] = useState('');
   const [statusAtualizacao, setStatusAtualizacao] = useState(null);
@@ -79,31 +112,82 @@ export function CourseHoursDashboard({ apiBaseUrl, authHeaders, onSelectStudent,
   const isAdmin = usuario?.role === 'admin';
   const statusRunAtiva = statusAtualizacao?.status === 'pending' || statusAtualizacao?.status === 'running';
   const uploadEmAndamento = enviandoUpload || uploadStage === 'enviando' || uploadStage === 'processando';
+  const carregarRequestId = useRef(0);
+  const statusRequestId = useRef(0);
 
   const carregar = async () => {
+    const requestId = carregarRequestId.current + 1;
+    carregarRequestId.current = requestId;
     setCarregando(true);
     setErro('');
+    setEstadoVazio('');
+    setAvisoCarregamento('');
     try {
-      const res = await axios.get(`${apiBaseUrl}/api/integralizacao`, { headers: authHeaders, timeout: 25000 });
+      const url = `${apiBaseUrl}/api/integralizacao`;
+      let res;
+      try {
+        res = await axios.get(url, { headers: authHeaders, timeout: CONSUMPTION_REQUEST_TIMEOUT_MS });
+      } catch (err) {
+        if (!isRequestCanceledOrTimeout(err)) throw err;
+        if (isDev) console.info('Request de consumo abortado/timeout; tentando novamente.', err.code || err.name || err.message);
+        if (carregarRequestId.current !== requestId) return;
+        setAvisoCarregamento('Carregando dados de consumo. O servidor pode levar alguns segundos para responder.');
+        await aguardar(CONSUMPTION_RETRY_DELAY_MS);
+        if (carregarRequestId.current !== requestId) return;
+        res = await axios.get(url, { headers: authHeaders, timeout: CONSUMPTION_REQUEST_TIMEOUT_MS });
+      }
+      if (carregarRequestId.current !== requestId) return;
       setDados(res.data);
     } catch (err) {
-      setErro(err.response?.data?.erro || 'Não foi possível carregar os dados de consumo.');
+      if (carregarRequestId.current !== requestId) return;
+      if (isRequestCanceledOrTimeout(err)) {
+        if (isDev) console.info('Request de consumo abortado/timeout após retry.', err.code || err.name || err.message);
+        setErro('Não foi possível carregar os dados de consumo. O servidor demorou para responder; tente novamente em instantes.');
+      } else if (consumoErroEhEstadoVazio(err)) {
+        setDados({ alunos: [], resumo: {}, permissoes: { podeVerNaoVinculados: isAdmin }, resumoGeralFonte: {} });
+        setEstadoVazio(consumoErroMensagem(err, usuario));
+      } else {
+        setErro(consumoErroMensagem(err, usuario));
+      }
     } finally {
-      setCarregando(false);
+      if (carregarRequestId.current === requestId) {
+        setCarregando(false);
+        setAvisoCarregamento('');
+      }
     }
   };
 
   const carregarStatus = async () => {
+    const requestId = statusRequestId.current + 1;
+    statusRequestId.current = requestId;
     setCarregandoStatus(true);
     try {
-      const res = await axios.get(`${apiBaseUrl}/api/consumo/atualizacao/status`, { headers: authHeaders, timeout: 15000 });
+      const url = `${apiBaseUrl}/api/consumo/atualizacao/status`;
+      let res;
+      try {
+        res = await axios.get(url, { headers: authHeaders, timeout: CONSUMPTION_STATUS_TIMEOUT_MS });
+      } catch (err) {
+        if (!isRequestCanceledOrTimeout(err)) throw err;
+        if (isDev) console.info('Request de status do consumo abortado/timeout; tentando novamente.', err.code || err.name || err.message);
+        if (statusRequestId.current !== requestId) return null;
+        await aguardar(CONSUMPTION_RETRY_DELAY_MS);
+        if (statusRequestId.current !== requestId) return null;
+        res = await axios.get(url, { headers: authHeaders, timeout: CONSUMPTION_STATUS_TIMEOUT_MS });
+      }
+      if (statusRequestId.current !== requestId) return null;
       setStatusAtualizacao(res.data);
       return res.data;
-    } catch {
-      setStatusAtualizacao(null);
+    } catch (err) {
+      if (statusRequestId.current !== requestId) return null;
+      if (isRequestCanceledOrTimeout(err) && isDev) {
+        console.info('Request de status do consumo abortado/timeout após retry.', err.code || err.name || err.message);
+      }
+      if (!isRequestCanceledOrTimeout(err)) {
+        setStatusAtualizacao(null);
+      }
       return null;
     } finally {
-      setCarregandoStatus(false);
+      if (statusRequestId.current === requestId) setCarregandoStatus(false);
     }
   };
 
@@ -268,6 +352,8 @@ export function CourseHoursDashboard({ apiBaseUrl, authHeaders, onSelectStudent,
         </div>
       </div>
 
+      {avisoCarregamento && <p className="monitoring-state">{avisoCarregamento}</p>}
+      {estadoVazio && <p className="monitoring-state consumption-empty-state">{estadoVazio}</p>}
       {erro && <p className="monitoring-state error">{erro}</p>}
       {carregando && !dados && <p className="monitoring-state">Carregando consumo...</p>}
 

@@ -1620,6 +1620,17 @@ button.monitoring-metric-card {
   font-weight: 800;
 }
 
+.consumption-empty-state {
+  width: fit-content;
+  margin: 0;
+  padding: 9px 12px;
+  border: 1px solid color-mix(in srgb, var(--pd-border) 78%, #64748b 22%);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--pd-surface) 92%, #64748b 8%);
+  color: var(--pd-muted);
+  font-weight: 750;
+}
+
 .course-hours-panel {
   width: min(1500px, calc(100vw - 48px));
   max-width: 1500px;
@@ -2915,6 +2926,12 @@ body:has(.theme-dark) {
 
 .theme-dark .monitoring-state.success {
   color: #86efac;
+}
+
+.theme-dark .consumption-empty-state {
+  background: rgba(30, 41, 59, 0.42);
+  border-color: rgba(148, 163, 184, 0.22);
+  color: #cbd5e1;
 }
 
 .theme-dark .monitors-table-wrap {

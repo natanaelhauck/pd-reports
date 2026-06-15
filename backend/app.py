@@ -1960,7 +1960,12 @@ def resposta_erro_integralizacao(exc):
             'erro': 'Planilha de consumo não encontrada.',
         }), 404
     if isinstance(exc, IntegralizacaoNeonSemDados):
-        return jsonify({'erro': str(exc)}), 404
+        return jsonify({
+            'erro': 'Nenhuma atualização de consumo encontrada.',
+            'error': 'consumption_not_found',
+            'code': 'consumption_not_found',
+            'message': 'Nenhuma atualização de consumo encontrada.',
+        }), 404
     if isinstance(exc, IntegralizacaoNeonIndisponivel):
         return jsonify({'erro': str(exc)}), 503
     if isinstance(exc, IntegralizacaoConfigInvalida):
@@ -2695,6 +2700,8 @@ def status_atualizacao_consumo():
     if erro:
         return erro
 
+    inicio = time.perf_counter()
+    app.logger.info('consumo.status.start')
     conn = None
     try:
         conn = conectar_db()
@@ -2702,6 +2709,15 @@ def status_atualizacao_consumo():
         sucesso = get_latest_successful_run(conn)
         run_relevante = ativa or sucesso
         counts = get_run_counts(conn, run_relevante['id']) if run_relevante else {'students': 0, 'courses': 0}
+        app.logger.info(
+            'consumo.status.done elapsed_ms=%s active=%s success=%s run_id=%s students=%s courses=%s',
+            int((time.perf_counter() - inicio) * 1000),
+            bool(ativa),
+            bool(sucesso),
+            (run_relevante or {}).get('id'),
+            counts.get('students', 0),
+            counts.get('courses', 0),
+        )
         return jsonify({
             'status': (ativa or sucesso or {}).get('status') or 'idle',
             'mensagem': mensagem_status_consumo(ativa, sucesso),
@@ -2712,6 +2728,7 @@ def status_atualizacao_consumo():
             'warnings': warnings_consumo_visiveis(ativa or sucesso, usuario),
         })
     except psycopg2.Error as exc:
+        app.logger.exception('consumo.status.db_error elapsed_ms=%s', int((time.perf_counter() - inicio) * 1000))
         return erro_banco(exc)
     finally:
         if conn:
@@ -2740,6 +2757,8 @@ def get_integralizacao():
     if erro:
         return erro
 
+    inicio = time.perf_counter()
+    app.logger.info('consumo.integralizacao.start source_mode=%s', CONSUMPTION_SOURCE_MODE)
     conn = None
     try:
         dados_integralizacao = carregar_integralizacao(**integralizacao_config_env())
@@ -2750,10 +2769,21 @@ def get_integralizacao():
         alunos_visiveis = filtrar_integralizacao_por_usuario(cruzamento['alunos'], usuario)
         alunos_visiveis.sort(key=lambda item: item.get('percentualIntegralizacao', 0), reverse=True)
         resumo = montar_resumo_geral(alunos_visiveis)
+        fonte = dados_integralizacao.get('fonte') or {}
+        app.logger.info(
+            'consumo.integralizacao.done elapsed_ms=%s source=%s mode=%s fallback=%s run_id=%s total=%s visible=%s',
+            int((time.perf_counter() - inicio) * 1000),
+            fonte.get('tipo'),
+            fonte.get('modoFonte'),
+            fonte.get('fallback'),
+            fonte.get('runId'),
+            len(cruzamento['alunos']),
+            len(alunos_visiveis),
+        )
         return jsonify({
             'alunos': alunos_visiveis,
             'resumo': resumo,
-            'fonte': fonte_consumo_publica(dados_integralizacao.get('fonte')),
+            'fonte': fonte_consumo_publica(fonte),
             'permissoes': {
                 'podeVerNaoVinculados': usuario.get('role') in {'admin', 'psicologa'},
             },
@@ -2763,8 +2793,17 @@ def get_integralizacao():
             },
         })
     except psycopg2.Error as exc:
+        app.logger.exception('consumo.integralizacao.db_error elapsed_ms=%s', int((time.perf_counter() - inicio) * 1000))
         return erro_banco(exc)
     except Exception as exc:
+        if isinstance(exc, IntegralizacaoError):
+            app.logger.warning(
+                'consumo.integralizacao.error elapsed_ms=%s error=%s',
+                int((time.perf_counter() - inicio) * 1000),
+                exc.__class__.__name__,
+            )
+        else:
+            app.logger.exception('consumo.integralizacao.unexpected elapsed_ms=%s', int((time.perf_counter() - inicio) * 1000))
         return resposta_erro_integralizacao(exc)
     finally:
         if conn:
