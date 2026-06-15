@@ -89,8 +89,8 @@ export function CourseCertificatesSection({ certificados, aluno }) {
   );
   const certificadoPct = totalCursos > 0 ? Math.min(100, (certificadosGerados / totalCursos) * 100) : 0;
   const certificadoColor = pctColor(certificadoPct);
-  const comCertificado = cursos.filter((curso) => curso.certificadoGerado);
-  const semCertificado = cursos.filter((curso) => !curso.certificadoGerado);
+  const comCertificado = dados.grupos?.comCertificado || cursos.filter((curso) => curso.certificadoGerado);
+  const semCertificado = dados.grupos?.semCertificado || cursos.filter((curso) => !curso.certificadoGerado);
   const semCertificadoTotal = Math.max(0, totalCursos - certificadosGerados);
 
   return (

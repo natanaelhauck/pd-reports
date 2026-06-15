@@ -21,7 +21,7 @@ from integralizacao import (
     limpar_cache_integralizacao,
     normalizar_email,
 )
-from course_rules import official_course_sort_key
+from course_rules import missing_certificate_course_sort_key, official_course_sort_key
 
 
 HEADERS = [
@@ -210,7 +210,7 @@ def main():
             len(aluno['certificados']['grupos']['semCertificado']),
         )
         assert_equal('lista com certificado segue ordem oficial', [curso['curso'] for curso in aluno['certificados']['grupos']['comCertificado']], ['Linux 1', 'Banco de Dados 1'])
-        assert_equal('lista sem certificado segue ordem oficial', [curso['curso'] for curso in aluno['certificados']['grupos']['semCertificado'][:4]], ['Scratch 1', 'No Code 1', 'Introdução à Web', 'Python 1'])
+        assert_equal('lista sem certificado prioriza andamento', [curso['curso'] for curso in aluno['certificados']['grupos']['semCertificado'][:4]], ['Python 1', 'Scratch 1', 'No Code 1', 'Introdução à Web'])
         cursos_zero = [
             curso
             for curso in aluno['certificados']['grupos']['semCertificado']
@@ -221,6 +221,11 @@ def main():
             'cursos 0% seguem ordem oficial',
             [curso['curso'] for curso in cursos_zero],
             [curso['curso'] for curso in sorted(cursos_zero, key=official_course_sort_key)],
+        )
+        assert_equal(
+            'sem certificado usa chave central de ordenacao',
+            [curso['curso'] for curso in aluno['certificados']['grupos']['semCertificado']],
+            [curso['curso'] for curso in sorted(aluno['certificados']['grupos']['semCertificado'], key=missing_certificate_course_sort_key)],
         )
         assert_equal(
             'intensivao continua ignorado',

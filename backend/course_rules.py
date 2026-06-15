@@ -68,3 +68,19 @@ def official_course_sort_key(course):
             field_key(course.get("courseId")),
         )
     return (official_course_order_index(course), field_key(course), "")
+
+
+def course_percentual(course):
+    if not isinstance(course, dict):
+        return 0
+    try:
+        return max(0, float(course.get("percentual") or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def missing_certificate_course_sort_key(course):
+    return (
+        0 if course_percentual(course) > 0 and not bool(course.get("certificadoGerado")) else 1,
+        *official_course_sort_key(course),
+    )

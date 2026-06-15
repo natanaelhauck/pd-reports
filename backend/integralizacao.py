@@ -14,6 +14,7 @@ from openpyxl import load_workbook
 from course_rules import (
     COURSE_CONSUMPTION_TOTAL_CERTIFIABLE,
     course_name_is_excluded_from_consumption,
+    missing_certificate_course_sort_key,
     official_course_sort_key,
 )
 from course_checker import (
@@ -445,11 +446,11 @@ def agrupar_cursos(cursos):
             nao_iniciados.append(curso)
 
     return {
-        "concluidos": concluidos,
-        "emAndamento": em_andamento,
-        "naoIniciados": nao_iniciados,
-        "comCertificado": com_certificado,
-        "semCertificado": sem_certificado,
+        "concluidos": sorted(concluidos, key=official_course_sort_key),
+        "emAndamento": sorted(em_andamento, key=official_course_sort_key),
+        "naoIniciados": sorted(nao_iniciados, key=official_course_sort_key),
+        "comCertificado": sorted(com_certificado, key=official_course_sort_key),
+        "semCertificado": sorted(sem_certificado, key=missing_certificate_course_sort_key),
     }
 
 

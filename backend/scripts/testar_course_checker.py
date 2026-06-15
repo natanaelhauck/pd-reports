@@ -23,7 +23,7 @@ from course_checker import (
     load_users,
     resolve_student_name,
 )
-from course_rules import official_course_sort_key
+from course_rules import missing_certificate_course_sort_key, official_course_sort_key
 
 
 def assert_equal(description, received, expected):
@@ -299,6 +299,12 @@ def main():
             "No Code 1",
             "Introdução à Web",
             "Python 1",
+            "JavaScript 1",
+        ])
+        assert_equal("chave sem certificado prioriza andamento", [course["courseName"] for course in sorted(sem_certificado, key=missing_certificate_course_sort_key)[:4]], [
+            "Python 1",
+            "No Code 1",
+            "Introdução à Web",
             "JavaScript 1",
         ])
         cursos_zero = [course for course in sem_certificado if course["percentual"] == 0]
