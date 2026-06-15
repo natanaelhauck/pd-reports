@@ -2419,6 +2419,7 @@ button.course-hours-card {
 }
 
 .consumption-hero-main p {
+  margin: 0;
   color: #475569;
   font-size: 13px;
   font-weight: 700;
@@ -2437,6 +2438,7 @@ button.course-hours-card {
   align-items: center;
   width: fit-content;
   min-height: 24px;
+  margin: 0;
   padding: 4px 9px;
   border: 1px solid var(--pd-border);
   border-radius: 999px;
@@ -2688,22 +2690,22 @@ button.course-hours-card {
 
 .theme-dark {
   color: #dbe4ef !important;
-  --course-pct-good: #22c55e;
-  --course-pct-mid: #f59e0b;
-  --course-pct-low: #ef4444;
-  --course-progress-track-bg: #263449;
-  --course-success-text: #bbf7d0;
-  --course-success-bg: #111c2a;
-  --course-success-border: rgba(110, 231, 183, 0.36);
-  --course-progress-text: #fed7aa;
-  --course-progress-bg: #111c2a;
-  --course-progress-border: rgba(251, 191, 36, 0.32);
+  --course-pct-good: #7dd3a4;
+  --course-pct-mid: #f2c36b;
+  --course-pct-low: #f4a3a3;
+  --course-progress-track-bg: #253044;
+  --course-success-text: #a7f3d0;
+  --course-success-bg: rgba(20, 83, 45, 0.18);
+  --course-success-border: rgba(134, 239, 172, 0.22);
+  --course-progress-text: #fde68a;
+  --course-progress-bg: rgba(120, 53, 15, 0.18);
+  --course-progress-border: rgba(251, 191, 36, 0.2);
   --course-muted-text: #cbd5e1;
-  --course-muted-bg: #111c2a;
-  --course-muted-border: rgba(148, 163, 184, 0.3);
-  --course-risk-text: #fecdd3;
-  --course-risk-bg: #111c2a;
-  --course-risk-border: rgba(251, 113, 133, 0.3);
+  --course-muted-bg: rgba(51, 65, 85, 0.28);
+  --course-muted-border: rgba(148, 163, 184, 0.2);
+  --course-risk-text: #fecaca;
+  --course-risk-bg: rgba(127, 29, 29, 0.16);
+  --course-risk-border: rgba(248, 113, 113, 0.2);
 }
 
 body:has(.theme-dark) {
@@ -3063,8 +3065,8 @@ body:has(.theme-dark) {
 .theme-dark .course-hours-card,
 .theme-dark .course-section,
 .theme-dark .course-list-box {
-  background: #111827;
-  border-color: #334155;
+  background: #101827;
+  border-color: #2a3648;
   color: #dbe4ef;
 }
 
@@ -3079,7 +3081,7 @@ body:has(.theme-dark) {
 .theme-dark .course-stat,
 .theme-dark .course-week-grid > div,
 .theme-dark .course-list-box {
-  background: #172033;
+  background: #121c2d;
 }
 
 .theme-dark .course-summary-grid > div,
@@ -3087,9 +3089,9 @@ body:has(.theme-dark) {
 .theme-dark .course-week-grid > div {
   position: relative;
   overflow: hidden;
-  background: #111c2a;
-  border-color: #2f3f55;
-  box-shadow: none;
+  background: #121c2d;
+  border-color: rgba(148, 163, 184, 0.16);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.14);
 }
 
 .theme-dark .course-summary-grid > div::before,
@@ -3098,8 +3100,8 @@ body:has(.theme-dark) {
   content: '';
   position: absolute;
   inset: 0 auto 0 0;
-  width: 3px;
-  background: #64748b;
+  width: 2px;
+  background: rgba(148, 163, 184, 0.5);
 }
 
 .theme-dark .course-summary-grid > div,
@@ -3109,25 +3111,25 @@ body:has(.theme-dark) {
 }
 
 .theme-dark .course-stat.done::before {
-  background: #34d399;
+  background: rgba(125, 211, 164, 0.75);
 }
 
 .theme-dark .course-stat.progress::before {
-  background: #fbbf24;
+  background: rgba(242, 195, 107, 0.75);
 }
 
 .theme-dark .course-stat.muted::before,
 .theme-dark .course-week-grid > div::before {
-  background: #94a3b8;
+  background: rgba(148, 163, 184, 0.58);
 }
 
 .theme-dark .course-stat.risk::before {
-  background: #fb7185;
+  background: rgba(244, 163, 163, 0.7);
 }
 
 .theme-dark .consumption-hero {
-  background: linear-gradient(180deg, rgba(59, 130, 246, 0.12), #111827);
-  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.28);
+  background: linear-gradient(180deg, rgba(51, 65, 85, 0.28), #101827);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.24);
 }
 
 .theme-dark .course-hours-percent strong,
@@ -3143,8 +3145,8 @@ body:has(.theme-dark) {
 }
 
 .theme-dark .consumption-hero-score-card {
-  background: #111c2a;
-  border-color: rgba(148, 163, 184, 0.28);
+  background: #121c2d;
+  border-color: rgba(148, 163, 184, 0.2);
 }
 
 .theme-dark .consumption-hero-score span {
@@ -3160,11 +3162,11 @@ body:has(.theme-dark) {
 }
 
 .theme-dark .consumption-progress-remaining {
-  color: #f59e0b;
+  color: #f2c36b;
 }
 
 .theme-dark .consumption-progress-remaining.pending {
-  color: #f59e0b;
+  color: #f2c36b;
 }
 
 .theme-dark .consumption-upload-modal {
@@ -3211,9 +3213,9 @@ body:has(.theme-dark) {
 
 .theme-dark .course-stat.progress,
 .theme-dark .course-cert-badge.progress {
-  color: #fed7aa;
-  background: rgba(154, 52, 18, 0.38);
-  border-color: rgba(251, 146, 60, 0.58);
+  color: var(--course-progress-text);
+  background: var(--course-progress-bg);
+  border-color: var(--course-progress-border);
 }
 
 .theme-dark .course-pill.final {
@@ -3236,9 +3238,9 @@ body:has(.theme-dark) {
 .theme-dark .course-pill.warning,
 .theme-dark .course-stat.risk,
 .theme-dark .course-cert-badge.risk {
-  color: #fecaca;
-  background: rgba(127, 29, 29, 0.42);
-  border-color: rgba(248, 113, 113, 0.58);
+  color: var(--course-risk-text);
+  background: var(--course-risk-bg);
+  border-color: var(--course-risk-border);
 }
 
 .theme-dark .course-stat.muted,
@@ -3252,31 +3254,31 @@ body:has(.theme-dark) {
 .theme-dark .course-stat.progress,
 .theme-dark .course-stat.risk,
 .theme-dark .course-stat.muted {
-  background: #111c2a;
+  background: #121c2d;
 }
 
 .theme-dark .course-stat.done {
-  border-color: rgba(74, 222, 128, 0.58);
-  border-left-color: #4ade80;
+  border-color: rgba(134, 239, 172, 0.22);
+  border-left-color: rgba(125, 211, 164, 0.58);
 }
 
 .theme-dark .course-stat.progress {
-  border-color: rgba(251, 191, 36, 0.54);
-  border-left-color: #fbbf24;
+  border-color: rgba(251, 191, 36, 0.2);
+  border-left-color: rgba(242, 195, 107, 0.58);
 }
 
 .theme-dark .course-stat.risk {
-  border-color: rgba(248, 113, 113, 0.52);
-  border-left-color: #fb7185;
+  border-color: rgba(248, 113, 113, 0.2);
+  border-left-color: rgba(244, 163, 163, 0.52);
 }
 
 .theme-dark .course-stat.muted {
-  border-color: rgba(148, 163, 184, 0.36);
-  border-left-color: #94a3b8;
+  border-color: rgba(148, 163, 184, 0.18);
+  border-left-color: rgba(148, 163, 184, 0.42);
 }
 
 .theme-dark .course-stat.done strong {
-  color: #4ade80;
+  color: var(--course-success-text);
 }
 
 .theme-dark .course-stat.progress strong {
@@ -3299,13 +3301,13 @@ body:has(.theme-dark) {
 
 .theme-dark .schedule-head h3,
 .theme-dark .course-section-kicker {
-  color: #60a5fa !important;
+  color: #93a9c8 !important;
   text-align: left;
 }
 
 .theme-dark .daily-goal-score strong,
 .theme-dark .daily-goal-score span {
-  color: #60a5fa;
+  color: #a9c2e8;
 }
 
 .theme-dark .schedule-head p {
@@ -3328,21 +3330,32 @@ body:has(.theme-dark) {
 
 .theme-dark .course-cert-badge,
 .theme-dark .course-back-button {
-  background: #0b1220;
-  border-color: #334155;
+  background: #111827;
+  border-color: rgba(148, 163, 184, 0.2);
   color: #e5edf7;
 }
 
+.theme-dark .course-list-box.done,
+.theme-dark .course-list-box.progress,
+.theme-dark .course-list-box.muted,
+.theme-dark .course-list-box.risk {
+  border-color: rgba(148, 163, 184, 0.16);
+}
+
+.theme-dark .course-list-box li {
+  border-top-color: rgba(148, 163, 184, 0.14);
+}
+
 .theme-dark .course-cert-badge.ok {
-  color: #bbf7d0;
-  background: rgba(22, 101, 52, 0.34);
-  border-color: rgba(74, 222, 128, 0.52);
+  color: var(--course-success-text);
+  background: var(--course-success-bg);
+  border-color: var(--course-success-border);
 }
 
 .theme-dark .course-cert-badge.done {
-  color: #bbf7d0;
-  background: rgba(22, 101, 52, 0.34);
-  border-color: rgba(74, 222, 128, 0.52);
+  color: var(--course-success-text);
+  background: var(--course-success-bg);
+  border-color: var(--course-success-border);
 }
 
 #root {

@@ -125,7 +125,7 @@ def create_fake_files(tmpdir):
     write_json(paths["ignore"], ["course-v1:test+ignorado+2026"])
     write_json(paths["grades"], {
         "course-v1:test+zero+2026": [
-            {"username": "ava_vinculado", "percent": 0},
+            {"username": "ava_vinculado", "percent": 1},
             {"username": "ava_sem_vinculo", "percent": 0},
             {"username": "ava_sem_email", "percent": 1},
         ],
@@ -178,6 +178,13 @@ def create_fake_files(tmpdir):
             "course_display_name": "Curso Zero",
             "course_id": "course-v1:test+zero+2026",
             "status": "generating",
+            "is_passing": "true",
+        },
+        {
+            "username": "ava_vinculado",
+            "course_display_name": "Curso Zero",
+            "course_id": "course-v1:test+zero+2026",
+            "status": "downloadable",
             "is_passing": "true",
         },
         {
@@ -236,8 +243,8 @@ def main():
         aluno = find_student(payload, "vinculado@example.com")
         courses = course_by_id(aluno)
         assert_equal("aluno recebe visao dos 22 cursos oficiais", len(courses), 22)
-        assert_equal("curso 0% mantem zero", courses["course-v1:test+zero+2026"]["percentual"], 0)
-        assert_equal("curso 0% nao iniciado", courses["course-v1:test+zero+2026"]["status"], VALID_STATUSES["not_started"])
+        assert_equal("segundo curso concluido mantem 100", courses["course-v1:test+zero+2026"]["percentual"], 100)
+        assert_equal("segundo curso concluido recebe certificado real", courses["course-v1:test+zero+2026"]["certificadoGerado"], True)
         assert_equal("curso ausente vira 0%", courses["course-v1:test+oficial01+2026"]["percentual"], 0)
         assert_equal("curso ausente vira nao iniciado", courses["course-v1:test+oficial01+2026"]["status"], VALID_STATUSES["not_started"])
         assert_equal("curso 14% vira 14", courses["course-v1:test+python1+2026"]["percentual"], 14)
@@ -249,11 +256,11 @@ def main():
         assert_equal("curso 83% vira 83", courses["course-v1:test+avancado+2026"]["percentual"], 83)
         assert_equal("curso 83% concluido", courses["course-v1:test+avancado+2026"]["status"], VALID_STATUSES["completed"])
         assert_true("certificado valido conta quando concluido", courses["course-v1:test+avancado+2026"]["certificadoGerado"])
-        assert_equal("cursos concluidos", aluno["cursosConcluidos"], 1)
+        assert_equal("cursos concluidos", aluno["cursosConcluidos"], 2)
         assert_equal("cursos em andamento", aluno["cursosEmAndamento"], 1)
-        assert_equal("cursos nao iniciados ajusta ate 22", aluno["cursosNaoIniciados"], 20)
-        assert_equal("certificados gerados", aluno["certificadosGerados"], 1)
-        assert_equal("cursos sem certificado", aluno["cursosSemCertificado"], 21)
+        assert_equal("cursos nao iniciados ajusta ate 22", aluno["cursosNaoIniciados"], 19)
+        assert_equal("certificados gerados", aluno["certificadosGerados"], 2)
+        assert_equal("cursos sem certificado", aluno["cursosSemCertificado"], 20)
         sem_certificado = [course for course in aluno["cursos"] if not course["certificadoGerado"]]
         assert_equal("lista sem certificado bate com contador", len(sem_certificado), aluno["cursosSemCertificado"])
         assert_equal("curso em andamento fica no topo dos sem certificado", sem_certificado[0]["courseName"], "Python 1")
@@ -263,12 +270,13 @@ def main():
             "intensivao continua fora dos detalhes",
             all("Intensiv" not in course["courseName"] for course in aluno["cursos"]),
         )
-        assert_equal("consumo calculado em 0..100", aluno["consumoPercentual"], 4.41)
+        assert_equal("lista sem certificado tem 20 itens", len(sem_certificado), 20)
+        assert_equal("consumo calculado em 0..100", aluno["consumoPercentual"], 8.95)
         assert_between("consumo dentro da escala", aluno["consumoPercentual"], 0, 100)
         assert_equal("certificado duplicado ignorado", payload["totals"]["certificatesDuplicateIgnored"], 1)
         assert_equal("certificado is_passing false ignorado", payload["totals"]["certificateRecordsNonPassing"], 1)
         assert_equal("certificado status nao downloadable ignorado", payload["totals"]["certificateRecordsNonDownloadable"], 1)
-        assert_equal("certificado intensivao ignorado no csv", payload["totals"].get("certificateRecordsTotal"), 6)
+        assert_equal("certificado intensivao ignorado no csv", payload["totals"].get("certificateRecordsTotal"), 7)
         assert_true(
             "username sem email gera warning",
             any("sem usuario mapeado" in warning for warning in payload["warnings"]),
@@ -324,7 +332,7 @@ def main():
         assert_equal(
             "desafio final nao inventa certificados individuais",
             sum(1 for course in aluno["cursos"] if course["certificadoGerado"]),
-            1,
+            2,
         )
         assert_equal("ingresso enriquecido", aluno["ingresso"].isoformat(), "2025-06-03")
 

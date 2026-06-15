@@ -20,6 +20,7 @@ from integralizacao import (
     cruzar_com_alunos_pd,
     limpar_cache_integralizacao,
     normalizar_email,
+    sem_acentos,
 )
 
 
@@ -64,10 +65,10 @@ def criar_planilha(caminho):
         1,
         '',
         '',
-        '[{"curso":"Python","courseId":"py","status":"Concluído","percentual":100,"certificadoGerado":true},'
-        '{"curso":"React","courseId":"react","status":"Em andamento","percentual":0.5,"certificadoGerado":false},'
-        '{"curso":"Banco","courseId":"db","status":"Não iniciado","percentual":0,"certificadoGerado":false},'
-        '{"curso":"Intensivão Desenvolve","courseId":"intensivao","status":"Não iniciado","percentual":0,"certificadoGerado":false}]',
+        '[{"curso":"Linux 1","courseId":"course-v1:ProjetoDesenvolve+Linux1+01","status":"Concluído","percentual":100,"certificadoGerado":true},'
+        '{"curso":"Banco de Dados 1","courseId":"course-v1:ProjetoDesenvolve+BD1+01","status":"Concluído","percentual":100,"certificadoGerado":true},'
+        '{"curso":"Python 1","courseId":"course-v1:Projeto_Desenvolve+PY001+2024_S2","status":"Em andamento","percentual":14,"certificadoGerado":false},'
+        '{"curso":"Intensivão Desenvolve 2025","courseId":"course-v1:ProjetoDesenvolve+x+x","status":"Não iniciado","percentual":0,"certificadoGerado":false}]',
     ])
     sheet.append([
         'final@example.com',
@@ -196,13 +197,30 @@ def main():
         assert_equal('desafio final vazio', aluno['desafioFinal'], False)
         assert_equal('percentual calculado', aluno['percentualIntegralizacao'], 50)
         assert_equal('total cursos certificaveis', aluno['certificados']['totalCursosCertificaveis'], 22)
-        assert_equal('curso removido dos certificados', len(aluno['certificados']['cursos']), 3)
+        assert_equal('lista expandida usa 22 cursos oficiais', len(aluno['certificados']['cursos']), 22)
         assert_equal('meta diaria aplicavel', aluno['metaDiaria']['aplicavel'], True)
-        assert_equal('curso concluido agrupado', len(aluno['certificados']['grupos']['concluidos']), 1)
+        assert_equal('curso concluido agrupado', len(aluno['certificados']['grupos']['concluidos']), 2)
         assert_equal('curso em andamento agrupado', len(aluno['certificados']['grupos']['emAndamento']), 1)
-        assert_equal('curso nao iniciado agrupado', len(aluno['certificados']['grupos']['naoIniciados']), 1)
-        assert_equal('curso com certificado agrupado', len(aluno['certificados']['grupos']['comCertificado']), 1)
-        assert_equal('curso sem certificado agrupado', len(aluno['certificados']['grupos']['semCertificado']), 2)
+        assert_equal('curso nao iniciado agrupado', len(aluno['certificados']['grupos']['naoIniciados']), 19)
+        assert_equal('curso com certificado agrupado', len(aluno['certificados']['grupos']['comCertificado']), 2)
+        assert_equal('curso sem certificado agrupado', len(aluno['certificados']['grupos']['semCertificado']), 20)
+        assert_equal(
+            'contador sem certificado bate com lista',
+            aluno['certificados']['totalCursosCertificaveis'] - aluno['certificados']['certificadosGerados'],
+            len(aluno['certificados']['grupos']['semCertificado']),
+        )
+        assert_equal('curso em andamento fica no topo sem certificado', aluno['certificados']['grupos']['semCertificado'][0]['curso'], 'Python 1')
+        cursos_zero = [
+            curso['curso']
+            for curso in aluno['certificados']['grupos']['semCertificado']
+            if curso['percentual'] == 0
+        ]
+        assert_equal('cursos 0% em ordem alfabetica', cursos_zero, sorted(cursos_zero, key=lambda nome: sem_acentos(nome).lower()))
+        assert_equal(
+            'intensivao continua ignorado',
+            any('Intensiv' in curso['curso'] for curso in aluno['certificados']['cursos']),
+            False,
+        )
 
         final = buscar_por_email(dados, 'FINAL@example.com')
         assert_equal('desafio final sim', final['desafioFinal'], True)
@@ -219,7 +237,8 @@ def main():
         assert_equal('horas acima do total marca concluido', acima['alunoConcluido'], True)
 
         json_bad = buscar_por_email(dados, 'jsonbad@example.com')
-        assert_equal('json invalido nao quebra', json_bad['certificados']['cursos'], [])
+        assert_equal('json invalido expande cursos oficiais', len(json_bad['certificados']['cursos']), 22)
+        assert_equal('json invalido marca sem certificado', json_bad['certificados']['certificadosGerados'], 0)
 
         pd_alunos = [
             {'id': 1, 'matricula': 'PDITA001', 'nome': 'Aluno PD', 'email': 'aluno@example.com', 'monitor': 'Natanael', 'status': 'MANTER'},

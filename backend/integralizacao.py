@@ -15,6 +15,11 @@ from course_rules import (
     COURSE_CONSUMPTION_TOTAL_CERTIFIABLE,
     course_name_is_excluded_from_consumption,
 )
+from course_checker import (
+    CourseCheckerError,
+    expand_student_courses_to_official,
+    resolve_official_course_catalog,
+)
 from consumption_repository import (
     get_consumption_courses_from_run,
     get_consumption_students_from_run,
@@ -377,6 +382,50 @@ def parse_cursos_json(valor):
     return cursos
 
 
+def carregar_catalogo_oficial_seguro(total_cursos_certificaveis):
+    env = os.environ.copy()
+    env.setdefault(
+        "COURSE_CHECKER_CATALOG_PATH",
+        str(PROJECT_ROOT / "checker" / "cursos_new.json"),
+    )
+    env.setdefault(
+        "COURSE_CHECKER_IGNORE_PATH",
+        str(PROJECT_ROOT / "checker" / "ignore_courses.json"),
+    )
+    try:
+        return resolve_official_course_catalog(
+            env=env,
+            expected_total=total_cursos_certificaveis,
+        )
+    except CourseCheckerError:
+        return []
+
+
+def curso_para_certificados(curso):
+    nome = texto(curso.get("courseName") or curso.get("curso") or curso.get("courseId"))
+    course_id = texto(curso.get("courseId") or nome)
+    return {
+        "curso": nome or course_id,
+        "courseId": course_id,
+        "status": texto(curso.get("status")) or "Nao iniciado",
+        "percentual": parse_percentual(curso.get("percentual")),
+        "certificadoGerado": bool(curso.get("certificadoGerado")),
+    }
+
+
+def expandir_cursos_certificados(cursos, total_cursos_certificaveis):
+    cursos = [curso for curso in (cursos or []) if curso and not curso_removido_certificados(curso)]
+    if len(cursos) >= total_cursos_certificaveis:
+        return cursos
+
+    catalogo = carregar_catalogo_oficial_seguro(total_cursos_certificaveis)
+    if not catalogo:
+        return cursos
+
+    expandidos = expand_student_courses_to_official(cursos, catalogo)
+    return [curso_para_certificados(curso) for curso in expandidos]
+
+
 def agrupar_cursos(cursos):
     concluidos = []
     em_andamento = []
@@ -411,7 +460,10 @@ def build_certificados(
     desafio_final=False,
     total_cursos_certificaveis=TOTAL_CURSOS_CERTIFICAVEIS,
 ):
-    cursos = parse_cursos_json(cells.get("cursosDetalhesJson"))
+    cursos = expandir_cursos_certificados(
+        parse_cursos_json(cells.get("cursosDetalhesJson")),
+        total_cursos_certificaveis,
+    )
     if desafio_final:
         grupos = agrupar_cursos(cursos)
         com_certificado = grupos["comCertificado"]
@@ -638,6 +690,7 @@ def texto_cursos_resumo(cursos):
 
 
 def build_certificados_neon(aluno_row, cursos, desafio_final=False, total_cursos_certificaveis=TOTAL_CURSOS_CERTIFICAVEIS):
+    cursos = expandir_cursos_certificados(cursos, total_cursos_certificaveis)
     if desafio_final:
         grupos = agrupar_cursos(cursos)
         com_certificado = grupos["comCertificado"]
