@@ -1,6 +1,6 @@
 # PD Reports
 
-Sistema web para gestão e acompanhamento de alunos, monitores, perfis, relatórios de monitoria e indicadores mensais.
+Sistema web para gestão acadêmica, acompanhamento de alunos, relatórios de monitoria e controle de consumo dos cursos do Projeto Desenvolve.
 
 ![React](https://img.shields.io/badge/React-Frontend-blue)
 ![Flask](https://img.shields.io/badge/Flask-Backend-black)
@@ -12,29 +12,117 @@ Sistema web para gestão e acompanhamento de alunos, monitores, perfis, relatór
 
 ## Demo
 
-🌐 Aplicação online:
+Aplicação online:
 
 **https://pdreports.vercel.app**
 
-> O backend está hospedado no plano gratuito do Render. O primeiro acesso após períodos sem uso pode levar alguns segundos devido ao cold start.
+> O backend está hospedado no plano gratuito do Render. O primeiro acesso após períodos sem uso pode levar alguns segundos por causa do cold start.
 
 ---
 
 ## Sobre o projeto
 
-PD Reports é um sistema web desenvolvido para centralizar a gestão de alunos, monitorias e indicadores internos.
+PD Reports centraliza a operação de acompanhamento do Projeto Desenvolve em uma aplicação administrativa com autenticação, perfis de acesso, gestão de alunos, histórico individual, relatórios de monitoria e um módulo completo de Consumo.
 
-O sistema permite:
+O sistema foi construído com frontend e backend separados, persistência em PostgreSQL/Neon, integração com Google Sheets e deploy independente em Vercel e Render. A versão pública usa dados fictícios ou anonimizados para preservar informações sensíveis.
 
-- gerenciamento de alunos
-- acompanhamento de monitorias
-- controle por monitor responsável
-- indicadores mensais
-- perfis de acesso
-- sincronização com Google Sheets
-- relatórios históricos
+---
 
-Foi construído com arquitetura separada entre frontend, backend, banco de dados e integrações externas.
+## Funcionalidades
+
+### Gestão acadêmica
+
+- Cadastro, consulta e edição de alunos
+- Perfil individual com dados principais e informações complementares
+- Histórico de alterações por aluno
+- Monitor responsável, status acadêmico e filtros por matrícula/cidade
+
+### Monitoria
+
+- Relatórios de monitoria
+- Indicadores mensais por presença, falta, não agendado e finalização
+- Dashboard por monitor, status, período e cidade
+
+### Consumo e certificação
+
+- Painel geral de consumo dos alunos
+- Perfil individual de progresso por curso
+- Controle de certificados gerados
+- Contadores de cursos concluídos, em andamento, não iniciados e sem certificado
+- Regra oficial de 22 cursos certificáveis
+- Exclusão do curso `Intensivão Desenvolve 2025`
+- Tratamento especial para alunos com Desafio Final
+- Meta diária de estudo até o prazo final
+- Atualização manual pelo painel administrativo usando `all_grades.json` e CSV de certificados
+
+### Administração e segurança
+
+- Login com perfis de acesso
+- Gestão de usuários
+- Permissões por papel no frontend e no backend
+- Escopos municipais por matrícula
+- Acesso específico para Prefeitura Itabira (`PDITA`) e Prefeitura Bom Despacho (`PDBD`)
+- Validações de autorização antes de consultas, edições, histórico, monitorias e consumo
+
+### Integrações e infraestrutura
+
+- Google Sheets API
+- PostgreSQL/Neon
+- Deploy do frontend na Vercel
+- Deploy da API Flask no Render
+- Processamento síncrono de atualização de Consumo no Render
+- Fallback administrativo para processamento externo de runs pendentes
+- Modo claro/escuro
+
+---
+
+## Módulo de Consumo
+
+O módulo de Consumo acompanha o progresso dos alunos nos cursos da trilha oficial, cruzando dados de progresso, certificados emitidos e vínculos com os alunos cadastrados no PD Reports.
+
+Principais recursos:
+
+- visão geral com alunos ativos, inativos, todos e não vinculados;
+- abertura do perfil individual diretamente pela lista de Consumo;
+- atualização manual pelo painel administrativo;
+- processamento síncrono no Render com persistência no Neon PostgreSQL;
+- leitura do `all_grades.json` para progresso e do CSV de certificados para certificados emitidos;
+- catálogo oficial de 22 cursos certificáveis;
+- inclusão automática de cursos oficiais ainda não iniciados como `0%`;
+- separação entre curso concluído e certificado gerado;
+- regra especial para alunos com Desafio Final, sem inventar certificados individuais;
+- ordenação da lista de cursos sem certificado por progresso e depois por nome;
+- cálculo de meta diária até o prazo final configurado;
+- filtros e permissões por escopo municipal.
+
+---
+
+## Screenshots
+
+### Login e autenticação
+
+![Tela de login](docs/images/login.png)
+
+### Dashboard administrativo
+
+![Dashboard administrativo](docs/images/dashboard.png)
+
+### Perfil completo do aluno
+
+![Perfil do aluno](docs/images/perfil-aluno.png)
+
+### Relatórios de monitoria
+
+![Relatórios de monitoria](docs/images/monitorias.png)
+
+### Screenshots recomendados para adicionar
+
+Os prints abaixo ainda não estão versionados. Quando forem adicionados, devem usar dados fictícios ou anonimizados, sem nomes, e-mails, matrículas ou informações pessoais reais.
+
+- `docs/images/consumo-geral.png`
+- `docs/images/consumo-individual-andamento.png`
+- `docs/images/consumo-desafio-final.png`
+- `docs/images/consumo-meta-diaria.png`
 
 ---
 
@@ -62,65 +150,6 @@ Foi construído com arquitetura separada entre frontend, backend, banco de dados
 
 - Neon PostgreSQL
 
-### Integrações
-
-- Google Sheets API
-
----
-
-## Funcionalidades
-
-✅ Login e autenticação
-
-✅ Gestão de alunos
-
-✅ Perfil detalhado do aluno
-
-✅ Histórico individual
-
-✅ Relatórios de monitoria
-
-✅ Dashboard administrativo
-
-✅ Indicadores por:
-
-- mês
-- monitor
-- status
-- cidade/matrícula
-
-✅ Gestão de usuários
-
-✅ Controle de permissões:
-
-- Admin
-- Monitor
-- Psicóloga
-
-✅ Integração automática com Google Sheets
-
-✅ Modo claro/escuro
-
----
-
-## Screenshots
-
-### Login
-
-![Tela de login](docs/images/login.png)
-
-### Dashboard de Monitorias
-
-![Dashboard](docs/images/dashboard.png)
-
-### Perfil do aluno
-
-![Perfil do aluno](docs/images/perfil-aluno.png)
-
-### Gestão e Monitorias
-
-![Monitorias](docs/images/monitorias.png)
-
 ---
 
 ## Arquitetura
@@ -129,11 +158,11 @@ Estrutura utilizada em produção:
 
 ```text
 Frontend (Vercel)
-        ↓
+        |
 Backend API (Render)
-        ↓
+        |
 PostgreSQL (Neon)
-        ↓
+        |
 Google Sheets API
 ```
 
@@ -149,6 +178,8 @@ pd-reports/
 │
 ├── docs/
 │   ├── images/
+│   ├── ATUALIZACAO_CONSUMO.md
+│   ├── PERMISSOES_CIDADE.md
 │   └── SETUP_LOCAL.md
 │
 └── README.md
@@ -176,7 +207,8 @@ FRONTEND_URL=https://pdreports.vercel.app
 INTEGRALIZACAO_XLSX_PATH=dados/alunos_horas_extras_com_desafio_final.xlsx
 INTEGRALIZACAO_HORAS_TOTAIS=154
 INTEGRALIZACAO_PRAZO_FINAL=2026-11-30
-CONSUMPTION_PROCESSING_MODE=external
+CONSUMPTION_PROCESSING_MODE=sync
+COURSE_CONSUMPTION_TOTAL_CERTIFIABLE=22
 ```
 
 ### Frontend
@@ -191,19 +223,15 @@ VITE_API_URL=https://sistema-alunos-mwkw.onrender.com
 
 Documentação detalhada:
 
-📄 `docs/SETUP_LOCAL.md`
+`docs/SETUP_LOCAL.md`
 
 ### Backend
 
 ```bash
 cd backend
-
 python -m venv .venv
-
 .venv\Scripts\activate
-
 pip install -r requirements.txt
-
 python app.py
 ```
 
@@ -211,9 +239,7 @@ python app.py
 
 ```bash
 cd frontend
-
 npm install
-
 npm run dev
 ```
 
@@ -238,7 +264,7 @@ pip install -r requirements.txt
 gunicorn wsgi:app --timeout 1200
 ```
 
-Variáveis:
+Variáveis principais:
 
 ```env
 DATABASE_URL=
@@ -249,9 +275,11 @@ FRONTEND_URL=https://pdreports.vercel.app
 CONSUMPTION_PROCESSING_MODE=sync
 ```
 
-O timeout de 1200 segundos suporta a atualizacao manual do consumo no proprio Web Service do Render. O modo `external` continua disponivel como fallback com `python backend/scripts/processar_atualizacao_consumo_pendente.py`.
+O timeout de 1200 segundos suporta a atualização manual do Consumo no próprio Web Service do Render. O modo `external` continua disponível como fallback com:
 
----
+```bash
+python backend/scripts/processar_atualizacao_consumo_pendente.py
+```
 
 ### Frontend (Vercel)
 
@@ -284,33 +312,46 @@ VITE_API_URL=https://sistema-alunos-mwkw.onrender.com
 - Permissões validadas no backend
 - CORS restrito por `FRONTEND_URL`
 - Controle de perfis por usuário
+- Escopos municipais para Itabira e Bom Despacho
 - Arquivos `.env` não versionados
 - Credenciais protegidas por variáveis de ambiente
 - JSON de conta de serviço fora do repositório
+- Dados públicos anonimizados ou fictícios
 
 ---
 
 ## Scripts úteis
 
-Local:
+Execute a partir da raiz do projeto, salvo indicação contrária.
+
+### Validação e testes
 
 ```bash
-cd backend
+python backend/scripts/testar_course_checker.py
+python backend/scripts/testar_integralizacao.py
+python backend/scripts/testar_permissoes.py
+python backend/scripts/testar_permissoes_cidade.py
+python backend/scripts/testar_upload_consumo.py
 ```
 
-Scripts disponíveis:
-
-- corrigir_nomes.py
-- corrigir_telefones.py
-- criar_usuarios_monitores.py
-- importar_perfil_alunos.py
-- testar_permissoes.py
-- testar_sync_sheets.py
-
-Exemplo:
+### Consumo
 
 ```bash
-python scripts/corrigir_nomes.py
+python backend/scripts/processar_atualizacao_consumo_pendente.py
+python backend/scripts/diagnosticar_vinculos_consumo.py
+python backend/scripts/processar_consumo_checker.py
+python backend/scripts/importar_relatorio_checker_xlsx.py
+```
+
+### Operação e manutenção
+
+```bash
+python backend/scripts/aplicar_migrations.py
+python backend/scripts/check_env.py
+python backend/scripts/corrigir_nomes.py
+python backend/scripts/corrigir_telefones.py
+python backend/scripts/criar_usuarios_monitores.py
+python backend/scripts/importar_perfil_alunos.py
 ```
 
 ---
@@ -320,30 +361,45 @@ python scripts/corrigir_nomes.py
 ### Backend
 
 ```bash
-python -m py_compile app.py
-
-python -m py_compile wsgi.py
+python -m py_compile backend/app.py backend/access_scope.py backend/course_checker.py backend/checker_report_importer.py backend/integralizacao.py
+python backend/scripts/testar_course_checker.py
+python backend/scripts/testar_integralizacao.py
+python backend/scripts/testar_permissoes.py
+python backend/scripts/testar_permissoes_cidade.py
 ```
 
 ### Frontend
 
 ```bash
-npm run build
-
-npm run lint
+npm --prefix frontend run build
 ```
+
+### Qualidade do diff
+
+```bash
+git diff --check
+```
+
+---
+
+## Documentação complementar
+
+- `docs/SETUP_LOCAL.md`
+- `docs/ATUALIZACAO_CONSUMO.md`
+- `docs/PERMISSOES_CIDADE.md`
 
 ---
 
 ## Boas práticas utilizadas
 
-- Commits pequenos e organizados
-- Separação frontend/backend
+- Separação entre frontend e backend
 - Controle por ambiente
 - Integração desacoplada com Google Sheets
+- Persistência relacional no Neon PostgreSQL
 - Deploy independente
-- Logs para depuração
+- Logs e scripts de diagnóstico
 - Controle de permissões no backend
+- Testes de regras críticas de Consumo e permissões
 
 ---
 

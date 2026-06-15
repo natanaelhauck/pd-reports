@@ -197,6 +197,44 @@ button:disabled {
   color: var(--pd-muted);
 }
 
+.search-input-wrap {
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
+  border-radius: 10px;
+}
+
+.search-input-wrap input {
+  min-width: 0;
+}
+
+.search-clear-button {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--pd-muted);
+  cursor: pointer;
+}
+
+.search-clear-button:hover {
+  border-color: var(--pd-border);
+  background: var(--pd-subtle);
+  color: var(--pd-title);
+}
+
+.search-clear-button:focus-visible {
+  outline: 3px solid color-mix(in srgb, #2563eb 28%, transparent);
+  outline-offset: 2px;
+}
+
 .app-header {
   display: grid;
   grid-template-columns: minmax(180px, 1fr) minmax(240px, auto) minmax(180px, 1fr);
@@ -2409,6 +2447,11 @@ button.course-hours-card {
   text-align: left;
 }
 
+.consumption-hero-identity > * {
+  justify-self: start;
+  margin-left: 0;
+}
+
 .consumption-hero-main h2 {
   margin: 0 0 3px;
   color: var(--pd-title);
@@ -2493,6 +2536,8 @@ button.course-hours-card {
 
 .consumption-hero-badges {
   margin-top: 4px;
+  margin-left: 0;
+  padding-left: 0;
   justify-content: flex-start;
 }
 
@@ -3021,6 +3066,16 @@ body:has(.theme-dark) {
   color: #94a3b8;
 }
 
+.theme-dark .search-clear-button {
+  color: #94a3b8;
+}
+
+.theme-dark .search-clear-button:hover {
+  border-color: #475569;
+  background: #1f2937;
+  color: #e5edf7;
+}
+
 .theme-dark .login-logo-wrap .pd-logo {
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.28));
 }
@@ -3469,9 +3524,13 @@ code {
     grid-template-columns: 1fr;
   }
 
-  .search-form button {
+  .search-form > .ui-button {
     min-height: 44px;
     justify-content: center;
+  }
+
+  .search-input-wrap {
+    width: 100%;
   }
 
   .app-header {

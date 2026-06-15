@@ -664,6 +664,16 @@ export default function App() {
     setVoltarParaListaConsumo(false);
   };
 
+  const limparBuscaGeral = ({ fecharAluno = true } = {}) => {
+    setBusca('');
+    setAlunos([]);
+    setBuscaRealizada(false);
+    setMensagem(null);
+    if (fecharAluno) {
+      fecharAlunoSelecionado();
+    }
+  };
+
   const abrirNovoAluno = () => {
     fecharAlunoSelecionado();
     setMostrarMonitores(false);
@@ -921,6 +931,9 @@ export default function App() {
   };
 
   const voltarParaConsumoGeral = () => {
+    setBusca('');
+    setAlunos([]);
+    setBuscaRealizada(false);
     setAluno(null);
     setEditMode(false);
     setEditPerfil(false);
@@ -1036,7 +1049,20 @@ export default function App() {
 
       <form className="search-form" onSubmit={buscar} style={styles.searchBox}>
         <Search className="search-icon" size={20} color="#64748b" />
-        <input style={styles.searchInput} placeholder="Buscar por nome, matrícula, e-mail ou telefone..." value={busca} onChange={(e) => setBusca(e.target.value)} autoComplete="off" />
+        <div className="search-input-wrap">
+          <input style={styles.searchInput} placeholder="Buscar por nome, matrícula, e-mail ou telefone..." value={busca} onChange={(e) => setBusca(e.target.value)} autoComplete="off" />
+          {busca && (
+            <button
+              className="search-clear-button"
+              type="button"
+              aria-label="Limpar busca"
+              title="Limpar busca"
+              onClick={() => limparBuscaGeral()}
+            >
+              <X size={16} />
+            </button>
+          )}
+        </div>
         <button className="ui-button" type="submit" disabled={buscando} style={{ ...styles.primaryBtn, opacity: buscando ? 0.75 : 1 }}>
           {buscando ? 'Buscando...' : 'Buscar'}
         </button>
