@@ -105,15 +105,7 @@ Principais recursos:
 
 ### Dashboard administrativo
 
-![Dashboard administrativo](docs/images/dashboard.png)
-
-### Perfil completo do aluno
-
-![Perfil do aluno](docs/images/perfil-aluno.png)
-
-### Relatórios de monitoria
-
-![Relatórios de monitoria](docs/images/monitorias.png)
+![Dashboard administrativo](docs/images/dashboard-administrativo.png)
 
 ### Aba de Consumo
 
@@ -136,6 +128,14 @@ Fluxo administrativo para envio do arquivo `all_grades.json` e do CSV de certifi
 ### Consumo Desafio Final
 
 ![Consumo Desafio Final](docs/images/consumo-desafio-final.png)
+
+### Busca por Aluno
+
+![Busca por Aluno](docs/images/busca-por-aluno.png)
+
+### Aba de Controle de Monitorias
+
+![Aba de Controle de Monitorias](docs/images/aba-monitores.png)
 
 ---
 
