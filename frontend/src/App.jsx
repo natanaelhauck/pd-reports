@@ -1,10 +1,11 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
-import { Search, User, Mail, Hash, Calendar, ShieldCheck, Phone, Edit2, Save, X, LogIn, Briefcase, GraduationCap, Users, CheckCircle2, Moon, Sun, ClipboardList, Laptop, Eye, EyeOff, KeyRound } from 'lucide-react';
+import { User, Mail, Hash, Calendar, ShieldCheck, Phone, Edit2, Save, X, LogIn, Briefcase, GraduationCap, Users, CheckCircle2, Moon, Sun, ClipboardList, Laptop, Eye, EyeOff, KeyRound } from 'lucide-react';
 import pdLogo from './assets/pd-logo.svg';
 import { CourseHoursDashboard } from './components/CourseHoursDashboard.jsx';
 import { CourseHoursStudentDetails } from './components/CourseHoursStudentDetails.jsx';
 import { MainNavigation } from './components/MainNavigation.jsx';
+import { StudentSearchBar } from './components/StudentSearchBar.jsx';
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 const MONITORES = ['Alex', 'André', 'Douglas', 'Gabriel', 'Kellen', 'Natanael'];
@@ -637,7 +638,7 @@ export default function App() {
     setTemp(criarTempSeguro(atualizado));
   };
 
-  const carregarAlunos = async (termo = '') => {
+  const buscarAlunosPorTermo = async (termo = '') => {
     if (!termo) {
       setAlunos([]);
       setAluno(null);
@@ -903,13 +904,13 @@ export default function App() {
     }
   };
 
-  const buscar = async (e) => {
+  const buscarAlunos = async (e) => {
     e.preventDefault();
     setMostrarMonitores(false);
     setMostrarIntegralizacao(false);
     setVoltarParaListaConsumo(false);
     setBuscaRealizada(true);
-    await carregarAlunos(busca.trim());
+    await buscarAlunosPorTermo(busca.trim());
     setEditMode(false);
     setActiveTab('Dados principais');
   };
@@ -1118,26 +1119,14 @@ export default function App() {
         onUsuarios={abrirUsuarios}
       />
 
-      <form className="search-form" onSubmit={buscar} style={styles.searchBox}>
-        <Search className="search-icon" size={20} color="#64748b" />
-        <div className="search-input-wrap">
-          <input style={styles.searchInput} placeholder="Buscar por nome, matrícula, e-mail ou telefone..." value={busca} onChange={(e) => setBusca(e.target.value)} autoComplete="off" />
-          {busca && (
-            <button
-              className="search-clear-button"
-              type="button"
-              aria-label="Limpar busca"
-              title="Limpar busca"
-              onClick={() => limparBuscaGeral()}
-            >
-              <X size={16} />
-            </button>
-          )}
-        </div>
-        <button className="ui-button" type="submit" disabled={buscando} style={{ ...styles.primaryBtn, opacity: buscando ? 0.75 : 1 }}>
-          {buscando ? 'Buscando...' : 'Buscar'}
-        </button>
-      </form>
+      <StudentSearchBar
+        value={busca}
+        onChange={setBusca}
+        onSubmit={buscarAlunos}
+        onClear={() => limparBuscaGeral()}
+        loading={buscando}
+        styles={styles}
+      />
 
       {mensagem && <div style={{ ...styles.message, ...estiloMensagem }}>{mensagem.texto}</div>}
 
