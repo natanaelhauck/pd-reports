@@ -176,18 +176,24 @@ const montarPayloadPerfil = (perfil = {}, matricula = '') => {
     ...Object.fromEntries(CAMPOS_PERFIL_FORM.map((campo) => [campo, normalizado[campo]])),
   };
 };
-const MENSAGEM_BACKEND_INICIANDO = 'O servidor está iniciando. Aguarde alguns segundos e clique em Atualizar novamente.';
+const aguardar = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 const erroDeConexao = (err) => (
   !err.response
   || err.code === 'ECONNABORTED'
   || err.code === 'ERR_NETWORK'
   || [502, 503, 504].includes(err.response?.status)
 );
-const aguardar = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const mensagemErroApi = (err, fallback) => {
-  if (erroDeConexao(err)) return MENSAGEM_BACKEND_INICIANDO;
   return err.response?.data?.erro || fallback;
+};
+
+const mensagemErroAbrirAluno = (err) => {
+  if (err?.code === 'ECONNABORTED') {
+    return 'Não foi possível abrir o aluno selecionado. O servidor demorou para responder.';
+  }
+  return err?.response?.data?.erro || 'Não foi possível abrir o aluno selecionado. Tente novamente em instantes.';
 };
 
 const formatarData = (valor) => {
@@ -892,23 +898,20 @@ export default function App() {
     requestAnimationFrame(() => cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
   };
 
-  const selecionarAlunoConsumo = async (alunoConsumo) => {
-    const alunoPd = alunoConsumo?.alunoPd;
-    const matricula = alunoPd?.matricula;
+  const abrirAlunoPorMatricula = async (matricula, origem = 'geral') => {
     if (!matricula) {
-      setMensagem({ tipo: 'aviso', texto: 'Este registro de consumo ainda nÃ£o tem aluno vinculado no PD Reports.' });
+      setMensagem({ tipo: 'aviso', texto: 'Este registro de consumo ainda não tem aluno vinculado no PD Reports.' });
       return;
     }
 
     setBuscando(true);
     setMensagem(null);
     try {
-      const res = await axios.get(`${API_BASE_URL}/api/alunos`, authConfig({ params: { q: matricula }, timeout: 12000 }));
-      const encontrados = res.data || [];
-      const selecionado = encontrados.find((item) => item.matricula === matricula) || alunoPd;
-      setAlunos(encontrados.length ? encontrados : [alunoPd]);
-      setBusca(matricula);
-      setBuscaRealizada(true);
+      const res = await axios.get(`${API_BASE_URL}/api/alunos/${encodeURIComponent(matricula)}`, authConfig({ timeout: 12000 }));
+      const selecionado = res.data;
+      setAlunos([]);
+      setBusca('');
+      setBuscaRealizada(false);
       setMostrarNovoAluno(false);
       setMostrarUsuarios(false);
       setMostrarMonitores(false);
@@ -919,15 +922,20 @@ export default function App() {
       setPerfilTemp(PERFIL_INICIAL(selecionado.matricula));
       setEditMode(false);
       setEditPerfil(false);
-      setActiveTab('Consumo');
+      setActiveTab(origem === 'consumo' ? 'Consumo' : 'Dados principais');
       setHistorico([]);
-      setVoltarParaListaConsumo(true);
+      setVoltarParaListaConsumo(origem === 'consumo');
       requestAnimationFrame(() => cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
     } catch (err) {
-      setMensagem({ tipo: 'erro', texto: mensagemErroApi(err, 'NÃ£o foi possÃ­vel abrir o perfil do aluno.') });
+      setMensagem({ tipo: 'erro', texto: mensagemErroAbrirAluno(err) });
     } finally {
       setBuscando(false);
     }
+  };
+
+  const selecionarAlunoConsumo = async (alunoConsumo) => {
+    const matricula = alunoConsumo?.alunoPd?.matricula;
+    await abrirAlunoPorMatricula(matricula, 'consumo');
   };
 
   const voltarParaConsumoGeral = () => {

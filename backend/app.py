@@ -916,6 +916,15 @@ def chave_curso_monitoria(valor):
 def normalizar_matricula(valor):
     return re.sub(r'\s+', '', str(valor or '')).upper()
 
+def mascarar_matricula(valor):
+    matricula = normalizar_matricula(valor)
+    if len(matricula) <= 5:
+        return matricula[:2] + '***' if matricula else ''
+    return f'{matricula[:5]}***'
+
+def parece_matricula_exata(valor):
+    return bool(re.fullmatch(r'PD[A-Z]{2,}\d+', normalizar_matricula(valor)))
+
 def normalizar_data_relatorio(valor):
     if valor is None:
         return None
@@ -2434,6 +2443,14 @@ def get_alunos():
         cursor = cursor_db(conn)
 
         if termo:
+            if parece_matricula_exata(termo):
+                matricula_normalizada = normalizar_matricula(termo)
+                cursor.execute('SELECT * FROM alunos WHERE matricula=%s LIMIT 1', (matricula_normalizada,))
+                aluno = row_to_dict(cursor.fetchone())
+                if not aluno or not usuario_pode_ver_matricula(usuario, aluno.get('matricula')):
+                    return jsonify([])
+                return jsonify([formatar_aluno(aluno)])
+
             filtro = f'%{termo}%'
             if '@' in termo:
                 tipo_busca = 'email'
@@ -2495,6 +2512,54 @@ def get_alunos():
     except psycopg2.Error as exc:
         return erro_banco(exc)
     finally:
+        if conn:
+            conn.close()
+
+@app.route('/api/alunos/<matricula>', methods=['GET'])
+def get_aluno_por_matricula(matricula):
+    usuario, erro = require_auth()
+    if erro:
+        return erro
+
+    inicio = time.perf_counter()
+    matricula_normalizada = normalizar_matricula(matricula)
+    matricula_log = mascarar_matricula(matricula_normalizada)
+    conn = None
+    status_final = 500
+    permitido = False
+    app.logger.info(
+        'alunos.detail.start matricula=%s role=%s',
+        matricula_log,
+        usuario.get('role'),
+    )
+    try:
+        conn = conectar_db()
+        cursor = cursor_db(conn)
+        cursor.execute('SELECT * FROM alunos WHERE matricula=%s LIMIT 1', (matricula_normalizada,))
+        aluno = row_to_dict(cursor.fetchone())
+        if not aluno:
+            status_final = 404
+            return jsonify({'erro': 'Aluno não encontrado para a matrícula informada.'}), 404
+
+        permitido = usuario_pode_ver_matricula(usuario, aluno.get('matricula'))
+        if not permitido:
+            status_final = 403
+            return jsonify({'erro': 'Você não tem permissão para ver este aluno.'}), 403
+
+        status_final = 200
+        return jsonify(formatar_aluno(aluno))
+    except psycopg2.Error as exc:
+        status_final = 503
+        return erro_banco(exc)
+    finally:
+        app.logger.info(
+            'alunos.detail.done elapsed_ms=%s matricula=%s role=%s permitido=%s status=%s',
+            int((time.perf_counter() - inicio) * 1000),
+            matricula_log,
+            usuario.get('role'),
+            permitido,
+            status_final,
+        )
         if conn:
             conn.close()
 
