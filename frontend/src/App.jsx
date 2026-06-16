@@ -1,7 +1,8 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
-import { User, Mail, Hash, Calendar, ShieldCheck, Phone, Edit2, Save, X, LogIn, Briefcase, GraduationCap, Users, CheckCircle2, Moon, Sun, ClipboardList, Laptop, Eye, EyeOff, KeyRound } from 'lucide-react';
+import { User, Mail, Hash, Calendar, ShieldCheck, Phone, Edit2, Save, X, LogIn, Briefcase, GraduationCap, Users, CheckCircle2, Moon, Sun, ClipboardList, Laptop, Eye, EyeOff } from 'lucide-react';
 import pdLogo from './assets/pd-logo.svg';
+import { AppHeader } from './components/AppHeader.jsx';
 import { CourseHoursDashboard } from './components/CourseHoursDashboard.jsx';
 import { CourseHoursStudentDetails } from './components/CourseHoursStudentDetails.jsx';
 import { MainNavigation } from './components/MainNavigation.jsx';
@@ -1086,25 +1087,15 @@ export default function App() {
 
   return (
     <div className={temaEscuro ? 'theme-dark app-shell' : 'theme-light app-shell'} style={(mostrarMonitores || mostrarIntegralizacao) ? { ...styles.container, maxWidth: '1500px' } : styles.container}>
-      <header className="app-header" style={styles.header}>
-        <div className="header-user">
-          <span className="user-chip">{formatarUsuario(usuario)}</span>
-        </div>
-        <button className="brand-block brand-home-button" type="button" onClick={voltarParaInicio} aria-label="Voltar para o início">
-          <img src={pdLogo} alt="PD Reports" className="pd-logo" style={styles.logo} />
-          <h1 style={styles.title}>PD Reports</h1>
-          <p style={styles.subtitle}>Gestão de Alunos</p>
-        </button>
-        <div className="header-controls">
-          <button className="ui-button icon-button" type="button" title="Alterar minha senha" aria-label="Alterar minha senha" onClick={() => setMostrarAlterarSenha(true)} style={styles.iconBtn}>
-            <KeyRound size={18} />
-          </button>
-          <button className="ui-button icon-button" type="button" title="Alternar tema" aria-label="Alternar tema" onClick={alternarTema} style={styles.iconBtn}>
-            {temaEscuro ? <Sun size={18} /> : <Moon size={18} />}
-          </button>
-          <button className="ui-button logout-button" type="button" onClick={sair} style={styles.neutralBtn}>Sair</button>
-        </div>
-      </header>
+      <AppHeader
+        userLabel={formatarUsuario(usuario)}
+        isDarkTheme={temaEscuro}
+        onHome={voltarParaInicio}
+        onToggleTheme={alternarTema}
+        onLogout={sair}
+        onOpenPasswordModal={() => setMostrarAlterarSenha(true)}
+        styles={styles}
+      />
 
       <MainNavigation
         activeSection={activeSection}
