@@ -780,6 +780,15 @@ def admin_ativo_count(cursor):
 def email_valido(email):
     return bool(re.fullmatch(r'[^@\s]+@[^@\s]+\.[^@\s]+', email or ''))
 
+def mascarar_email_log(valor):
+    email = str(valor or '').strip().lower()
+    if not email:
+        return ''
+    if '@' not in email:
+        return f'{email[:1]}***'
+    local, dominio = email.split('@', 1)
+    return f'{local[:1]}***@{dominio}' if local else f'***@{dominio}'
+
 def rejeitar_campos_inesperados(dados, permitidos):
     extras = set(dados.keys()) - set(permitidos)
     if extras:
@@ -800,12 +809,14 @@ def registrar_evento_seguranca(evento, usuario=None, **dados):
     partes = [
         f'evento={evento}',
         f'usuario_id={usuario.get("id") if usuario else ""}',
-        f'usuario_email={usuario.get("email") if usuario else ""}',
+        f'usuario_email={mascarar_email_log(usuario.get("email") if usuario else "")}',
         f'usuario_role={usuario.get("role") if usuario else ""}',
     ]
     for chave, valor in dados.items():
         if valor is None or valor == '' or valor == [] or valor == {}:
             continue
+        if 'email' in str(chave).lower():
+            valor = mascarar_email_log(valor)
         partes.append(f'{chave}={valor}')
     app.logger.info('security_event %s', ' '.join(partes))
 

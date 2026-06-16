@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
-import { Search, User, Mail, Hash, Calendar, ShieldCheck, Phone, Edit2, Save, X, LogIn, Briefcase, GraduationCap, Users, CheckCircle2, Moon, Sun, Plus, UserPlus, ClipboardList, Laptop, Eye, EyeOff, KeyRound } from 'lucide-react';
+import { Search, User, Mail, Hash, Calendar, ShieldCheck, Phone, Edit2, Save, X, LogIn, Briefcase, GraduationCap, Users, CheckCircle2, Moon, Sun, Plus, UserPlus, ClipboardList, Laptop, Eye, EyeOff, KeyRound, Home } from 'lucide-react';
 import pdLogo from './assets/pd-logo.svg';
 import { CourseHoursDashboard } from './components/CourseHoursDashboard.jsx';
 import { CourseHoursStudentDetails } from './components/CourseHoursStudentDetails.jsx';
@@ -556,6 +556,39 @@ export default function App() {
     setAlterandoMinhaSenha(false);
   };
 
+  const voltarParaInicio = () => {
+    setAlunos([]);
+    setBusca('');
+    setAluno(null);
+    setEditMode(false);
+    setTemp(criarTempSeguro());
+    setActiveTab('Dados principais');
+    setPerfil(PERFIL_INICIAL());
+    setPerfilTemp(PERFIL_INICIAL());
+    setEditPerfil(false);
+    setMensagem(null);
+    setHistorico([]);
+    setCarregandoHistorico(false);
+    setBuscaRealizada(false);
+    setMostrarNovoAluno(false);
+    setMostrarUsuarios(false);
+    setMostrarMonitores(false);
+    setMostrarIntegralizacao(false);
+    setVoltarParaListaConsumo(false);
+    setUsuarios([]);
+    setNovoAluno(NOVO_ALUNO_INICIAL);
+    setMostrarPerfilNovoAluno(false);
+    setNovoAlunoPerfil(PERFIL_CADASTRO_INICIAL());
+    setNovoUsuario({ nome: '', email: '', senha: '', role: 'monitor' });
+    setUsuarioEditando(null);
+    setUsuarioTemp({ nome: '', email: '', role: 'monitor' });
+    setSenhaUsuarioEditando(null);
+    setNovaSenhaUsuario('');
+    setMostrarSenhaUsuario(false);
+    setMostrarAlterarSenha(false);
+    setAlterandoMinhaSenha(false);
+  };
+
   const salvarPerfilAluno = async () => {
     if (!aluno || salvandoPerfil) return;
     setSalvandoPerfil(true);
@@ -1019,6 +1052,14 @@ export default function App() {
 
   const statusAtual = editMode ? temp.status : aluno?.status;
   const corStatus = getStatusColor(statusAtual);
+  const telaInicialLimpa = !mostrarMonitores
+    && !mostrarIntegralizacao
+    && !mostrarNovoAluno
+    && !mostrarUsuarios
+    && !aluno
+    && !busca
+    && !buscaRealizada
+    && alunos.length === 0;
 
   return (
     <div className={temaEscuro ? 'theme-dark app-shell' : 'theme-light app-shell'} style={(mostrarMonitores || mostrarIntegralizacao) ? { ...styles.container, maxWidth: '1500px' } : styles.container}>
@@ -1026,11 +1067,11 @@ export default function App() {
         <div className="header-user">
           <span className="user-chip">{formatarUsuario(usuario)}</span>
         </div>
-        <div className="brand-block">
+        <button className="brand-block brand-home-button" type="button" onClick={voltarParaInicio} aria-label="Voltar para o início">
           <img src={pdLogo} alt="PD Reports" className="pd-logo" style={styles.logo} />
           <h1 style={styles.title}>PD Reports</h1>
           <p style={styles.subtitle}>Gestão de Alunos</p>
-        </div>
+        </button>
         <div className="header-controls">
           <button className="ui-button icon-button" type="button" title="Alterar minha senha" aria-label="Alterar minha senha" onClick={() => setMostrarAlterarSenha(true)} style={styles.iconBtn}>
             <KeyRound size={18} />
@@ -1043,6 +1084,7 @@ export default function App() {
       </header>
 
       <div className="main-actions">
+        <button className={telaInicialLimpa ? 'ui-button is-active' : 'ui-button'} type="button" onClick={voltarParaInicio} style={styles.neutralBtn}><Home size={17} /> Início</button>
         {!isPrefeituraMunicipal && (
           <button className="ui-button" type="button" onClick={abrirMonitores} style={styles.neutralBtn}><Users size={17} /> Monitores</button>
         )}

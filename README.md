@@ -1,6 +1,6 @@
 # PD Reports
 
-Sistema web para gestão acadêmica, acompanhamento de alunos, relatórios de monitoria e controle de consumo dos cursos do Projeto Desenvolve.
+Sistema web de gestão acadêmica para acompanhamento de alunos, relatórios de monitoria e controle de consumo dos cursos do Projeto Desenvolve.
 
 ![React](https://img.shields.io/badge/React-Frontend-blue)
 ![Flask](https://img.shields.io/badge/Flask-Backend-black)
@@ -22,9 +22,9 @@ Aplicação online:
 
 ## Sobre o projeto
 
-PD Reports centraliza a operação de acompanhamento do Projeto Desenvolve em uma aplicação administrativa com autenticação, perfis de acesso, gestão de alunos, histórico individual, relatórios de monitoria e um módulo completo de Consumo.
+PD Reports centraliza a operação de acompanhamento do Projeto Desenvolve em uma aplicação administrativa com autenticação, perfis de acesso, gestão de alunos, perfil completo, histórico individual, relatórios de monitoria e um módulo completo de Consumo.
 
-O sistema foi construído com frontend e backend separados, persistência em PostgreSQL/Neon, integração com Google Sheets e deploy independente em Vercel e Render. A versão pública usa dados fictícios ou anonimizados para preservar informações sensíveis.
+O sistema foi construído com frontend e backend separados, persistência em PostgreSQL/Neon, integração com Google Sheets API e deploy independente em Vercel e Render. A versão pública usa dados fictícios ou anonimizados para preservar informações sensíveis e funciona como demonstração de portfólio de uma aplicação real de operação acadêmica.
 
 ---
 
@@ -91,7 +91,7 @@ Principais recursos:
 - inclusão automática de cursos oficiais ainda não iniciados como `0%`;
 - separação entre curso concluído e certificado gerado;
 - regra especial para alunos com Desafio Final, sem inventar certificados individuais;
-- ordenação da lista de cursos sem certificado por progresso e depois por nome;
+- ordenação dos cursos sem certificado com cursos em andamento primeiro, depois cursos não iniciados e, dentro de cada grupo, a ordem oficial da trilha;
 - cálculo de meta diária até o prazo final configurado;
 - filtros e permissões por escopo municipal.
 
@@ -107,35 +107,35 @@ Principais recursos:
 
 ![Dashboard administrativo](docs/images/dashboard-administrativo.png)
 
-### Aba de Consumo
+### Consumo geral dos alunos
 
-![Aba de Consumo](docs/images/consumo-geral.png)
+![Consumo geral](docs/images/consumo-geral.png)
 
-### Atualização do Consumo
+### Atualização manual do Consumo
 
-![Atualização do Consumo](docs/images/atualizacao-consumo.png)
+![Atualização manual do Consumo](docs/images/atualizacao-consumo.png)
 
-Fluxo administrativo para envio do arquivo `all_grades.json` e do CSV de certificados gerados pelo checker, permitindo atualizar os indicadores de consumo, certificação e progresso dos alunos diretamente pelo painel.
+Fluxo administrativo para envio do arquivo `all_grades.json` e do CSV de certificados gerados pelo checker, permitindo atualizar indicadores de consumo, certificação e progresso diretamente pelo painel.
 
-### Consumo Individual
+### Perfil individual de Consumo
 
-![Consumo Individual](docs/images/consumo-individual.png)
+![Consumo individual](docs/images/consumo-individual.png)
 
-### Meta Diária 
+### Meta diária e planejamento de estudo
 
-![Meta Diária](docs/images/consumo-meta-diaria.png)
+![Meta diária](docs/images/consumo-meta-diaria.png)
 
-### Consumo Desafio Final
+### Desafio Final e conclusão reconhecida
 
-![Consumo Desafio Final](docs/images/consumo-desafio-final.png)
+![Desafio Final](docs/images/consumo-desafio-final.png)
 
-### Busca por Aluno
+### Busca e perfil do aluno
 
-![Busca por Aluno](docs/images/busca-por-aluno.png)
+![Busca por aluno](docs/images/busca-por-aluno.png)
 
-### Aba de Controle de Monitorias
+### Relatórios de monitoria
 
-![Aba de Controle de Monitorias](docs/images/aba-monitores.png)
+![Aba de monitores](docs/images/aba-monitores.png)
 
 ---
 
@@ -220,9 +220,29 @@ FRONTEND_URL=https://pdreports.vercel.app
 INTEGRALIZACAO_XLSX_PATH=dados/alunos_horas_extras_com_desafio_final.xlsx
 INTEGRALIZACAO_HORAS_TOTAIS=154
 INTEGRALIZACAO_PRAZO_FINAL=2026-11-30
+CONSUMPTION_SOURCE_MODE=neon
 CONSUMPTION_PROCESSING_MODE=sync
+CONSUMPTION_UPDATE_ENABLED=true
 COURSE_CONSUMPTION_TOTAL_CERTIFIABLE=22
 ```
+
+Produção recomendada no Render:
+
+```env
+CONSUMPTION_SOURCE_MODE=neon
+CONSUMPTION_PROCESSING_MODE=sync
+CONSUMPTION_UPDATE_ENABLED=true
+COURSE_CONSUMPTION_TOTAL_CERTIFIABLE=22
+```
+
+Desenvolvimento/local:
+
+```env
+CONSUMPTION_SOURCE_MODE=auto
+CONSUMPTION_PROCESSING_MODE=external
+```
+
+Em produção, o Consumo deve ler as runs persistidas no Neon. O fallback XLSX é mais útil para desenvolvimento ou diagnóstico local. O upload manual no painel administrativo gera uma run persistida no Neon e o Render pode apresentar cold start no primeiro acesso após períodos sem uso.
 
 ### Frontend
 
@@ -285,10 +305,13 @@ ADMIN_PASSWORD=
 GOOGLE_SHEETS_ID=
 GOOGLE_SERVICE_ACCOUNT_JSON=
 FRONTEND_URL=https://pdreports.vercel.app
+CONSUMPTION_SOURCE_MODE=neon
 CONSUMPTION_PROCESSING_MODE=sync
+CONSUMPTION_UPDATE_ENABLED=true
+COURSE_CONSUMPTION_TOTAL_CERTIFIABLE=22
 ```
 
-O timeout de 1200 segundos suporta a atualização manual do Consumo no próprio Web Service do Render. O modo `external` continua disponível como fallback com:
+O timeout de 1200 segundos suporta a atualização manual do Consumo no próprio Web Service do Render. O modo `external` continua disponível como fallback local ou operacional com:
 
 ```bash
 python backend/scripts/processar_atualizacao_consumo_pendente.py
@@ -374,11 +397,12 @@ python backend/scripts/importar_perfil_alunos.py
 ### Backend
 
 ```bash
-python -m py_compile backend/app.py backend/access_scope.py backend/course_checker.py backend/checker_report_importer.py backend/integralizacao.py
+python -m py_compile backend/app.py backend/access_scope.py backend/course_rules.py backend/course_checker.py backend/checker_report_importer.py backend/integralizacao.py backend/consumption_repository.py backend/consumption_update_service.py
 python backend/scripts/testar_course_checker.py
 python backend/scripts/testar_integralizacao.py
 python backend/scripts/testar_permissoes.py
 python backend/scripts/testar_permissoes_cidade.py
+python backend/scripts/testar_upload_consumo.py
 ```
 
 ### Frontend
@@ -400,6 +424,7 @@ git diff --check
 - `docs/SETUP_LOCAL.md`
 - `docs/ATUALIZACAO_CONSUMO.md`
 - `docs/PERMISSOES_CIDADE.md`
+- `docs/AUDITORIA_PROJETO.md`
 
 ---
 
