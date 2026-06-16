@@ -6,6 +6,12 @@ PD Reports é uma aplicação full stack para gestão acadêmica, acompanhamento
 
 O módulo mais forte é o Consumo: atualização manual por `all_grades.json` e `certificados.csv`, regra oficial de 22 cursos, tratamento de Desafio Final, meta diária e permissões municipais por matrícula.
 
+## Verificação de dados públicos
+
+- Resultado da revisão de arquivos rastreados: não foram encontrados `.env`, service account, `checker/`, logs, temporários, `node_modules` ou venv rastreados. Os resultados com termos sensíveis aparecem em arquivos de exemplo, documentação ou scripts.
+- Resultado da revisão de screenshots: os screenshots ainda referenciados no README existem e os dados pessoais visíveis estão borrados/anonimizados. A imagem `docs/images/dashboard-administrativo.png` mostra usuário/admin nominal no canto da aplicação e deixou de ser referenciada no README até existir versão anonimizada.
+- Pendências: `dados/alunos_horas_extras_com_desafio_final.xlsx` permanece rastreado e deve ser confirmado como demo/anonimizado. Se for dado real, substituir por amostra fictícia e planejar remoção do histórico Git.
+
 ## Pontos fortes
 
 - Produto com fluxo real de operação, não apenas tela demonstrativa.

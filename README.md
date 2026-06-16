@@ -99,13 +99,11 @@ Principais recursos:
 
 ## Screenshots
 
+> Os screenshots usados neste README foram anonimizados para fins de portfólio. Dados reais de alunos, credenciais, exports e arquivos de produção não devem ser versionados. Consulte a [política de privacidade de dados do repositório](docs/PRIVACIDADE_DADOS.md).
+
 ### Login e autenticação
 
 ![Tela de login](docs/images/login.png)
-
-### Dashboard administrativo
-
-![Dashboard administrativo](docs/images/dashboard-administrativo.png)
 
 ### Consumo geral dos alunos
 
@@ -425,6 +423,7 @@ git diff --check
 - `docs/ATUALIZACAO_CONSUMO.md`
 - `docs/PERMISSOES_CIDADE.md`
 - `docs/AUDITORIA_PROJETO.md`
+- `docs/PRIVACIDADE_DADOS.md`
 
 ---
 
