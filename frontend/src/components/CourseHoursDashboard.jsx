@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import { AlertTriangle, Clock3, FileJson, FileText, LoaderCircle, Upload, X } from 'lucide-react';
 import { CourseHoursStudentCard } from './CourseHoursStudentCard.jsx';
@@ -115,7 +115,7 @@ export function CourseHoursDashboard({ apiBaseUrl, authHeaders, onSelectStudent,
   const carregarRequestId = useRef(0);
   const statusRequestId = useRef(0);
 
-  const carregar = async () => {
+  const carregar = useCallback(async () => {
     const requestId = carregarRequestId.current + 1;
     carregarRequestId.current = requestId;
     setCarregando(true);
@@ -155,9 +155,9 @@ export function CourseHoursDashboard({ apiBaseUrl, authHeaders, onSelectStudent,
         setAvisoCarregamento('');
       }
     }
-  };
+  }, [apiBaseUrl, authHeaders, isAdmin, usuario]);
 
-  const carregarStatus = async () => {
+  const carregarStatus = useCallback(async () => {
     const requestId = statusRequestId.current + 1;
     statusRequestId.current = requestId;
     setCarregandoStatus(true);
@@ -189,12 +189,15 @@ export function CourseHoursDashboard({ apiBaseUrl, authHeaders, onSelectStudent,
     } finally {
       if (statusRequestId.current === requestId) setCarregandoStatus(false);
     }
-  };
+  }, [apiBaseUrl, authHeaders]);
 
   useEffect(() => {
-    carregar();
-    carregarStatus();
-  }, [apiBaseUrl, authHeaders]);
+    const timer = window.setTimeout(() => {
+      carregar();
+      carregarStatus();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [carregar, carregarStatus]);
 
   useEffect(() => {
     const status = statusAtualizacao?.status;
@@ -206,9 +209,9 @@ export function CourseHoursDashboard({ apiBaseUrl, authHeaders, onSelectStudent,
       }
     }, 5000);
     return () => window.clearInterval(timer);
-  }, [statusAtualizacao?.status, apiBaseUrl, authHeaders]);
+  }, [statusAtualizacao?.status, carregar, carregarStatus]);
 
-  const alunos = dados?.alunos || [];
+  const alunos = useMemo(() => dados?.alunos || [], [dados?.alunos]);
   const podeVerNaoVinculados = dados?.permissoes?.podeVerNaoVinculados;
   const tabsVisiveis = TABS.filter(([key]) => key !== 'naoVinculados' || podeVerNaoVinculados);
 

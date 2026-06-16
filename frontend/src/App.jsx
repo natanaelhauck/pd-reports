@@ -1121,12 +1121,14 @@ export default function App() {
 
       {mensagem && <div style={{ ...styles.message, ...estiloMensagem }}>{mensagem.texto}</div>}
 
-      <AlterarSenhaPropriaModal
-        aberto={mostrarAlterarSenha}
-        carregando={alterandoMinhaSenha}
-        onClose={() => setMostrarAlterarSenha(false)}
-        onSubmit={alterarMinhaSenha}
-      />
+      {mostrarAlterarSenha && (
+        <AlterarSenhaPropriaModal
+          aberto={mostrarAlterarSenha}
+          carregando={alterandoMinhaSenha}
+          onClose={() => setMostrarAlterarSenha(false)}
+          onSubmit={alterarMinhaSenha}
+        />
+      )}
 
       {mostrarMonitores && (
         <MonitoresDashboard usuario={usuario} authHeaders={authHeaders} />
@@ -2366,13 +2368,6 @@ function AlterarSenhaPropriaModal({ aberto, carregando, onClose, onSubmit }) {
   const [senhaAtual, setSenhaAtual] = useState('');
   const [novaSenha, setNovaSenha] = useState('');
   const [confirmacaoNovaSenha, setConfirmacaoNovaSenha] = useState('');
-
-  useEffect(() => {
-    if (!aberto) return;
-    setSenhaAtual('');
-    setNovaSenha('');
-    setConfirmacaoNovaSenha('');
-  }, [aberto]);
 
   useEffect(() => {
     if (!aberto) return undefined;

@@ -82,14 +82,7 @@ export function CourseHoursStudentDetails({ aluno, alunoConsumo, apiBaseUrl, aut
   const [erro, setErro] = useState('');
 
   useEffect(() => {
-    if (alunoConsumo) {
-      setDados({ encontrado: true, aluno: alunoConsumo });
-      setErro('');
-      setCarregando(false);
-      return undefined;
-    }
-
-    if (!aluno?.matricula) return undefined;
+    if (alunoConsumo || !aluno?.matricula) return undefined;
     let cancelado = false;
 
     const carregar = async () => {
@@ -116,7 +109,9 @@ export function CourseHoursStudentDetails({ aluno, alunoConsumo, apiBaseUrl, aut
     };
   }, [aluno?.matricula, alunoConsumo, apiBaseUrl, authHeaders]);
 
-  if (carregando) {
+  const dadosVisiveis = alunoConsumo ? { encontrado: true, aluno: alunoConsumo } : dados;
+
+  if (!alunoConsumo && carregando) {
     return (
       <>
         {onBack && (
@@ -129,7 +124,7 @@ export function CourseHoursStudentDetails({ aluno, alunoConsumo, apiBaseUrl, aut
     );
   }
 
-  if (erro) {
+  if (!alunoConsumo && erro) {
     return (
       <>
         {onBack && (
@@ -142,11 +137,11 @@ export function CourseHoursStudentDetails({ aluno, alunoConsumo, apiBaseUrl, aut
     );
   }
 
-  if (!dados) {
+  if (!dadosVisiveis) {
     return null;
   }
 
-  if (!dados.encontrado) {
+  if (!dadosVisiveis.encontrado) {
     return (
       <section className="course-section">
         {onBack && (
@@ -157,12 +152,12 @@ export function CourseHoursStudentDetails({ aluno, alunoConsumo, apiBaseUrl, aut
         <div className="course-section-head">
           <div>
             <h3>Consumo</h3>
-            <p>{dados.mensagem || 'Sem dados de consumo para este aluno.'}</p>
+            <p>{dadosVisiveis.mensagem || 'Sem dados de consumo para este aluno.'}</p>
           </div>
         </div>
       </section>
     );
   }
 
-  return <ConsumptionDetail aluno={dados.aluno} onBack={onBack} />;
+  return <ConsumptionDetail aluno={dadosVisiveis.aluno} onBack={onBack} />;
 }

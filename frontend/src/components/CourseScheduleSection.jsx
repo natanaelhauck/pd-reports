@@ -11,7 +11,7 @@ const formatDurationLongFromMinutes = (minutos) => {
   return partes.length ? partes.join(' e ') : '0 minutos';
 };
 
-export const formatDurationLong = (horas) => {
+const formatDurationLong = (horas) => {
   const numero = Number(horas || 0);
   const totalMin = Number.isFinite(numero) ? Math.max(0, Math.round(numero * 60)) : 0;
   return formatDurationLongFromMinutes(totalMin);
@@ -28,7 +28,7 @@ const formatDurationCompactFromMinutes = (minutos) => {
   return partes.join(' e ');
 };
 
-export const formatDurationCompact = (horas) => {
+const formatDurationCompact = (horas) => {
   const numero = Number(horas || 0);
   const totalMin = Number.isFinite(numero) ? Math.max(0, Math.round(numero * 60)) : 0;
   return formatDurationCompactFromMinutes(totalMin);
