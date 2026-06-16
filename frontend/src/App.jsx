@@ -1,9 +1,10 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
-import { Search, User, Mail, Hash, Calendar, ShieldCheck, Phone, Edit2, Save, X, LogIn, Briefcase, GraduationCap, Users, CheckCircle2, Moon, Sun, Plus, UserPlus, ClipboardList, Laptop, Eye, EyeOff, KeyRound, Home } from 'lucide-react';
+import { Search, User, Mail, Hash, Calendar, ShieldCheck, Phone, Edit2, Save, X, LogIn, Briefcase, GraduationCap, Users, CheckCircle2, Moon, Sun, ClipboardList, Laptop, Eye, EyeOff, KeyRound } from 'lucide-react';
 import pdLogo from './assets/pd-logo.svg';
 import { CourseHoursDashboard } from './components/CourseHoursDashboard.jsx';
 import { CourseHoursStudentDetails } from './components/CourseHoursStudentDetails.jsx';
+import { MainNavigation } from './components/MainNavigation.jsx';
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 const MONITORES = ['Alex', 'André', 'Douglas', 'Gabriel', 'Kellen', 'Natanael'];
@@ -747,7 +748,7 @@ export default function App() {
     setMensagem(null);
   };
 
-  const abrirIntegralizacao = () => {
+  const abrirConsumo = () => {
     fecharAlunoSelecionado();
     setMostrarNovoAluno(false);
     setMostrarUsuarios(false);
@@ -1017,6 +1018,35 @@ export default function App() {
     setEditMode(false);
   };
 
+  const activeSection = useMemo(() => {
+    if (mostrarMonitores) return 'monitores';
+    if (mostrarIntegralizacao || (voltarParaListaConsumo && activeTab === 'Consumo')) return 'consumo';
+    if (mostrarNovoAluno) return 'novo-aluno';
+    if (mostrarUsuarios) return 'usuarios';
+
+    const telaInicialLimpa = !mostrarMonitores
+      && !mostrarIntegralizacao
+      && !mostrarNovoAluno
+      && !mostrarUsuarios
+      && !aluno
+      && !busca
+      && !buscaRealizada
+      && alunos.length === 0;
+
+    return telaInicialLimpa ? 'inicio' : null;
+  }, [
+    mostrarMonitores,
+    mostrarIntegralizacao,
+    mostrarNovoAluno,
+    mostrarUsuarios,
+    aluno,
+    busca,
+    buscaRealizada,
+    alunos.length,
+    voltarParaListaConsumo,
+    activeTab,
+  ]);
+
   if (!autenticado) {
     return (
       <div className={temaEscuro ? 'theme-dark app-shell' : 'theme-light app-shell'} style={styles.container}>
@@ -1052,19 +1082,6 @@ export default function App() {
 
   const statusAtual = editMode ? temp.status : aluno?.status;
   const corStatus = getStatusColor(statusAtual);
-  const telaInicialLimpa = !mostrarMonitores
-    && !mostrarIntegralizacao
-    && !mostrarNovoAluno
-    && !mostrarUsuarios
-    && !aluno
-    && !busca
-    && !buscaRealizada
-    && alunos.length === 0;
-  const consumoAtivo = mostrarIntegralizacao || (voltarParaListaConsumo && activeTab === 'Consumo');
-  const mainActionButtonProps = (ativo) => ({
-    className: ativo ? 'ui-button main-action-button active' : 'ui-button main-action-button',
-    'aria-current': ativo ? 'page' : undefined,
-  });
 
   return (
     <div className={temaEscuro ? 'theme-dark app-shell' : 'theme-light app-shell'} style={(mostrarMonitores || mostrarIntegralizacao) ? { ...styles.container, maxWidth: '1500px' } : styles.container}>
@@ -1088,19 +1105,18 @@ export default function App() {
         </div>
       </header>
 
-      <div className="main-actions">
-        <button {...mainActionButtonProps(telaInicialLimpa)} type="button" onClick={voltarParaInicio} style={styles.neutralBtn}><Home size={17} /> Início</button>
-        {!isPrefeituraMunicipal && (
-          <button {...mainActionButtonProps(mostrarMonitores)} type="button" onClick={abrirMonitores} style={styles.neutralBtn}><Users size={17} /> Monitores</button>
-        )}
-        <button {...mainActionButtonProps(consumoAtivo)} type="button" onClick={abrirIntegralizacao} style={styles.neutralBtn}><GraduationCap size={17} /> Consumo</button>
-        {isAdmin && (
-          <>
-            <button {...mainActionButtonProps(mostrarNovoAluno)} type="button" onClick={abrirNovoAluno} style={styles.neutralBtn}><Plus size={17} /> Novo aluno</button>
-            <button {...mainActionButtonProps(mostrarUsuarios)} type="button" onClick={abrirUsuarios} style={styles.neutralBtn}><UserPlus size={17} /> Usuários</button>
-          </>
-        )}
-      </div>
+      <MainNavigation
+        activeSection={activeSection}
+        canViewMonitores={!isPrefeituraMunicipal}
+        canViewConsumo
+        canCreateAluno={isAdmin}
+        canManageUsuarios={isAdmin}
+        onHome={voltarParaInicio}
+        onMonitores={abrirMonitores}
+        onConsumo={abrirConsumo}
+        onNovoAluno={abrirNovoAluno}
+        onUsuarios={abrirUsuarios}
+      />
 
       <form className="search-form" onSubmit={buscar} style={styles.searchBox}>
         <Search className="search-icon" size={20} color="#64748b" />
