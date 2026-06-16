@@ -115,14 +115,27 @@ Principais recursos:
 
 ![Relatórios de monitoria](docs/images/monitorias.png)
 
-### Screenshots recomendados para adicionar
+### Aba de Consumo
 
-Os prints abaixo ainda não estão versionados. Quando forem adicionados, devem usar dados fictícios ou anonimizados, sem nomes, e-mails, matrículas ou informações pessoais reais.
+![Aba de Consumo](docs/images/consumo-geral.png)
 
-- `docs/images/consumo-geral.png`
-- `docs/images/consumo-individual-andamento.png`
-- `docs/images/consumo-desafio-final.png`
-- `docs/images/consumo-meta-diaria.png`
+### Atualização do Consumo
+
+![Atualização do Consumo](docs/images/atualizacao-consumo.png)
+
+Fluxo administrativo para envio do arquivo `all_grades.json` e do CSV de certificados gerados pelo checker, permitindo atualizar os indicadores de consumo, certificação e progresso dos alunos diretamente pelo painel.
+
+### Consumo Individual
+
+![Consumo Individual](docs/images/consumo-individual.png)
+
+### Meta Diária 
+
+![Meta Diária](docs/images/consumo-meta-diaria.png)
+
+### Consumo Desafio Final
+
+![Consumo Desafio Final](docs/images/consumo-desafio-final.png)
 
 ---
 
