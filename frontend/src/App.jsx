@@ -1060,6 +1060,11 @@ export default function App() {
     && !busca
     && !buscaRealizada
     && alunos.length === 0;
+  const consumoAtivo = mostrarIntegralizacao || (voltarParaListaConsumo && activeTab === 'Consumo');
+  const mainActionButtonProps = (ativo) => ({
+    className: ativo ? 'ui-button main-action-button active' : 'ui-button main-action-button',
+    'aria-current': ativo ? 'page' : undefined,
+  });
 
   return (
     <div className={temaEscuro ? 'theme-dark app-shell' : 'theme-light app-shell'} style={(mostrarMonitores || mostrarIntegralizacao) ? { ...styles.container, maxWidth: '1500px' } : styles.container}>
@@ -1084,15 +1089,15 @@ export default function App() {
       </header>
 
       <div className="main-actions">
-        <button className={telaInicialLimpa ? 'ui-button is-active' : 'ui-button'} type="button" onClick={voltarParaInicio} style={styles.neutralBtn}><Home size={17} /> Início</button>
+        <button {...mainActionButtonProps(telaInicialLimpa)} type="button" onClick={voltarParaInicio} style={styles.neutralBtn}><Home size={17} /> Início</button>
         {!isPrefeituraMunicipal && (
-          <button className="ui-button" type="button" onClick={abrirMonitores} style={styles.neutralBtn}><Users size={17} /> Monitores</button>
+          <button {...mainActionButtonProps(mostrarMonitores)} type="button" onClick={abrirMonitores} style={styles.neutralBtn}><Users size={17} /> Monitores</button>
         )}
-        <button className="ui-button" type="button" onClick={abrirIntegralizacao} style={styles.neutralBtn}><GraduationCap size={17} /> Consumo</button>
+        <button {...mainActionButtonProps(consumoAtivo)} type="button" onClick={abrirIntegralizacao} style={styles.neutralBtn}><GraduationCap size={17} /> Consumo</button>
         {isAdmin && (
           <>
-            <button className="ui-button" type="button" onClick={abrirNovoAluno} style={styles.neutralBtn}><Plus size={17} /> Novo aluno</button>
-            <button className="ui-button" type="button" onClick={abrirUsuarios} style={styles.neutralBtn}><UserPlus size={17} /> Usuários</button>
+            <button {...mainActionButtonProps(mostrarNovoAluno)} type="button" onClick={abrirNovoAluno} style={styles.neutralBtn}><Plus size={17} /> Novo aluno</button>
+            <button {...mainActionButtonProps(mostrarUsuarios)} type="button" onClick={abrirUsuarios} style={styles.neutralBtn}><UserPlus size={17} /> Usuários</button>
           </>
         )}
       </div>
