@@ -15,6 +15,7 @@ import { StudentConsumptionTab } from './components/StudentConsumptionTab.jsx';
 import { UserManagementPanel } from './components/UserManagementPanel.jsx';
 import { NewStudentPanel } from './components/NewStudentPanel.jsx';
 import { useUsersManagement } from './hooks/useUsersManagement.js';
+import { useAlunoSearch } from './hooks/useAlunoSearch.js';
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 const MONITORES = ['Alex', 'André', 'Douglas', 'Gabriel', 'Kellen', 'Natanael'];
@@ -450,8 +451,6 @@ export default function App() {
   const [senha, setSenha] = useState('');
   const [mostrarSenhaLogin, setMostrarSenhaLogin] = useState(false);
   const [tema, setTema] = useState(() => localStorage.getItem('pd_theme') || 'light');
-  const [alunos, setAlunos] = useState([]);
-  const [busca, setBusca] = useState('');
   const [aluno, setAluno] = useState(null);
   const [editMode, setEditMode] = useState(false);
   const [temp, setTemp] = useState(criarTempSeguro());
@@ -461,11 +460,9 @@ export default function App() {
   const [editPerfil, setEditPerfil] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [salvandoPerfil, setSalvandoPerfil] = useState(false);
-  const [buscando, setBuscando] = useState(false);
   const [mensagem, setMensagem] = useState(null);
   const [historico, setHistorico] = useState([]);
   const [carregandoHistorico, setCarregandoHistorico] = useState(false);
-  const [buscaRealizada, setBuscaRealizada] = useState(false);
   const [mostrarNovoAluno, setMostrarNovoAluno] = useState(false);
   const [mostrarUsuarios, setMostrarUsuarios] = useState(false);
   const [mostrarMonitores, setMostrarMonitores] = useState(false);
@@ -495,28 +492,34 @@ export default function App() {
     setMensagem,
     getErrorMessage: mensagemErroApi,
   });
+  const alunoSearch = useAlunoSearch({
+    apiBaseUrl: API_BASE_URL,
+    authHeaders,
+    aluno,
+    setAluno,
+    setTemp,
+    setPerfil,
+    setPerfilTemp,
+    setEditMode,
+    setEditPerfil,
+    setActiveTab,
+    setHistorico,
+    setMensagem,
+    setVoltarParaListaConsumo,
+    setMostrarNovoAluno,
+    setMostrarUsuarios,
+    setMostrarMonitores,
+    setMostrarIntegralizacao,
+    criarTempSeguro,
+    perfilInicial: PERFIL_INICIAL,
+    mensagemErroApi,
+    mensagemErroAbrirAluno,
+    cardRef,
+  });
   const temaEscuro = tema === 'dark';
   const tabsVisiveis = useMemo(() => (
     isPrefeituraMunicipal ? TABS.filter((tab) => tab !== 'Relatórios Monitoria' && tab !== 'Histórico') : TABS
   ), [isPrefeituraMunicipal]);
-
-  const alunosOrdenados = useMemo(() => {
-    const porMatricula = new Map();
-    alunos.forEach((item) => {
-      const chave = item.matricula || item.id;
-      if (!porMatricula.has(chave)) porMatricula.set(chave, item);
-    });
-    return Array.from(porMatricula.values()).sort((a, b) =>
-      String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR', { sensitivity: 'base' })
-    );
-  }, [alunos]);
-
-  const resultadosVisiveis = useMemo(() => {
-    if (aluno && alunosOrdenados.length === 1 && alunosOrdenados[0].matricula === aluno.matricula) {
-      return [];
-    }
-    return alunosOrdenados;
-  }, [aluno, alunosOrdenados]);
 
   const estiloMensagem = mensagem?.tipo === 'sucesso'
     ? { background: '#ecfdf5', color: '#166534', border: '1px solid #bbf7d0' }
@@ -533,8 +536,7 @@ export default function App() {
   };
 
   const limparEstadoAplicacao = () => {
-    setAlunos([]);
-    setBusca('');
+    alunoSearch.resetBuscaGeral();
     setAluno(null);
     setEditMode(false);
     setTemp(criarTempSeguro());
@@ -544,7 +546,6 @@ export default function App() {
     setEditPerfil(false);
     setMensagem(null);
     setHistorico([]);
-    setBuscaRealizada(false);
     setMostrarNovoAluno(false);
     setMostrarUsuarios(false);
     setMostrarMonitores(false);
@@ -559,8 +560,7 @@ export default function App() {
   };
 
   const voltarParaInicio = () => {
-    setAlunos([]);
-    setBusca('');
+    alunoSearch.resetBuscaGeral();
     setAluno(null);
     setEditMode(false);
     setTemp(criarTempSeguro());
@@ -571,7 +571,6 @@ export default function App() {
     setMensagem(null);
     setHistorico([]);
     setCarregandoHistorico(false);
-    setBuscaRealizada(false);
     setMostrarNovoAluno(false);
     setMostrarUsuarios(false);
     setMostrarMonitores(false);
@@ -627,31 +626,9 @@ export default function App() {
   };
 
   const atualizarAlunoLocal = (atualizado) => {
-    setAlunos((atuais) => atuais.map((a) => (a.matricula === atualizado.matricula ? atualizado : a)));
+    alunoSearch.atualizarAlunoNosResultados(atualizado);
     setAluno(atualizado);
     setTemp(criarTempSeguro(atualizado));
-  };
-
-  const buscarAlunosPorTermo = async (termo = '') => {
-    if (!termo) {
-      setAlunos([]);
-      setAluno(null);
-      return;
-    }
-    setBuscando(true);
-    setMensagem(null);
-    try {
-      const res = await axios.get(`${API_BASE_URL}/api/alunos`, authConfig({ params: { q: termo }, timeout: 12000 }));
-      setAlunos(res.data);
-      if (res.data.length === 0) {
-        setAluno(null);
-        setMensagem({ tipo: 'erro', texto: 'Nenhum aluno encontrado' });
-      }
-    } catch (err) {
-      setMensagem({ tipo: 'erro', texto: mensagemErroApi(err, 'Não foi possível buscar alunos.') });
-    } finally {
-      setBuscando(false);
-    }
   };
 
   const login = async (e) => {
@@ -690,27 +667,8 @@ export default function App() {
     setAlterandoMinhaSenha(false);
   };
 
-  const fecharAlunoSelecionado = () => {
-    setAluno(null);
-    setEditMode(false);
-    setEditPerfil(false);
-    setActiveTab('Dados principais');
-    setHistorico([]);
-    setVoltarParaListaConsumo(false);
-  };
-
-  const limparBuscaGeral = ({ fecharAluno = true } = {}) => {
-    setBusca('');
-    setAlunos([]);
-    setBuscaRealizada(false);
-    setMensagem(null);
-    if (fecharAluno) {
-      fecharAlunoSelecionado();
-    }
-  };
-
   const abrirNovoAluno = () => {
-    fecharAlunoSelecionado();
+    alunoSearch.fecharAlunoSelecionado();
     setMostrarMonitores(false);
     setMostrarUsuarios(false);
     setMostrarIntegralizacao(false);
@@ -721,7 +679,7 @@ export default function App() {
   };
 
   const abrirUsuarios = async () => {
-    fecharAlunoSelecionado();
+    alunoSearch.fecharAlunoSelecionado();
     setMostrarMonitores(false);
     setMostrarIntegralizacao(false);
     setMostrarNovoAluno(false);
@@ -731,7 +689,7 @@ export default function App() {
   };
 
   const abrirMonitores = () => {
-    fecharAlunoSelecionado();
+    alunoSearch.fecharAlunoSelecionado();
     setMostrarNovoAluno(false);
     setMostrarUsuarios(false);
     setMostrarIntegralizacao(false);
@@ -740,7 +698,7 @@ export default function App() {
   };
 
   const abrirConsumo = () => {
-    fecharAlunoSelecionado();
+    alunoSearch.fecharAlunoSelecionado();
     setMostrarNovoAluno(false);
     setMostrarUsuarios(false);
     setMostrarMonitores(false);
@@ -784,7 +742,7 @@ export default function App() {
       }
       const res = await axios.post(`${API_BASE_URL}/api/alunos/create`, payload, authConfig({ timeout: 12000 }));
       const criado = res.data.aluno;
-      setAlunos((atuais) => [...atuais.filter((a) => a.matricula !== criado.matricula), criado]);
+      alunoSearch.adicionarAlunoAResultados(criado);
       setAluno(criado);
       setTemp(criarTempSeguro(criado));
       if (res.data.perfil) {
@@ -796,7 +754,6 @@ export default function App() {
         setPerfil(perfilInicial);
         setPerfilTemp(perfilInicial);
       }
-      setBuscaRealizada(true);
       setMostrarNovoAluno(false);
       setNovoAluno(NOVO_ALUNO_INICIAL);
       setMostrarPerfilNovoAluno(false);
@@ -807,92 +764,6 @@ export default function App() {
     } finally {
       setSalvandoNovoAluno(false);
     }
-  };
-
-  const buscarAlunos = async (e) => {
-    e.preventDefault();
-    setMostrarMonitores(false);
-    setMostrarIntegralizacao(false);
-    setVoltarParaListaConsumo(false);
-    setBuscaRealizada(true);
-    await buscarAlunosPorTermo(busca.trim());
-    setEditMode(false);
-    setActiveTab('Dados principais');
-  };
-
-  const selecionarAluno = (selecionado) => {
-    setMostrarNovoAluno(false);
-    setMostrarUsuarios(false);
-    setMostrarMonitores(false);
-    setMostrarIntegralizacao(false);
-    setAluno(selecionado);
-    setTemp(criarTempSeguro(selecionado));
-    setPerfil(PERFIL_INICIAL(selecionado.matricula));
-    setPerfilTemp(PERFIL_INICIAL(selecionado.matricula));
-    setEditMode(false);
-    setEditPerfil(false);
-    setActiveTab('Dados principais');
-    setHistorico([]);
-    setVoltarParaListaConsumo(false);
-    setMensagem(null);
-    requestAnimationFrame(() => cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
-  };
-
-  const abrirAlunoPorMatricula = async (matricula, origem = 'geral') => {
-    if (!matricula) {
-      setMensagem({ tipo: 'aviso', texto: 'Este registro de consumo ainda não tem aluno vinculado no PD Reports.' });
-      return;
-    }
-
-    setBuscando(true);
-    setMensagem(null);
-    try {
-      const res = await axios.get(`${API_BASE_URL}/api/alunos/${encodeURIComponent(matricula)}`, authConfig({ timeout: 12000 }));
-      const selecionado = res.data;
-      setAlunos([]);
-      setBusca('');
-      setBuscaRealizada(false);
-      setMostrarNovoAluno(false);
-      setMostrarUsuarios(false);
-      setMostrarMonitores(false);
-      setMostrarIntegralizacao(false);
-      setAluno(selecionado);
-      setTemp(criarTempSeguro(selecionado));
-      setPerfil(PERFIL_INICIAL(selecionado.matricula));
-      setPerfilTemp(PERFIL_INICIAL(selecionado.matricula));
-      setEditMode(false);
-      setEditPerfil(false);
-      setActiveTab(origem === 'consumo' ? 'Consumo' : 'Dados principais');
-      setHistorico([]);
-      setVoltarParaListaConsumo(origem === 'consumo');
-      requestAnimationFrame(() => cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
-    } catch (err) {
-      setMensagem({ tipo: 'erro', texto: mensagemErroAbrirAluno(err) });
-    } finally {
-      setBuscando(false);
-    }
-  };
-
-  const selecionarAlunoConsumo = async (alunoConsumo) => {
-    const matricula = alunoConsumo?.alunoPd?.matricula;
-    await abrirAlunoPorMatricula(matricula, 'consumo');
-  };
-
-  const voltarParaConsumoGeral = () => {
-    setBusca('');
-    setAlunos([]);
-    setBuscaRealizada(false);
-    setAluno(null);
-    setEditMode(false);
-    setEditPerfil(false);
-    setActiveTab('Dados principais');
-    setHistorico([]);
-    setVoltarParaListaConsumo(false);
-    setMostrarNovoAluno(false);
-    setMostrarUsuarios(false);
-    setMostrarMonitores(false);
-    setMostrarIntegralizacao(true);
-    setMensagem(null);
   };
 
   const salvar = async () => {
@@ -935,9 +806,9 @@ export default function App() {
       && !mostrarNovoAluno
       && !mostrarUsuarios
       && !aluno
-      && !busca
-      && !buscaRealizada
-      && alunos.length === 0;
+      && !alunoSearch.busca
+      && !alunoSearch.buscaRealizada
+      && alunoSearch.alunos.length === 0;
 
     return telaInicialLimpa ? 'inicio' : null;
   }, [
@@ -946,9 +817,9 @@ export default function App() {
     mostrarNovoAluno,
     mostrarUsuarios,
     aluno,
-    busca,
-    buscaRealizada,
-    alunos.length,
+    alunoSearch.busca,
+    alunoSearch.buscaRealizada,
+    alunoSearch.alunos.length,
     voltarParaListaConsumo,
     activeTab,
   ]);
@@ -1015,11 +886,11 @@ export default function App() {
       />
 
       <StudentSearchBar
-        value={busca}
-        onChange={setBusca}
-        onSubmit={buscarAlunos}
-        onClear={() => limparBuscaGeral()}
-        loading={buscando}
+        value={alunoSearch.busca}
+        onChange={alunoSearch.setBusca}
+        onSubmit={alunoSearch.buscarAlunos}
+        onClear={() => alunoSearch.limparBuscaGeral()}
+        loading={alunoSearch.buscando}
         styles={styles}
       />
 
@@ -1043,7 +914,7 @@ export default function App() {
           apiBaseUrl={API_BASE_URL}
           authHeaders={authHeaders}
           usuario={usuario}
-          onSelectStudent={selecionarAlunoConsumo}
+          onSelectStudent={alunoSearch.selecionarAlunoConsumo}
         />
       )}
 
@@ -1115,7 +986,7 @@ export default function App() {
           activeTab={activeTab}
           tabs={tabsVisiveis}
           onTabChange={selecionarTab}
-          onClose={fecharAlunoSelecionado}
+          onClose={alunoSearch.fecharAlunoSelecionado}
           cardRef={cardRef}
           statusLabel={statusDisplay(statusAtual)}
           statusColor={corStatus}
@@ -1207,24 +1078,24 @@ export default function App() {
               apiBaseUrl={API_BASE_URL}
               authHeaders={authHeaders}
               showBackToList={voltarParaListaConsumo}
-              onBackToList={voltarParaConsumoGeral}
+              onBackToList={alunoSearch.voltarParaConsumoGeral}
             />
           )}
         </StudentProfileShell>
       )}
 
-      {!mostrarMonitores && !mostrarIntegralizacao && buscaRealizada && resultadosVisiveis.length > 0 && (
+      {!mostrarMonitores && !mostrarIntegralizacao && alunoSearch.buscaRealizada && alunoSearch.resultadosVisiveis.length > 0 && (
         <>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
             <h2 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--pd-title)', margin: 0 }}>Resultados</h2>
-            <span style={{ fontSize: '13px', color: 'var(--pd-muted)', fontWeight: 700 }}>{alunosOrdenados.length} aluno(s)</span>
+            <span style={{ fontSize: '13px', color: 'var(--pd-muted)', fontWeight: 700 }}>{alunoSearch.alunosOrdenados.length} aluno(s)</span>
           </div>
           <div style={styles.results}>
-            {resultadosVisiveis.map((item) => {
+            {alunoSearch.resultadosVisiveis.map((item) => {
               const selecionado = aluno?.matricula === item.matricula;
               const itemColor = getStatusColor(item.status);
               return (
-                <button className={`result-button${selecionado ? ' selected' : ''}`} type="button" key={item.matricula || item.id} style={{ ...styles.resultBtn, borderColor: selecionado ? itemColor : 'var(--pd-border)', backgroundColor: selecionado ? `${itemColor}0d` : 'var(--pd-surface)' }} onClick={() => selecionarAluno(item)}>
+                <button className={`result-button${selecionado ? ' selected' : ''}`} type="button" key={item.matricula || item.id} style={{ ...styles.resultBtn, borderColor: selecionado ? itemColor : 'var(--pd-border)', backgroundColor: selecionado ? `${itemColor}0d` : 'var(--pd-surface)' }} onClick={() => alunoSearch.selecionarAluno(item)}>
                   <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '10px' }}>
                     <strong style={{ color: 'var(--pd-title)', lineHeight: 1.25 }}>{item.nome}</strong>
                     <span style={{ flexShrink: 0, color: itemColor, background: `${itemColor}14`, border: `1px solid ${itemColor}35`, borderRadius: '999px', padding: '3px 8px', fontSize: '10px', fontWeight: 900 }}>{statusDisplay(item.status)}</span>
