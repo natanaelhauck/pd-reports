@@ -16,6 +16,7 @@ import { UserManagementPanel } from './components/UserManagementPanel.jsx';
 import { NewStudentPanel } from './components/NewStudentPanel.jsx';
 import { useUsersManagement } from './hooks/useUsersManagement.js';
 import { useAlunoSearch } from './hooks/useAlunoSearch.js';
+import { useStudentHistory } from './hooks/useStudentHistory.js';
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 const MONITORES = ['Alex', 'André', 'Douglas', 'Gabriel', 'Kellen', 'Natanael'];
@@ -461,8 +462,6 @@ export default function App() {
   const [salvando, setSalvando] = useState(false);
   const [salvandoPerfil, setSalvandoPerfil] = useState(false);
   const [mensagem, setMensagem] = useState(null);
-  const [historico, setHistorico] = useState([]);
-  const [carregandoHistorico, setCarregandoHistorico] = useState(false);
   const [mostrarNovoAluno, setMostrarNovoAluno] = useState(false);
   const [mostrarUsuarios, setMostrarUsuarios] = useState(false);
   const [mostrarMonitores, setMostrarMonitores] = useState(false);
@@ -492,6 +491,12 @@ export default function App() {
     setMensagem,
     getErrorMessage: mensagemErroApi,
   });
+  const studentHistory = useStudentHistory({
+    apiBaseUrl: API_BASE_URL,
+    authHeaders,
+    mensagemErroApi,
+    setMensagem,
+  });
   const alunoSearch = useAlunoSearch({
     apiBaseUrl: API_BASE_URL,
     authHeaders,
@@ -503,7 +508,7 @@ export default function App() {
     setEditMode,
     setEditPerfil,
     setActiveTab,
-    setHistorico,
+    limparHistorico: studentHistory.limparHistorico,
     setMensagem,
     setVoltarParaListaConsumo,
     setMostrarNovoAluno,
@@ -545,7 +550,7 @@ export default function App() {
     setPerfilTemp(PERFIL_INICIAL());
     setEditPerfil(false);
     setMensagem(null);
-    setHistorico([]);
+    studentHistory.limparHistorico();
     setMostrarNovoAluno(false);
     setMostrarUsuarios(false);
     setMostrarMonitores(false);
@@ -569,8 +574,7 @@ export default function App() {
     setPerfilTemp(PERFIL_INICIAL());
     setEditPerfil(false);
     setMensagem(null);
-    setHistorico([]);
-    setCarregandoHistorico(false);
+    studentHistory.limparHistorico();
     setMostrarNovoAluno(false);
     setMostrarUsuarios(false);
     setMostrarMonitores(false);
@@ -596,7 +600,7 @@ export default function App() {
       setPerfilTemp(atualizado);
       setEditPerfil(false);
       setMensagem({ tipo: 'sucesso', texto: res.data.mensagem || 'Perfil atualizado com sucesso.' });
-      if (activeTab === 'Histórico') carregarHistorico(aluno.matricula);
+      if (activeTab === 'Histórico') studentHistory.carregarHistorico(aluno.matricula);
     } catch (err) {
       setMensagem({ tipo: 'erro', texto: mensagemErroApi(err, 'Erro ao salvar perfil.') });
     } finally {
@@ -604,25 +608,11 @@ export default function App() {
     }
   };
 
-  const carregarHistorico = async (matricula = aluno?.matricula) => {
-    if (!matricula) return;
-    setCarregandoHistorico(true);
-    setMensagem(null);
-    try {
-      const res = await axios.get(`${API_BASE_URL}/api/alunos/historico/${encodeURIComponent(matricula)}`, authConfig({ timeout: 12000 }));
-      setHistorico(res.data);
-    } catch (err) {
-      setMensagem({ tipo: 'erro', texto: mensagemErroApi(err, 'Não foi possível carregar o histórico.') });
-    } finally {
-      setCarregandoHistorico(false);
-    }
-  };
-
   const selecionarTab = (tab) => {
     if (!tabsVisiveis.includes(tab)) return;
     setActiveTab(tab);
     if (tab === 'Perfil do aluno' && aluno) buscarPerfilAluno(aluno.matricula);
-    if (tab === 'Histórico' && aluno && !isPrefeituraMunicipal) carregarHistorico(aluno.matricula);
+    if (tab === 'Histórico' && aluno && !isPrefeituraMunicipal) studentHistory.carregarHistorico(aluno.matricula);
   };
 
   const atualizarAlunoLocal = (atualizado) => {
@@ -1049,8 +1039,8 @@ export default function App() {
 
           {activeTab === 'Histórico' && (
             <StudentHistoryTab
-              historico={historico}
-              carregandoHistorico={carregandoHistorico}
+              historico={studentHistory.historico}
+              carregandoHistorico={studentHistory.carregandoHistorico}
               styles={styles}
               rotuloCampoHistorico={rotuloCampoHistorico}
               formatarUsuarioHistorico={formatarUsuarioHistorico}

@@ -12,7 +12,7 @@ export function useAlunoSearch({
   setEditMode,
   setEditPerfil,
   setActiveTab,
-  setHistorico,
+  limparHistorico,
   setMensagem,
   setVoltarParaListaConsumo,
   setMostrarNovoAluno,
@@ -64,9 +64,9 @@ export function useAlunoSearch({
     setEditMode(false);
     setEditPerfil(false);
     setActiveTab('Dados principais');
-    setHistorico([]);
+    limparHistorico();
     setVoltarParaListaConsumo(false);
-  }, [setActiveTab, setAluno, setEditMode, setEditPerfil, setHistorico, setVoltarParaListaConsumo]);
+  }, [limparHistorico, setActiveTab, setAluno, setEditMode, setEditPerfil, setVoltarParaListaConsumo]);
 
   const limparBuscaGeral = useCallback(({ fecharAluno = true } = {}) => {
     resetBuscaGeral();
@@ -129,19 +129,19 @@ export function useAlunoSearch({
     setEditMode(false);
     setEditPerfil(false);
     setActiveTab('Dados principais');
-    setHistorico([]);
+    limparHistorico();
     setVoltarParaListaConsumo(false);
     setMensagem(null);
     requestAnimationFrame(() => cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
   }, [
     cardRef,
     criarTempSeguro,
+    limparHistorico,
     perfilInicial,
     setActiveTab,
     setAluno,
     setEditMode,
     setEditPerfil,
-    setHistorico,
     setMensagem,
     setMostrarIntegralizacao,
     setMostrarMonitores,
@@ -176,7 +176,7 @@ export function useAlunoSearch({
       setEditMode(false);
       setEditPerfil(false);
       setActiveTab(origem === 'consumo' ? 'Consumo' : 'Dados principais');
-      setHistorico([]);
+      limparHistorico();
       setVoltarParaListaConsumo(origem === 'consumo');
       requestAnimationFrame(() => cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
     } catch (err) {
@@ -189,6 +189,7 @@ export function useAlunoSearch({
     authConfig,
     cardRef,
     criarTempSeguro,
+    limparHistorico,
     mensagemErroAbrirAluno,
     perfilInicial,
     resetBuscaGeral,
@@ -196,7 +197,6 @@ export function useAlunoSearch({
     setAluno,
     setEditMode,
     setEditPerfil,
-    setHistorico,
     setMensagem,
     setMostrarIntegralizacao,
     setMostrarMonitores,
@@ -219,7 +219,7 @@ export function useAlunoSearch({
     setEditMode(false);
     setEditPerfil(false);
     setActiveTab('Dados principais');
-    setHistorico([]);
+    limparHistorico();
     setVoltarParaListaConsumo(false);
     setMostrarNovoAluno(false);
     setMostrarUsuarios(false);
@@ -228,11 +228,11 @@ export function useAlunoSearch({
     setMensagem(null);
   }, [
     resetBuscaGeral,
+    limparHistorico,
     setActiveTab,
     setAluno,
     setEditMode,
     setEditPerfil,
-    setHistorico,
     setMensagem,
     setMostrarIntegralizacao,
     setMostrarMonitores,
