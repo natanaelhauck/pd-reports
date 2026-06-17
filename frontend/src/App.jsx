@@ -14,6 +14,7 @@ import { StudentMonitoringReportsTab } from './components/StudentMonitoringRepor
 import { StudentConsumptionTab } from './components/StudentConsumptionTab.jsx';
 import { UserManagementPanel } from './components/UserManagementPanel.jsx';
 import { NewStudentPanel } from './components/NewStudentPanel.jsx';
+import { useUsersManagement } from './hooks/useUsersManagement.js';
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 const MONITORES = ['Alex', 'André', 'Douglas', 'Gabriel', 'Kellen', 'Natanael'];
@@ -470,22 +471,12 @@ export default function App() {
   const [mostrarMonitores, setMostrarMonitores] = useState(false);
   const [mostrarIntegralizacao, setMostrarIntegralizacao] = useState(false);
   const [voltarParaListaConsumo, setVoltarParaListaConsumo] = useState(false);
-  const [usuarios, setUsuarios] = useState([]);
   const [novoAluno, setNovoAluno] = useState(NOVO_ALUNO_INICIAL);
   const [mostrarPerfilNovoAluno, setMostrarPerfilNovoAluno] = useState(false);
   const [novoAlunoPerfil, setNovoAlunoPerfil] = useState(PERFIL_CADASTRO_INICIAL);
-  const [novoUsuario, setNovoUsuario] = useState({ nome: '', email: '', senha: '', role: 'monitor' });
-  const [usuarioEditando, setUsuarioEditando] = useState(null);
-  const [usuarioTemp, setUsuarioTemp] = useState({ nome: '', email: '', role: 'monitor' });
-  const [senhaUsuarioEditando, setSenhaUsuarioEditando] = useState(null);
-  const [novaSenhaUsuario, setNovaSenhaUsuario] = useState('');
-  const [mostrarSenhaUsuario, setMostrarSenhaUsuario] = useState(false);
-  const [salvandoSenhaUsuario, setSalvandoSenhaUsuario] = useState(false);
   const [mostrarAlterarSenha, setMostrarAlterarSenha] = useState(false);
   const [alterandoMinhaSenha, setAlterandoMinhaSenha] = useState(false);
-  const [salvandoUsuarioEditando, setSalvandoUsuarioEditando] = useState(false);
   const [salvandoNovoAluno, setSalvandoNovoAluno] = useState(false);
-  const [salvandoUsuario, setSalvandoUsuario] = useState(false);
   const cardRef = useRef(null);
   const isAdmin = usuario?.role === 'admin';
   const isPrefeituraMunicipal = Boolean(prefeituraMunicipalScope(usuario));
@@ -496,6 +487,13 @@ export default function App() {
   const authConfig = (config = {}) => ({
     ...config,
     headers: { ...(config.headers || {}), ...authHeaders },
+  });
+  const usersManagement = useUsersManagement({
+    apiBaseUrl: API_BASE_URL,
+    authHeaders,
+    isAdmin,
+    setMensagem,
+    getErrorMessage: mensagemErroApi,
   });
   const temaEscuro = tema === 'dark';
   const tabsVisiveis = useMemo(() => (
@@ -552,16 +550,10 @@ export default function App() {
     setMostrarMonitores(false);
     setMostrarIntegralizacao(false);
     setVoltarParaListaConsumo(false);
-    setUsuarios([]);
     setNovoAluno(NOVO_ALUNO_INICIAL);
     setMostrarPerfilNovoAluno(false);
     setNovoAlunoPerfil(PERFIL_CADASTRO_INICIAL());
-    setNovoUsuario({ nome: '', email: '', senha: '', role: 'monitor' });
-    setUsuarioEditando(null);
-    setUsuarioTemp({ nome: '', email: '', role: 'monitor' });
-    setSenhaUsuarioEditando(null);
-    setNovaSenhaUsuario('');
-    setMostrarSenhaUsuario(false);
+    usersManagement.limparGestaoUsuarios();
     setMostrarAlterarSenha(false);
     setAlterandoMinhaSenha(false);
   };
@@ -585,16 +577,10 @@ export default function App() {
     setMostrarMonitores(false);
     setMostrarIntegralizacao(false);
     setVoltarParaListaConsumo(false);
-    setUsuarios([]);
     setNovoAluno(NOVO_ALUNO_INICIAL);
     setMostrarPerfilNovoAluno(false);
     setNovoAlunoPerfil(PERFIL_CADASTRO_INICIAL());
-    setNovoUsuario({ nome: '', email: '', senha: '', role: 'monitor' });
-    setUsuarioEditando(null);
-    setUsuarioTemp({ nome: '', email: '', role: 'monitor' });
-    setSenhaUsuarioEditando(null);
-    setNovaSenhaUsuario('');
-    setMostrarSenhaUsuario(false);
+    usersManagement.limparGestaoUsuarios();
     setMostrarAlterarSenha(false);
     setAlterandoMinhaSenha(false);
   };
@@ -739,13 +725,9 @@ export default function App() {
     setMostrarMonitores(false);
     setMostrarIntegralizacao(false);
     setMostrarNovoAluno(false);
-    setNovoUsuario({ nome: '', email: '', senha: '', role: 'monitor' });
-    setUsuarioEditando(null);
-    setUsuarioTemp({ nome: '', email: '', role: 'monitor' });
-    setSenhaUsuarioEditando(null);
-    setNovaSenhaUsuario('');
-    setMostrarSenhaUsuario(false);
-    await carregarUsuarios();
+    usersManagement.resetarFormularioUsuarios();
+    const carregou = await usersManagement.carregarUsuarios();
+    if (carregou) setMostrarUsuarios(true);
   };
 
   const abrirMonitores = () => {
@@ -765,91 +747,6 @@ export default function App() {
     setMostrarIntegralizacao(true);
     setVoltarParaListaConsumo(false);
     setMensagem(null);
-  };
-
-  const carregarUsuarios = async () => {
-    if (!isAdmin) return;
-    setMensagem(null);
-    try {
-      const res = await axios.get(`${API_BASE_URL}/api/usuarios`, authConfig({ timeout: 12000 }));
-      setUsuarios(res.data);
-      setMostrarUsuarios(true);
-    } catch (err) {
-      setMensagem({ tipo: 'erro', texto: mensagemErroApi(err, 'Não foi possível carregar usuários.') });
-    }
-  };
-
-  const cadastrarUsuario = async (e) => {
-    e.preventDefault();
-    if (!isAdmin || salvandoUsuario) return;
-    setSalvandoUsuario(true);
-    setMensagem(null);
-    try {
-      const res = await axios.post(`${API_BASE_URL}/api/usuarios/create`, novoUsuario, authConfig({ timeout: 12000 }));
-      setUsuarios((atuais) => [...atuais, res.data.usuario].sort((a, b) => String(a.nome).localeCompare(String(b.nome), 'pt-BR')));
-      setNovoUsuario({ nome: '', email: '', senha: '', role: 'monitor' });
-      setMensagem({ tipo: 'sucesso', texto: res.data.mensagem || 'Usuário cadastrado com sucesso.' });
-    } catch (err) {
-      setMensagem({ tipo: 'erro', texto: mensagemErroApi(err, 'Erro ao cadastrar usuário.') });
-    } finally {
-      setSalvandoUsuario(false);
-    }
-  };
-
-  const editarUsuario = (usuarioAlvo) => {
-    setUsuarioEditando(usuarioAlvo.id);
-    setUsuarioTemp({
-      nome: usuarioAlvo.nome || '',
-      email: usuarioAlvo.email || '',
-      role: usuarioAlvo.role || 'monitor',
-    });
-    setSenhaUsuarioEditando(null);
-    setNovaSenhaUsuario('');
-    setMostrarSenhaUsuario(false);
-    setMensagem(null);
-  };
-
-  const cancelarEdicaoUsuario = () => {
-    setUsuarioEditando(null);
-    setUsuarioTemp({ nome: '', email: '', role: 'monitor' });
-  };
-
-  const salvarUsuario = async (usuarioAlvo) => {
-    if (!isAdmin || salvandoUsuarioEditando) return;
-    setSalvandoUsuarioEditando(true);
-    setMensagem(null);
-    try {
-      const res = await axios.put(`${API_BASE_URL}/api/usuarios/${usuarioAlvo.id}`, usuarioTemp, authConfig({ timeout: 12000 }));
-      setUsuarios((atuais) => atuais
-        .map((item) => (item.id === usuarioAlvo.id ? res.data.usuario : item))
-        .sort((a, b) => String(a.nome).localeCompare(String(b.nome), 'pt-BR')));
-      cancelarEdicaoUsuario();
-      setMensagem({ tipo: 'sucesso', texto: res.data.mensagem || 'Usuário atualizado com sucesso.' });
-    } catch (err) {
-      setMensagem({ tipo: 'erro', texto: mensagemErroApi(err, 'Erro ao atualizar usuário.') });
-    } finally {
-      setSalvandoUsuarioEditando(false);
-    }
-  };
-
-  const salvarSenhaUsuario = async (usuarioAlvo) => {
-    if (!isAdmin || salvandoSenhaUsuario) return;
-    setSalvandoSenhaUsuario(true);
-    setMensagem(null);
-    try {
-      const res = await axios.post(`${API_BASE_URL}/api/usuarios/update-password`, {
-        usuario_id: usuarioAlvo.id,
-        nova_senha: novaSenhaUsuario,
-      }, authConfig({ timeout: 12000 }));
-      setSenhaUsuarioEditando(null);
-      setNovaSenhaUsuario('');
-      setMostrarSenhaUsuario(false);
-      setMensagem({ tipo: 'sucesso', texto: res.data.mensagem || 'Senha alterada com sucesso.' });
-    } catch (err) {
-      setMensagem({ tipo: 'erro', texto: mensagemErroApi(err, 'Erro ao alterar senha.') });
-    } finally {
-      setSalvandoSenhaUsuario(false);
-    }
   };
 
   const alterarMinhaSenha = async ({ senhaAtual, novaSenha, confirmacaoNovaSenha }) => {
@@ -1183,41 +1080,32 @@ export default function App() {
 
       {isAdmin && mostrarUsuarios && (
         <UserManagementPanel
-          usuarios={usuarios}
-          novoUsuario={novoUsuario}
-          usuarioTemp={usuarioTemp}
-          usuarioEditando={usuarioEditando}
-          senhaUsuarioEditando={senhaUsuarioEditando}
-          novaSenhaUsuario={novaSenhaUsuario}
-          mostrarSenhaUsuario={mostrarSenhaUsuario}
+          usuarios={usersManagement.usuarios}
+          novoUsuario={usersManagement.novoUsuario}
+          usuarioTemp={usersManagement.usuarioTemp}
+          usuarioEditando={usersManagement.usuarioEditando}
+          senhaUsuarioEditando={usersManagement.senhaUsuarioEditando}
+          novaSenhaUsuario={usersManagement.novaSenhaUsuario}
+          mostrarSenhaUsuario={usersManagement.mostrarSenhaUsuario}
           perfisUsuario={PERFIS_USUARIO}
-          salvandoUsuario={salvandoUsuario}
-          salvandoUsuarioEditando={salvandoUsuarioEditando}
-          salvandoSenhaUsuario={salvandoSenhaUsuario}
+          salvandoUsuario={usersManagement.salvandoUsuario}
+          salvandoUsuarioEditando={usersManagement.salvandoUsuarioEditando}
+          salvandoSenhaUsuario={usersManagement.salvandoSenhaUsuario}
           styles={styles}
           formatarUsuario={formatarUsuario}
           rotuloPerfilUsuario={rotuloPerfilUsuario}
           onClose={() => setMostrarUsuarios(false)}
-          onSubmitNovoUsuario={cadastrarUsuario}
-          onNovoUsuarioChange={setNovoUsuario}
-          onUsuarioTempChange={setUsuarioTemp}
-          onEditarUsuario={editarUsuario}
-          onCancelarEdicaoUsuario={cancelarEdicaoUsuario}
-          onSalvarUsuario={salvarUsuario}
-          onIniciarEdicaoSenha={(usuarioAlvo) => {
-            setSenhaUsuarioEditando(usuarioAlvo.id);
-            setNovaSenhaUsuario('');
-            setMostrarSenhaUsuario(false);
-            setUsuarioEditando(null);
-          }}
-          onCancelarEdicaoSenha={() => {
-            setSenhaUsuarioEditando(null);
-            setNovaSenhaUsuario('');
-            setMostrarSenhaUsuario(false);
-          }}
-          onNovaSenhaUsuarioChange={setNovaSenhaUsuario}
-          onToggleMostrarSenhaUsuario={() => setMostrarSenhaUsuario((atual) => !atual)}
-          onSalvarSenhaUsuario={salvarSenhaUsuario}
+          onSubmitNovoUsuario={usersManagement.cadastrarUsuario}
+          onNovoUsuarioChange={usersManagement.setNovoUsuario}
+          onUsuarioTempChange={usersManagement.setUsuarioTemp}
+          onEditarUsuario={usersManagement.editarUsuario}
+          onCancelarEdicaoUsuario={usersManagement.cancelarEdicaoUsuario}
+          onSalvarUsuario={usersManagement.salvarUsuario}
+          onIniciarEdicaoSenha={usersManagement.iniciarEdicaoSenha}
+          onCancelarEdicaoSenha={usersManagement.cancelarEdicaoSenha}
+          onNovaSenhaUsuarioChange={usersManagement.setNovaSenhaUsuario}
+          onToggleMostrarSenhaUsuario={usersManagement.alternarMostrarSenhaUsuario}
+          onSalvarSenhaUsuario={usersManagement.salvarSenhaUsuario}
         />
       )}
 
