@@ -7,6 +7,7 @@ import { CourseHoursDashboard } from './components/CourseHoursDashboard.jsx';
 import { CourseHoursStudentDetails } from './components/CourseHoursStudentDetails.jsx';
 import { MainNavigation } from './components/MainNavigation.jsx';
 import { StudentSearchBar } from './components/StudentSearchBar.jsx';
+import { StudentProfileShell } from './components/StudentProfileShell.jsx';
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 const MONITORES = ['Alex', 'André', 'Douglas', 'Gabriel', 'Kellen', 'Natanael'];
@@ -1288,24 +1289,20 @@ export default function App() {
       )}
 
       {aluno && (
-        <div ref={cardRef} className="student-card" style={{ ...styles.card, '--student-status-color': corStatus, borderLeft: `8px solid ${corStatus}`, marginBottom: '18px' }}>
-          <button className="ui-button card-close" type="button" onClick={fecharAlunoSelecionado} aria-label="Fechar aluno selecionado" style={styles.iconBtn}><X size={17} /></button>
-          <div className="student-card-header" style={styles.cardHeader}>
-            <div style={{ ...styles.avatar, backgroundColor: `${corStatus}18` }}>
-              <User size={30} color={corStatus} />
-            </div>
-            <div style={styles.headerInfo}>
-              {editMode ? <input style={styles.editInputName} value={temp.nome || ''} onChange={(e) => setTemp({ ...temp, nome: e.target.value })} /> : <h2 style={styles.nome}>{aluno.nome}</h2>}
-              <span style={{ ...styles.badge, color: corStatus, backgroundColor: `${corStatus}12`, border: `1px solid ${corStatus}35` }}>{statusDisplay(statusAtual)}</span>
-            </div>
-          </div>
-
-          <div style={styles.tabs}>
-            {tabsVisiveis.map((tab) => (
-              <button key={tab} className="ui-button" type="button" onClick={() => selecionarTab(tab)} style={{ ...styles.tab, background: activeTab === tab ? 'var(--pd-surface)' : 'transparent', color: activeTab === tab ? 'var(--pd-title)' : 'var(--pd-muted)', boxShadow: activeTab === tab ? 'var(--pd-tab-shadow)' : 'none' }}>{tab}</button>
-            ))}
-          </div>
-
+        <StudentProfileShell
+          aluno={aluno}
+          activeTab={activeTab}
+          tabs={tabsVisiveis}
+          onTabChange={selecionarTab}
+          onClose={fecharAlunoSelecionado}
+          cardRef={cardRef}
+          statusLabel={statusDisplay(statusAtual)}
+          statusColor={corStatus}
+          editMode={editMode}
+          nameValue={temp.nome}
+          onNameChange={(nome) => setTemp({ ...temp, nome })}
+          styles={styles}
+        >
           {activeTab === 'Dados principais' && (
             <DadosPrincipais
               aluno={aluno}
@@ -1320,7 +1317,6 @@ export default function App() {
               somenteLeitura={isPrefeituraMunicipal}
             />
           )}
-
           {activeTab === 'Perfil do aluno' && (
             <PerfilAluno
               perfil={perfil}
@@ -1350,7 +1346,7 @@ export default function App() {
               onBack={voltarParaListaConsumo ? voltarParaConsumoGeral : undefined}
             />
           )}
-        </div>
+        </StudentProfileShell>
       )}
 
       {!mostrarMonitores && !mostrarIntegralizacao && buscaRealizada && resultadosVisiveis.length > 0 && (
