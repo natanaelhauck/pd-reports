@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
-import { User, Mail, Hash, Calendar, ShieldCheck, Phone, Edit2, Save, X, LogIn, Briefcase, GraduationCap, Users, CheckCircle2, Moon, Sun, ClipboardList, Laptop, Eye, EyeOff } from 'lucide-react';
+import { User, Calendar, ShieldCheck, Edit2, Save, X, LogIn, Briefcase, GraduationCap, Users, Moon, Sun, ClipboardList, Eye, EyeOff } from 'lucide-react';
 import pdLogo from './assets/pd-logo.svg';
 import { AppHeader } from './components/AppHeader.jsx';
 import { CourseHoursDashboard } from './components/CourseHoursDashboard.jsx';
@@ -8,6 +8,7 @@ import { CourseHoursStudentDetails } from './components/CourseHoursStudentDetail
 import { MainNavigation } from './components/MainNavigation.jsx';
 import { StudentSearchBar } from './components/StudentSearchBar.jsx';
 import { StudentProfileShell } from './components/StudentProfileShell.jsx';
+import { StudentMainDataTab } from './components/StudentMainDataTab.jsx';
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 const MONITORES = ['Alex', 'André', 'Douglas', 'Gabriel', 'Kellen', 'Natanael'];
@@ -1304,17 +1305,22 @@ export default function App() {
           styles={styles}
         >
           {activeTab === 'Dados principais' && (
-            <DadosPrincipais
+            <StudentMainDataTab
               aluno={aluno}
               temp={temp}
-              setTemp={setTemp}
               editMode={editMode}
-              setEditMode={setEditMode}
-              salvar={salvar}
-              cancelarEdicao={cancelarEdicao}
+              onEdit={() => setEditMode(true)}
+              onSave={salvar}
+              onCancel={cancelarEdicao}
+              onFieldChange={(campo, valor) => setTemp({ ...temp, [campo]: valor })}
               salvando={salvando}
               corStatus={corStatus}
               somenteLeitura={isPrefeituraMunicipal}
+              styles={styles}
+              statusOptions={STATUS_OPTIONS}
+              monitores={MONITORES}
+              statusDisplay={statusDisplay}
+              monitorDisplay={monitorDisplay}
             />
           )}
           {activeTab === 'Perfil do aluno' && (
@@ -1376,48 +1382,6 @@ export default function App() {
     </div>
   );
 }
-
-function DadosPrincipais({ aluno, temp, setTemp, editMode, setEditMode, salvar, cancelarEdicao, salvando, corStatus, somenteLeitura = false }) {
-  return (
-    <>
-      {!somenteLeitura && (
-        <div style={{ ...styles.actions, marginLeft: 0, marginBottom: '14px' }}>
-          {editMode ? (
-            <>
-              <button className="ui-button" type="button" onClick={salvar} disabled={salvando} style={{ ...styles.primaryBtn, background: '#166534', opacity: salvando ? 0.75 : 1 }}><Save size={18} /> {salvando ? 'Salvando...' : 'Salvar'}</button>
-              <button className="ui-button" type="button" onClick={cancelarEdicao} disabled={salvando} style={styles.secondaryBtn}><X size={18} /></button>
-            </>
-          ) : (
-            <button className="ui-button" type="button" onClick={() => setEditMode(true)} style={styles.secondaryBtn}><Edit2 size={18} /> Editar</button>
-          )}
-        </div>
-      )}
-      <div className="student-grid" style={styles.grid}>
-        <InfoItem icon={<Hash size={18} color={corStatus} />} label="Matrícula" value={aluno.matricula} />
-        <FieldItem icon={<Phone size={18} color={corStatus} />} label="Telefone" editMode={editMode} value={temp.telefone} display={aluno.telefone} onChange={(v) => setTemp({ ...temp, telefone: v })} />
-        <FieldItem icon={<Mail size={18} color={corStatus} />} label="E-mail" editMode={editMode} value={temp.email} display={aluno.email} onChange={(v) => setTemp({ ...temp, email: v })} />
-        <div style={styles.infoItem}>
-          <CheckCircle2 size={18} color={corStatus} />
-          <div style={{ width: '100%', minWidth: 0 }}>
-            <span style={styles.label}>Status</span>
-            {editMode ? <select style={styles.fieldInput} value={temp.status || ''} onChange={(e) => setTemp({ ...temp, status: e.target.value })}><option value="">NÃO INFORMADO</option>{STATUS_OPTIONS.map((status) => <option key={status} value={status}>{status}</option>)}</select> : <span style={styles.val}>{statusDisplay(aluno.status)}</span>}
-          </div>
-        </div>
-        <InfoItem icon={<GraduationCap size={18} color={corStatus} />} label="Ingresso" value={aluno.dataEntradaCursoFormatada || 'Não informado'} />
-        <FieldItem icon={<Calendar size={18} color={corStatus} />} label="Nascimento e Idade" type="date" editMode={editMode} value={temp.nascimento} display={`${aluno.nascimento_formatado} ${aluno.idade !== '-' ? `(${aluno.idade} anos)` : ''}`} onChange={(v) => setTemp({ ...temp, nascimento: v })} />
-        <FieldItem icon={<Laptop size={18} color={corStatus} />} label="Patrimônio" editMode={editMode} value={temp.patrimonio} display={aluno.patrimonio || 'Não informado'} onChange={(v) => setTemp({ ...temp, patrimonio: v })} />
-        <div style={styles.infoItem}>
-          <ShieldCheck size={18} color={corStatus} />
-          <div style={{ width: '100%', minWidth: 0 }}>
-            <span style={styles.label}>Monitor Responsável</span>
-            {editMode ? <select style={styles.fieldInput} value={temp.monitor || ''} onChange={(e) => setTemp({ ...temp, monitor: e.target.value })}><option value="">Selecione...</option>{MONITORES.map((m) => <option key={m} value={m}>{m}</option>)}</select> : <span style={styles.val}>{monitorDisplay(aluno.monitor)}</span>}
-          </div>
-        </div>
-      </div>
-    </>
-  );
-}
-
 function PerfilAluno({ perfil, perfilTemp, setPerfilTemp, editPerfil, setEditPerfil, salvarPerfilAluno, salvandoPerfil, somenteLeitura = false }) {
   const p = editPerfil && !somenteLeitura ? perfilTemp : perfil;
   const setCampo = (campo, valor) => setPerfilTemp({ ...perfilTemp, [campo]: valor });
@@ -2419,30 +2383,6 @@ function AlterarSenhaPropriaModal({ aberto, carregando, onClose, onSubmit }) {
           </button>
         </div>
       </form>
-    </div>
-  );
-}
-
-function InfoItem({ icon, label, value }) {
-  return (
-    <div style={styles.infoItem}>
-      {icon}
-      <div style={{ width: '100%', minWidth: 0 }}>
-        <span style={styles.label}>{label}</span>
-        <span style={styles.val}>{value}</span>
-      </div>
-    </div>
-  );
-}
-
-function FieldItem({ icon, label, editMode, value, display, onChange, type = 'text', full = false }) {
-  return (
-    <div className={full ? 'full-row' : undefined} style={{ ...styles.infoItem, gridColumn: full ? '1 / -1' : undefined }}>
-      {icon}
-      <div style={{ width: '100%', minWidth: 0 }}>
-        <span style={styles.label}>{label}</span>
-        {editMode ? <input type={type} style={styles.fieldInput} value={value || ''} onChange={(e) => onChange(e.target.value)} /> : <span style={styles.val}>{display}</span>}
-      </div>
     </div>
   );
 }
