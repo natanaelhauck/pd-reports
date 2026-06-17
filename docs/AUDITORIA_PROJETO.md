@@ -49,12 +49,13 @@ O módulo mais forte é o Consumo: atualização manual por `all_grades.json` e 
 - Fluxo de abertura do aluno pelo Consumo usa endpoint individual por matrícula.
 - Há tratamento de timeout e mensagens específicas em pontos sensíveis.
 - Ícones do `lucide-react` padronizam ações principais.
+- A refatoração visual do frontend avançou: navegação, cabeçalho, busca, shell do perfil, abas do perfil, Consumo individual, gestão de usuários e formulário de novo aluno já foram extraídos de `App.jsx`.
 
 ### Riscos e melhorias
 
-- `frontend/src/App.jsx` está muito grande e concentra estados, navegação, formulários e chamadas de API.
+- `frontend/src/App.jsx` ainda concentra muitos estados, callbacks e chamadas de API, apesar de a camada visual principal já ter sido parcialmente extraída.
 - Muitos estilos ainda estão inline, misturados com CSS global.
-- Seria útil extrair hooks para alunos, usuários, perfil, monitoria e navegação.
+- Seria útil extrair hooks para alunos, usuários, perfil, monitoria, busca e navegação.
 - Acessibilidade básica existe, mas ainda vale revisar foco, labels e navegação por teclado em modais e abas.
 - Testes automatizados de frontend ainda não cobrem os fluxos principais.
 
@@ -137,8 +138,8 @@ O módulo mais forte é o Consumo: atualização manual por `all_grades.json` e 
 
 ## Melhorias importantes
 
-- Quebrar `App.jsx` em módulos menores.
-- Criar hooks de API e navegação.
+- Concluir a quebra de `App.jsx` extraindo hooks de API/estado, não apenas componentes visuais.
+- Criar hooks como `useAlunoSearch`, `useStudentProfile`, `useUsersManagement` e `useNavigationState`.
 - Adicionar testes automatizados de frontend para navegação, busca e Consumo.
 - Formalizar migrations e checklist de deploy.
 - Adicionar monitoramento simples de latência dos endpoints principais.
@@ -153,7 +154,8 @@ O módulo mais forte é o Consumo: atualização manual por `all_grades.json` e 
 
 ## Sugestão de próximos commits
 
-- `refactor: Extrai navegacao e estado de alunos do App`
+- `refactor: Extrai hooks de busca e perfil do aluno`
+- `refactor: Extrai hook de gestao de usuarios`
 - `test: Cobre fluxo de consumo no frontend`
 - `chore: Adiciona CI de validacao do projeto`
 - `docs: Publica dataset demo anonimizado`

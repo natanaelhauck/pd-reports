@@ -13,7 +13,7 @@ export function StudentMonitoringReportsTab({
   statusMonitoriaLabel,
   resumoCurto,
 }) {
-  const [dados, setDados] = useState({ resumo: null, relatorios: [], total_lidos: 0 });
+  const [dados, setDados] = useState({ resumo: null, relatorios: [] });
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState('');
   const [inicio, setInicio] = useState('2026-03-23');
