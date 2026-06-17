@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import { Save, X, LogIn, Moon, Sun, Eye, EyeOff } from 'lucide-react';
 import pdLogo from './assets/pd-logo.svg';
@@ -17,6 +17,7 @@ import { NewStudentPanel } from './components/NewStudentPanel.jsx';
 import { useUsersManagement } from './hooks/useUsersManagement.js';
 import { useAlunoSearch } from './hooks/useAlunoSearch.js';
 import { useStudentHistory } from './hooks/useStudentHistory.js';
+import { useStudentMainData } from './hooks/useStudentMainData.js';
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 const MONITORES = ['Alex', 'André', 'Douglas', 'Gabriel', 'Kellen', 'Natanael'];
@@ -453,13 +454,10 @@ export default function App() {
   const [mostrarSenhaLogin, setMostrarSenhaLogin] = useState(false);
   const [tema, setTema] = useState(() => localStorage.getItem('pd_theme') || 'light');
   const [aluno, setAluno] = useState(null);
-  const [editMode, setEditMode] = useState(false);
-  const [temp, setTemp] = useState(criarTempSeguro());
   const [activeTab, setActiveTab] = useState('Dados principais');
   const [perfil, setPerfil] = useState(PERFIL_INICIAL());
   const [perfilTemp, setPerfilTemp] = useState(PERFIL_INICIAL());
   const [editPerfil, setEditPerfil] = useState(false);
-  const [salvando, setSalvando] = useState(false);
   const [salvandoPerfil, setSalvandoPerfil] = useState(false);
   const [mensagem, setMensagem] = useState(null);
   const [mostrarNovoAluno, setMostrarNovoAluno] = useState(false);
@@ -474,6 +472,7 @@ export default function App() {
   const [alterandoMinhaSenha, setAlterandoMinhaSenha] = useState(false);
   const [salvandoNovoAluno, setSalvandoNovoAluno] = useState(false);
   const cardRef = useRef(null);
+  const atualizarAlunoNosResultadosRef = useRef(() => {});
   const isAdmin = usuario?.role === 'admin';
   const isPrefeituraMunicipal = Boolean(prefeituraMunicipalScope(usuario));
   const autenticado = Boolean(usuario?.token);
@@ -497,15 +496,28 @@ export default function App() {
     mensagemErroApi,
     setMensagem,
   });
+  const atualizarAlunoNosResultados = useCallback((atualizado) => {
+    atualizarAlunoNosResultadosRef.current(atualizado);
+  }, []);
+  const mainData = useStudentMainData({
+    aluno,
+    setAluno,
+    apiBaseUrl: API_BASE_URL,
+    authHeaders,
+    mensagemErroApi,
+    setMensagem,
+    criarTempSeguro,
+    normalizarMonitor,
+    normalizarStatus,
+    atualizarAlunoNosResultados,
+  });
   const alunoSearch = useAlunoSearch({
     apiBaseUrl: API_BASE_URL,
     authHeaders,
     aluno,
     setAluno,
-    setTemp,
     setPerfil,
     setPerfilTemp,
-    setEditMode,
     setEditPerfil,
     setActiveTab,
     limparHistorico: studentHistory.limparHistorico,
@@ -515,12 +527,16 @@ export default function App() {
     setMostrarUsuarios,
     setMostrarMonitores,
     setMostrarIntegralizacao,
-    criarTempSeguro,
+    prepararDadosPrincipais: mainData.sincronizarComAluno,
+    resetarDadosPrincipais: mainData.resetarDadosPrincipais,
     perfilInicial: PERFIL_INICIAL,
     mensagemErroApi,
     mensagemErroAbrirAluno,
     cardRef,
   });
+  useEffect(() => {
+    atualizarAlunoNosResultadosRef.current = alunoSearch.atualizarAlunoNosResultados;
+  }, [alunoSearch.atualizarAlunoNosResultados]);
   const temaEscuro = tema === 'dark';
   const tabsVisiveis = useMemo(() => (
     isPrefeituraMunicipal ? TABS.filter((tab) => tab !== 'Relatórios Monitoria' && tab !== 'Histórico') : TABS
@@ -543,8 +559,7 @@ export default function App() {
   const limparEstadoAplicacao = () => {
     alunoSearch.resetBuscaGeral();
     setAluno(null);
-    setEditMode(false);
-    setTemp(criarTempSeguro());
+    mainData.resetarDadosPrincipais();
     setActiveTab('Dados principais');
     setPerfil(PERFIL_INICIAL());
     setPerfilTemp(PERFIL_INICIAL());
@@ -567,8 +582,7 @@ export default function App() {
   const voltarParaInicio = () => {
     alunoSearch.resetBuscaGeral();
     setAluno(null);
-    setEditMode(false);
-    setTemp(criarTempSeguro());
+    mainData.resetarDadosPrincipais();
     setActiveTab('Dados principais');
     setPerfil(PERFIL_INICIAL());
     setPerfilTemp(PERFIL_INICIAL());
@@ -613,12 +627,6 @@ export default function App() {
     setActiveTab(tab);
     if (tab === 'Perfil do aluno' && aluno) buscarPerfilAluno(aluno.matricula);
     if (tab === 'Histórico' && aluno && !isPrefeituraMunicipal) studentHistory.carregarHistorico(aluno.matricula);
-  };
-
-  const atualizarAlunoLocal = (atualizado) => {
-    alunoSearch.atualizarAlunoNosResultados(atualizado);
-    setAluno(atualizado);
-    setTemp(criarTempSeguro(atualizado));
   };
 
   const login = async (e) => {
@@ -734,7 +742,7 @@ export default function App() {
       const criado = res.data.aluno;
       alunoSearch.adicionarAlunoAResultados(criado);
       setAluno(criado);
-      setTemp(criarTempSeguro(criado));
+      mainData.sincronizarComAluno(criado);
       if (res.data.perfil) {
         const perfilCriado = normalizarPerfil(res.data.perfil);
         setPerfil(perfilCriado);
@@ -754,35 +762,6 @@ export default function App() {
     } finally {
       setSalvandoNovoAluno(false);
     }
-  };
-
-  const salvar = async () => {
-    if (salvando) return;
-    setSalvando(true);
-    setMensagem(null);
-    try {
-      const payload = { ...temp, monitor: normalizarMonitor(temp.monitor), status: normalizarStatus(temp.status) };
-      const res = await axios.post(`${API_BASE_URL}/api/alunos/update`, payload, authConfig({ timeout: 12000 }));
-      atualizarAlunoLocal({
-        ...aluno,
-        ...(res.data.aluno || payload),
-        dataEntradaCurso: aluno?.dataEntradaCurso || '',
-        dataEntradaCursoFormatada: aluno?.dataEntradaCursoFormatada || '',
-      });
-      setEditMode(false);
-      setMensagem(res.data.sync_warning
-        ? { tipo: 'aviso', texto: res.data.sync_warning }
-        : { tipo: 'sucesso', texto: res.data.mensagem || 'Aluno atualizado com sucesso.' });
-    } catch (err) {
-      setMensagem({ tipo: 'erro', texto: mensagemErroApi(err, 'Erro ao salvar o aluno.') });
-    } finally {
-      setSalvando(false);
-    }
-  };
-
-  const cancelarEdicao = () => {
-    setTemp(criarTempSeguro(aluno || {}));
-    setEditMode(false);
   };
 
   const activeSection = useMemo(() => {
@@ -847,7 +826,7 @@ export default function App() {
     );
   }
 
-  const statusAtual = editMode ? temp.status : aluno?.status;
+  const statusAtual = mainData.editMode ? mainData.temp.status : aluno?.status;
   const corStatus = getStatusColor(statusAtual);
 
   return (
@@ -980,21 +959,21 @@ export default function App() {
           cardRef={cardRef}
           statusLabel={statusDisplay(statusAtual)}
           statusColor={corStatus}
-          editMode={editMode}
-          nameValue={temp.nome}
-          onNameChange={(nome) => setTemp({ ...temp, nome })}
+          editMode={mainData.editMode}
+          nameValue={mainData.temp.nome}
+          onNameChange={(nome) => mainData.setCampoTemp('nome', nome)}
           styles={styles}
         >
           {activeTab === 'Dados principais' && (
             <StudentMainDataTab
               aluno={aluno}
-              temp={temp}
-              editMode={editMode}
-              onEdit={() => setEditMode(true)}
-              onSave={salvar}
-              onCancel={cancelarEdicao}
-              onFieldChange={(campo, valor) => setTemp({ ...temp, [campo]: valor })}
-              salvando={salvando}
+              temp={mainData.temp}
+              editMode={mainData.editMode}
+              onEdit={mainData.iniciarEdicao}
+              onSave={mainData.salvarEdicao}
+              onCancel={mainData.cancelarEdicao}
+              onFieldChange={mainData.setCampoTemp}
+              salvando={mainData.salvando}
               corStatus={corStatus}
               somenteLeitura={isPrefeituraMunicipal}
               styles={styles}

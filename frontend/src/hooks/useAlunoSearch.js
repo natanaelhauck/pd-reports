@@ -6,10 +6,8 @@ export function useAlunoSearch({
   authHeaders,
   aluno,
   setAluno,
-  setTemp,
   setPerfil,
   setPerfilTemp,
-  setEditMode,
   setEditPerfil,
   setActiveTab,
   limparHistorico,
@@ -19,7 +17,8 @@ export function useAlunoSearch({
   setMostrarUsuarios,
   setMostrarMonitores,
   setMostrarIntegralizacao,
-  criarTempSeguro,
+  prepararDadosPrincipais,
+  resetarDadosPrincipais,
   perfilInicial,
   mensagemErroApi,
   mensagemErroAbrirAluno,
@@ -61,12 +60,12 @@ export function useAlunoSearch({
 
   const fecharAlunoSelecionado = useCallback(() => {
     setAluno(null);
-    setEditMode(false);
+    resetarDadosPrincipais();
     setEditPerfil(false);
     setActiveTab('Dados principais');
     limparHistorico();
     setVoltarParaListaConsumo(false);
-  }, [limparHistorico, setActiveTab, setAluno, setEditMode, setEditPerfil, setVoltarParaListaConsumo]);
+  }, [limparHistorico, resetarDadosPrincipais, setActiveTab, setAluno, setEditPerfil, setVoltarParaListaConsumo]);
 
   const limparBuscaGeral = useCallback(({ fecharAluno = true } = {}) => {
     resetBuscaGeral();
@@ -80,7 +79,8 @@ export function useAlunoSearch({
     if (!termo) {
       setAlunos([]);
       setAluno(null);
-      return;
+      resetarDadosPrincipais();
+      return 0;
     }
     setBuscando(true);
     setMensagem(null);
@@ -89,14 +89,17 @@ export function useAlunoSearch({
       setAlunos(res.data);
       if (res.data.length === 0) {
         setAluno(null);
+        resetarDadosPrincipais();
         setMensagem({ tipo: 'erro', texto: 'Nenhum aluno encontrado' });
       }
+      return res.data.length;
     } catch (err) {
       setMensagem({ tipo: 'erro', texto: mensagemErroApi(err, 'Não foi possível buscar alunos.') });
+      return null;
     } finally {
       setBuscando(false);
     }
-  }, [apiBaseUrl, authConfig, mensagemErroApi, setAluno, setMensagem]);
+  }, [apiBaseUrl, authConfig, mensagemErroApi, resetarDadosPrincipais, setAluno, setMensagem]);
 
   const buscarAlunos = useCallback(async (e) => {
     e.preventDefault();
@@ -104,14 +107,17 @@ export function useAlunoSearch({
     setMostrarIntegralizacao(false);
     setVoltarParaListaConsumo(false);
     setBuscaRealizada(true);
-    await buscarAlunosPorTermo(busca.trim());
-    setEditMode(false);
+    const total = await buscarAlunosPorTermo(busca.trim());
+    if (total > 0) {
+      prepararDadosPrincipais(aluno || {});
+    }
     setActiveTab('Dados principais');
   }, [
+    aluno,
     busca,
     buscarAlunosPorTermo,
+    prepararDadosPrincipais,
     setActiveTab,
-    setEditMode,
     setMostrarIntegralizacao,
     setMostrarMonitores,
     setVoltarParaListaConsumo,
@@ -123,10 +129,9 @@ export function useAlunoSearch({
     setMostrarMonitores(false);
     setMostrarIntegralizacao(false);
     setAluno(selecionado);
-    setTemp(criarTempSeguro(selecionado));
+    prepararDadosPrincipais(selecionado);
     setPerfil(perfilInicial(selecionado.matricula));
     setPerfilTemp(perfilInicial(selecionado.matricula));
-    setEditMode(false);
     setEditPerfil(false);
     setActiveTab('Dados principais');
     limparHistorico();
@@ -135,12 +140,11 @@ export function useAlunoSearch({
     requestAnimationFrame(() => cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
   }, [
     cardRef,
-    criarTempSeguro,
     limparHistorico,
     perfilInicial,
+    prepararDadosPrincipais,
     setActiveTab,
     setAluno,
-    setEditMode,
     setEditPerfil,
     setMensagem,
     setMostrarIntegralizacao,
@@ -149,7 +153,6 @@ export function useAlunoSearch({
     setMostrarUsuarios,
     setPerfil,
     setPerfilTemp,
-    setTemp,
     setVoltarParaListaConsumo,
   ]);
 
@@ -170,10 +173,9 @@ export function useAlunoSearch({
       setMostrarMonitores(false);
       setMostrarIntegralizacao(false);
       setAluno(selecionado);
-      setTemp(criarTempSeguro(selecionado));
+      prepararDadosPrincipais(selecionado);
       setPerfil(perfilInicial(selecionado.matricula));
       setPerfilTemp(perfilInicial(selecionado.matricula));
-      setEditMode(false);
       setEditPerfil(false);
       setActiveTab(origem === 'consumo' ? 'Consumo' : 'Dados principais');
       limparHistorico();
@@ -188,14 +190,13 @@ export function useAlunoSearch({
     apiBaseUrl,
     authConfig,
     cardRef,
-    criarTempSeguro,
     limparHistorico,
     mensagemErroAbrirAluno,
     perfilInicial,
+    prepararDadosPrincipais,
     resetBuscaGeral,
     setActiveTab,
     setAluno,
-    setEditMode,
     setEditPerfil,
     setMensagem,
     setMostrarIntegralizacao,
@@ -204,7 +205,6 @@ export function useAlunoSearch({
     setMostrarUsuarios,
     setPerfil,
     setPerfilTemp,
-    setTemp,
     setVoltarParaListaConsumo,
   ]);
 
@@ -216,7 +216,7 @@ export function useAlunoSearch({
   const voltarParaConsumoGeral = useCallback(() => {
     resetBuscaGeral();
     setAluno(null);
-    setEditMode(false);
+    resetarDadosPrincipais();
     setEditPerfil(false);
     setActiveTab('Dados principais');
     limparHistorico();
@@ -229,9 +229,9 @@ export function useAlunoSearch({
   }, [
     resetBuscaGeral,
     limparHistorico,
+    resetarDadosPrincipais,
     setActiveTab,
     setAluno,
-    setEditMode,
     setEditPerfil,
     setMensagem,
     setMostrarIntegralizacao,
