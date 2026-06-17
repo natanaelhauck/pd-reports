@@ -18,6 +18,7 @@ import { useUsersManagement } from './hooks/useUsersManagement.js';
 import { useAlunoSearch } from './hooks/useAlunoSearch.js';
 import { useStudentHistory } from './hooks/useStudentHistory.js';
 import { useStudentMainData } from './hooks/useStudentMainData.js';
+import { useStudentProfileData } from './hooks/useStudentProfileData.js';
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 const MONITORES = ['Alex', 'André', 'Douglas', 'Gabriel', 'Kellen', 'Natanael'];
@@ -455,10 +456,6 @@ export default function App() {
   const [tema, setTema] = useState(() => localStorage.getItem('pd_theme') || 'light');
   const [aluno, setAluno] = useState(null);
   const [activeTab, setActiveTab] = useState('Dados principais');
-  const [perfil, setPerfil] = useState(PERFIL_INICIAL());
-  const [perfilTemp, setPerfilTemp] = useState(PERFIL_INICIAL());
-  const [editPerfil, setEditPerfil] = useState(false);
-  const [salvandoPerfil, setSalvandoPerfil] = useState(false);
   const [mensagem, setMensagem] = useState(null);
   const [mostrarNovoAluno, setMostrarNovoAluno] = useState(false);
   const [mostrarUsuarios, setMostrarUsuarios] = useState(false);
@@ -496,6 +493,18 @@ export default function App() {
     mensagemErroApi,
     setMensagem,
   });
+  const profileData = useStudentProfileData({
+    aluno,
+    apiBaseUrl: API_BASE_URL,
+    authHeaders,
+    mensagemErroApi,
+    setMensagem,
+    perfilInicial: PERFIL_INICIAL,
+    normalizarPerfil,
+    montarPayloadPerfil,
+    carregarHistorico: studentHistory.carregarHistorico,
+    activeTab,
+  });
   const atualizarAlunoNosResultados = useCallback((atualizado) => {
     atualizarAlunoNosResultadosRef.current(atualizado);
   }, []);
@@ -516,9 +525,6 @@ export default function App() {
     authHeaders,
     aluno,
     setAluno,
-    setPerfil,
-    setPerfilTemp,
-    setEditPerfil,
     setActiveTab,
     limparHistorico: studentHistory.limparHistorico,
     setMensagem,
@@ -529,7 +535,8 @@ export default function App() {
     setMostrarIntegralizacao,
     prepararDadosPrincipais: mainData.sincronizarComAluno,
     resetarDadosPrincipais: mainData.resetarDadosPrincipais,
-    perfilInicial: PERFIL_INICIAL,
+    prepararPerfilInicial: profileData.prepararPerfilInicial,
+    limparPerfil: profileData.limparPerfil,
     mensagemErroApi,
     mensagemErroAbrirAluno,
     cardRef,
@@ -548,22 +555,12 @@ export default function App() {
       ? { background: '#fffbeb', color: '#92400e', border: '1px solid #fde68a' }
       : { background: '#fef2f2', color: '#991b1b', border: '1px solid #fecaca' };
 
-  const buscarPerfilAluno = async (matricula) => {
-    const res = await axios.get(`${API_BASE_URL}/api/alunos/perfil/${encodeURIComponent(matricula)}`, authConfig({ timeout: 12000 }));
-    const dados = normalizarPerfil(res.data);
-    setPerfil(dados);
-    setPerfilTemp(dados);
-    return dados;
-  };
-
   const limparEstadoAplicacao = () => {
     alunoSearch.resetBuscaGeral();
     setAluno(null);
     mainData.resetarDadosPrincipais();
     setActiveTab('Dados principais');
-    setPerfil(PERFIL_INICIAL());
-    setPerfilTemp(PERFIL_INICIAL());
-    setEditPerfil(false);
+    profileData.limparPerfil();
     setMensagem(null);
     studentHistory.limparHistorico();
     setMostrarNovoAluno(false);
@@ -584,9 +581,7 @@ export default function App() {
     setAluno(null);
     mainData.resetarDadosPrincipais();
     setActiveTab('Dados principais');
-    setPerfil(PERFIL_INICIAL());
-    setPerfilTemp(PERFIL_INICIAL());
-    setEditPerfil(false);
+    profileData.limparPerfil();
     setMensagem(null);
     studentHistory.limparHistorico();
     setMostrarNovoAluno(false);
@@ -602,30 +597,10 @@ export default function App() {
     setAlterandoMinhaSenha(false);
   };
 
-  const salvarPerfilAluno = async () => {
-    if (!aluno || salvandoPerfil) return;
-    setSalvandoPerfil(true);
-    setMensagem(null);
-    try {
-      const payload = montarPayloadPerfil(perfilTemp, aluno.matricula);
-      const res = await axios.post(`${API_BASE_URL}/api/alunos/perfil/update`, payload, authConfig({ timeout: 12000 }));
-      const atualizado = normalizarPerfil(res.data.perfil);
-      setPerfil(atualizado);
-      setPerfilTemp(atualizado);
-      setEditPerfil(false);
-      setMensagem({ tipo: 'sucesso', texto: res.data.mensagem || 'Perfil atualizado com sucesso.' });
-      if (activeTab === 'Histórico') studentHistory.carregarHistorico(aluno.matricula);
-    } catch (err) {
-      setMensagem({ tipo: 'erro', texto: mensagemErroApi(err, 'Erro ao salvar perfil.') });
-    } finally {
-      setSalvandoPerfil(false);
-    }
-  };
-
   const selecionarTab = (tab) => {
     if (!tabsVisiveis.includes(tab)) return;
     setActiveTab(tab);
-    if (tab === 'Perfil do aluno' && aluno) buscarPerfilAluno(aluno.matricula);
+    if (tab === 'Perfil do aluno' && aluno) profileData.carregarPerfilAluno(aluno.matricula);
     if (tab === 'Histórico' && aluno && !isPrefeituraMunicipal) studentHistory.carregarHistorico(aluno.matricula);
   };
 
@@ -745,12 +720,10 @@ export default function App() {
       mainData.sincronizarComAluno(criado);
       if (res.data.perfil) {
         const perfilCriado = normalizarPerfil(res.data.perfil);
-        setPerfil(perfilCriado);
-        setPerfilTemp(perfilCriado);
+        profileData.sincronizarPerfil(perfilCriado);
       } else {
         const perfilInicial = PERFIL_INICIAL(criado.matricula);
-        setPerfil(perfilInicial);
-        setPerfilTemp(perfilInicial);
+        profileData.sincronizarPerfil(perfilInicial);
       }
       setMostrarNovoAluno(false);
       setNovoAluno(NOVO_ALUNO_INICIAL);
@@ -985,11 +958,11 @@ export default function App() {
           )}
           {activeTab === 'Perfil do aluno' && (
             <StudentProfileDataTab
-              perfil={perfil}
-              perfilTemp={perfilTemp}
-              editPerfil={editPerfil}
+              perfil={profileData.perfil}
+              perfilTemp={profileData.perfilTemp}
+              editPerfil={profileData.editPerfil}
               somenteLeitura={isPrefeituraMunicipal}
-              salvandoPerfil={salvandoPerfil}
+              salvandoPerfil={profileData.salvandoPerfil}
               styles={styles}
               turnos={TURNOS}
               turnosTrabalho={TURNOS_TRABALHO}
@@ -1006,13 +979,10 @@ export default function App() {
               quantidadeFromFilhos={quantidadeFromFilhos}
               ajustarQuantidadeFilhos={ajustarQuantidadeFilhos}
               pillColor={pillColor}
-              onEdit={() => setEditPerfil(true)}
-              onCancel={() => {
-                setPerfilTemp(perfil);
-                setEditPerfil(false);
-              }}
-              onSave={salvarPerfilAluno}
-              setPerfilTemp={setPerfilTemp}
+              onEdit={profileData.iniciarEdicaoPerfil}
+              onCancel={profileData.cancelarEdicaoPerfil}
+              onSave={profileData.salvarPerfil}
+              setPerfilTemp={profileData.setPerfilTemp}
             />
           )}
 
