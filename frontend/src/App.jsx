@@ -19,6 +19,7 @@ import { useAlunoSearch } from './hooks/useAlunoSearch.js';
 import { useStudentHistory } from './hooks/useStudentHistory.js';
 import { useStudentMainData } from './hooks/useStudentMainData.js';
 import { useStudentProfileData } from './hooks/useStudentProfileData.js';
+import { useNewStudentForm } from './hooks/useNewStudentForm.js';
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 const MONITORES = ['Alex', 'André', 'Douglas', 'Gabriel', 'Kellen', 'Natanael'];
@@ -462,12 +463,8 @@ export default function App() {
   const [mostrarMonitores, setMostrarMonitores] = useState(false);
   const [mostrarIntegralizacao, setMostrarIntegralizacao] = useState(false);
   const [voltarParaListaConsumo, setVoltarParaListaConsumo] = useState(false);
-  const [novoAluno, setNovoAluno] = useState(NOVO_ALUNO_INICIAL);
-  const [mostrarPerfilNovoAluno, setMostrarPerfilNovoAluno] = useState(false);
-  const [novoAlunoPerfil, setNovoAlunoPerfil] = useState(PERFIL_CADASTRO_INICIAL);
   const [mostrarAlterarSenha, setMostrarAlterarSenha] = useState(false);
   const [alterandoMinhaSenha, setAlterandoMinhaSenha] = useState(false);
-  const [salvandoNovoAluno, setSalvandoNovoAluno] = useState(false);
   const cardRef = useRef(null);
   const atualizarAlunoNosResultadosRef = useRef(() => {});
   const isAdmin = usuario?.role === 'admin';
@@ -544,6 +541,43 @@ export default function App() {
   useEffect(() => {
     atualizarAlunoNosResultadosRef.current = alunoSearch.atualizarAlunoNosResultados;
   }, [alunoSearch.atualizarAlunoNosResultados]);
+  const { adicionarAlunoAResultados } = alunoSearch;
+  const { sincronizarComAluno } = mainData;
+  const { sincronizarPerfil } = profileData;
+  const fecharNovoAluno = useCallback(() => {
+    setMostrarNovoAluno(false);
+  }, []);
+  const handleNovoAlunoCriado = useCallback((dadosCriacao) => {
+    const criado = dadosCriacao.aluno;
+    adicionarAlunoAResultados(criado);
+    setAluno(criado);
+    sincronizarComAluno(criado);
+    if (dadosCriacao.perfil) {
+      const perfilCriado = normalizarPerfil(dadosCriacao.perfil);
+      sincronizarPerfil(perfilCriado);
+    } else {
+      const perfilInicial = PERFIL_INICIAL(criado.matricula);
+      sincronizarPerfil(perfilInicial);
+    }
+  }, [
+    adicionarAlunoAResultados,
+    sincronizarComAluno,
+    sincronizarPerfil,
+  ]);
+  const newStudentForm = useNewStudentForm({
+    apiBaseUrl: API_BASE_URL,
+    authHeaders,
+    isAdmin,
+    setMensagem,
+    mensagemErroApi,
+    novoAlunoInicial: NOVO_ALUNO_INICIAL,
+    perfilCadastroInicial: PERFIL_CADASTRO_INICIAL,
+    perfilCadastroTemDados,
+    normalizarMonitor,
+    normalizarStatus,
+    onCreated: handleNovoAlunoCriado,
+    onClose: fecharNovoAluno,
+  });
   const temaEscuro = tema === 'dark';
   const tabsVisiveis = useMemo(() => (
     isPrefeituraMunicipal ? TABS.filter((tab) => tab !== 'Relatórios Monitoria' && tab !== 'Histórico') : TABS
@@ -568,9 +602,7 @@ export default function App() {
     setMostrarMonitores(false);
     setMostrarIntegralizacao(false);
     setVoltarParaListaConsumo(false);
-    setNovoAluno(NOVO_ALUNO_INICIAL);
-    setMostrarPerfilNovoAluno(false);
-    setNovoAlunoPerfil(PERFIL_CADASTRO_INICIAL());
+    newStudentForm.limparNovoAluno();
     usersManagement.limparGestaoUsuarios();
     setMostrarAlterarSenha(false);
     setAlterandoMinhaSenha(false);
@@ -589,9 +621,7 @@ export default function App() {
     setMostrarMonitores(false);
     setMostrarIntegralizacao(false);
     setVoltarParaListaConsumo(false);
-    setNovoAluno(NOVO_ALUNO_INICIAL);
-    setMostrarPerfilNovoAluno(false);
-    setNovoAlunoPerfil(PERFIL_CADASTRO_INICIAL());
+    newStudentForm.limparNovoAluno();
     usersManagement.limparGestaoUsuarios();
     setMostrarAlterarSenha(false);
     setAlterandoMinhaSenha(false);
@@ -646,8 +676,7 @@ export default function App() {
     setMostrarUsuarios(false);
     setMostrarIntegralizacao(false);
     setMostrarNovoAluno(true);
-    setMostrarPerfilNovoAluno(false);
-    setNovoAlunoPerfil(PERFIL_CADASTRO_INICIAL());
+    newStudentForm.prepararNovoAluno();
     setMensagem(null);
   };
 
@@ -696,44 +725,6 @@ export default function App() {
       setMensagem({ tipo: 'erro', texto: mensagemErroApi(err, 'Erro ao alterar a própria senha.') });
     } finally {
       setAlterandoMinhaSenha(false);
-    }
-  };
-
-  const cadastrarAluno = async (e) => {
-    e.preventDefault();
-    if (!isAdmin || salvandoNovoAluno) return;
-    setSalvandoNovoAluno(true);
-    setMensagem(null);
-    try {
-      const payload = {
-        ...novoAluno,
-        monitor: normalizarMonitor(novoAluno.monitor),
-        status: normalizarStatus(novoAluno.status),
-      };
-      if (mostrarPerfilNovoAluno && perfilCadastroTemDados(novoAlunoPerfil)) {
-        payload.perfil = novoAlunoPerfil;
-      }
-      const res = await axios.post(`${API_BASE_URL}/api/alunos/create`, payload, authConfig({ timeout: 12000 }));
-      const criado = res.data.aluno;
-      alunoSearch.adicionarAlunoAResultados(criado);
-      setAluno(criado);
-      mainData.sincronizarComAluno(criado);
-      if (res.data.perfil) {
-        const perfilCriado = normalizarPerfil(res.data.perfil);
-        profileData.sincronizarPerfil(perfilCriado);
-      } else {
-        const perfilInicial = PERFIL_INICIAL(criado.matricula);
-        profileData.sincronizarPerfil(perfilInicial);
-      }
-      setMostrarNovoAluno(false);
-      setNovoAluno(NOVO_ALUNO_INICIAL);
-      setMostrarPerfilNovoAluno(false);
-      setNovoAlunoPerfil(PERFIL_CADASTRO_INICIAL());
-      setMensagem({ tipo: 'sucesso', texto: res.data.mensagem || 'Aluno cadastrado com sucesso.' });
-    } catch (err) {
-      setMensagem({ tipo: 'erro', texto: mensagemErroApi(err, 'Erro ao cadastrar aluno.') });
-    } finally {
-      setSalvandoNovoAluno(false);
     }
   };
 
@@ -862,10 +853,10 @@ export default function App() {
 
       {isAdmin && mostrarNovoAluno && (
         <NewStudentPanel
-          novoAluno={novoAluno}
-          novoAlunoPerfil={novoAlunoPerfil}
-          mostrarPerfilNovoAluno={mostrarPerfilNovoAluno}
-          salvandoNovoAluno={salvandoNovoAluno}
+          novoAluno={newStudentForm.novoAluno}
+          novoAlunoPerfil={newStudentForm.novoAlunoPerfil}
+          mostrarPerfilNovoAluno={newStudentForm.mostrarPerfilNovoAluno}
+          salvandoNovoAluno={newStudentForm.salvandoNovoAluno}
           styles={styles}
           statusOptions={STATUS_OPTIONS}
           monitores={MONITORES}
@@ -883,11 +874,11 @@ export default function App() {
           quantidadeFromFilhos={quantidadeFromFilhos}
           ajustarQuantidadeFilhos={ajustarQuantidadeFilhos}
           pillColor={pillColor}
-          onNovoAlunoChange={setNovoAluno}
-          onNovoAlunoPerfilChange={setNovoAlunoPerfil}
-          onTogglePerfil={() => setMostrarPerfilNovoAluno((atual) => !atual)}
-          onSave={cadastrarAluno}
-          onCancel={() => setMostrarNovoAluno(false)}
+          onNovoAlunoChange={newStudentForm.setNovoAluno}
+          onNovoAlunoPerfilChange={newStudentForm.setNovoAlunoPerfil}
+          onTogglePerfil={newStudentForm.alternarPerfilNovoAluno}
+          onSave={newStudentForm.cadastrarAluno}
+          onCancel={newStudentForm.cancelarNovoAluno}
         />
       )}
 
