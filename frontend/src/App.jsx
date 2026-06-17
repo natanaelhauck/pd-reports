@@ -4,7 +4,6 @@ import { User, Calendar, ShieldCheck, Edit2, Save, X, LogIn, Briefcase, Graduati
 import pdLogo from './assets/pd-logo.svg';
 import { AppHeader } from './components/AppHeader.jsx';
 import { CourseHoursDashboard } from './components/CourseHoursDashboard.jsx';
-import { CourseHoursStudentDetails } from './components/CourseHoursStudentDetails.jsx';
 import { MainNavigation } from './components/MainNavigation.jsx';
 import { StudentSearchBar } from './components/StudentSearchBar.jsx';
 import { StudentProfileShell } from './components/StudentProfileShell.jsx';
@@ -12,6 +11,7 @@ import { StudentMainDataTab } from './components/StudentMainDataTab.jsx';
 import { StudentProfileDataTab } from './components/StudentProfileDataTab.jsx';
 import { StudentHistoryTab } from './components/StudentHistoryTab.jsx';
 import { StudentMonitoringReportsTab } from './components/StudentMonitoringReportsTab.jsx';
+import { StudentConsumptionTab } from './components/StudentConsumptionTab.jsx';
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 const MONITORES = ['Alex', 'André', 'Douglas', 'Gabriel', 'Kellen', 'Natanael'];
@@ -1385,11 +1385,12 @@ export default function App() {
           )}
 
           {activeTab === 'Consumo' && (
-            <CourseHoursStudentDetails
+            <StudentConsumptionTab
               aluno={aluno}
               apiBaseUrl={API_BASE_URL}
               authHeaders={authHeaders}
-              onBack={voltarParaListaConsumo ? voltarParaConsumoGeral : undefined}
+              showBackToList={voltarParaListaConsumo}
+              onBackToList={voltarParaConsumoGeral}
             />
           )}
         </StudentProfileShell>
