@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
-import { User, Calendar, ShieldCheck, Save, X, LogIn, Briefcase, GraduationCap, Users, Moon, Sun, Eye, EyeOff } from 'lucide-react';
+import { Save, X, LogIn, Moon, Sun, Eye, EyeOff } from 'lucide-react';
 import pdLogo from './assets/pd-logo.svg';
 import { AppHeader } from './components/AppHeader.jsx';
 import { CourseHoursDashboard } from './components/CourseHoursDashboard.jsx';
@@ -13,6 +13,7 @@ import { StudentHistoryTab } from './components/StudentHistoryTab.jsx';
 import { StudentMonitoringReportsTab } from './components/StudentMonitoringReportsTab.jsx';
 import { StudentConsumptionTab } from './components/StudentConsumptionTab.jsx';
 import { UserManagementPanel } from './components/UserManagementPanel.jsx';
+import { NewStudentPanel } from './components/NewStudentPanel.jsx';
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 const MONITORES = ['Alex', 'André', 'Douglas', 'Gabriel', 'Kellen', 'Natanael'];
@@ -1150,39 +1151,34 @@ export default function App() {
       )}
 
       {isAdmin && mostrarNovoAluno && (
-        <form className="admin-panel" onSubmit={cadastrarAluno} style={styles.section}>
-          <div className="panel-title-row">
-            <h2>Novo aluno</h2>
-            <button className="ui-button" type="button" onClick={() => setMostrarNovoAluno(false)} style={styles.secondaryBtn}><X size={17} /></button>
-          </div>
-          <div className="admin-grid">
-            <ProfileField label="Nome *" value={novoAluno.nome} onChange={(v) => setNovoAluno({ ...novoAluno, nome: v })} />
-            <ProfileField label="Matrícula *" value={novoAluno.matricula} onChange={(v) => setNovoAluno({ ...novoAluno, matricula: v })} />
-            <ProfileField label="Telefone" value={novoAluno.telefone} onChange={(v) => setNovoAluno({ ...novoAluno, telefone: v })} />
-            <ProfileField label="E-mail" type="email" value={novoAluno.email} onChange={(v) => setNovoAluno({ ...novoAluno, email: v })} />
-            <ProfileField label="Nascimento" type="date" value={novoAluno.nascimento} onChange={(v) => setNovoAluno({ ...novoAluno, nascimento: v })} />
-            <ProfileField label="Patrimônio" value={novoAluno.patrimonio} onChange={(v) => setNovoAluno({ ...novoAluno, patrimonio: v })} />
-            <ProfileSelect label="Monitor" value={novoAluno.monitor} onChange={(v) => setNovoAluno({ ...novoAluno, monitor: v })} options={[['', 'Selecione...'], ...MONITORES.map((m) => [m, m])]} />
-            <ProfileSelect label="Status *" value={novoAluno.status} onChange={(v) => setNovoAluno({ ...novoAluno, status: v })} options={STATUS_OPTIONS.map((s) => [s, s])} />
-          </div>
-          <div className="new-student-profile">
-            <div className="new-student-profile-head">
-              <div>
-                <h3>Perfil do aluno</h3>
-                <p>Preenchimento opcional no cadastro</p>
-              </div>
-              <button className="ui-button" type="button" onClick={() => setMostrarPerfilNovoAluno((atual) => !atual)} style={styles.secondaryBtn}>
-                {mostrarPerfilNovoAluno ? 'Ocultar perfil' : 'Preencher perfil agora'}
-              </button>
-            </div>
-            {mostrarPerfilNovoAluno && (
-              <NovoAlunoPerfilForm perfil={novoAlunoPerfil} setPerfil={setNovoAlunoPerfil} />
-            )}
-          </div>
-          <button className="ui-button" type="submit" disabled={salvandoNovoAluno} style={{ ...styles.primaryBtn, marginTop: '14px' }}>
-            <Save size={17} /> {salvandoNovoAluno ? 'Salvando...' : 'Cadastrar aluno'}
-          </button>
-        </form>
+        <NewStudentPanel
+          novoAluno={novoAluno}
+          novoAlunoPerfil={novoAlunoPerfil}
+          mostrarPerfilNovoAluno={mostrarPerfilNovoAluno}
+          salvandoNovoAluno={salvandoNovoAluno}
+          styles={styles}
+          statusOptions={STATUS_OPTIONS}
+          monitores={MONITORES}
+          turnos={TURNOS}
+          turnosTrabalho={TURNOS_TRABALHO}
+          diasMonitoria={DIAS_MONITORIA}
+          qtdFilhos={QTD_FILHOS}
+          psicologos={PSICOLOGOS}
+          engColors={ENG_COLORS}
+          progColors={PROG_COLORS}
+          boolSelectValue={boolSelectValue}
+          boolFromSelect={boolFromSelect}
+          parseFilhos={parseFilhos}
+          stringifyFilhos={stringifyFilhos}
+          quantidadeFromFilhos={quantidadeFromFilhos}
+          ajustarQuantidadeFilhos={ajustarQuantidadeFilhos}
+          pillColor={pillColor}
+          onNovoAlunoChange={setNovoAluno}
+          onNovoAlunoPerfilChange={setNovoAlunoPerfil}
+          onTogglePerfil={() => setMostrarPerfilNovoAluno((atual) => !atual)}
+          onSave={cadastrarAluno}
+          onCancel={() => setMostrarNovoAluno(false)}
+        />
       )}
 
       {isAdmin && mostrarUsuarios && (
@@ -1663,103 +1659,6 @@ function MotivoOutroDetalhe({ detalhe }) {
           </button>
         )}
       </div>
-    </div>
-  );
-}
-
-function NovoAlunoPerfilForm({ perfil, setPerfil }) {
-  const setCampo = (campo, valor) => setPerfil((atual) => ({ ...atual, [campo]: valor }));
-  const filhosInfo = parseFilhos(perfil.filhos_descricao);
-  const filhos = filhosInfo.filhos;
-  const setFilhos = (novosFilhos) => setCampo('filhos_descricao', stringifyFilhos(novosFilhos));
-
-  return (
-    <div style={styles.profileGrid} className="profile-grid new-student-profile-grid">
-      <section style={{ ...styles.section, gridColumn: '1 / -1' }}>
-        <h3><User size={18} /> Breve análise de perfil</h3>
-        <textarea style={styles.textarea} value={perfil.analise_perfil || ''} onChange={(e) => setCampo('analise_perfil', e.target.value)} />
-      </section>
-      <section style={styles.section}>
-        <h3><Briefcase size={18} /> Trabalho e Estudos</h3>
-        <ProfileSelect label="Trabalha?" value={boolSelectValue(perfil.trabalha)} onChange={(v) => {
-          const trabalha = boolFromSelect(v);
-          setPerfil((atual) => ({
-            ...atual,
-            trabalha,
-            trabalho_descricao: trabalha === true ? atual.trabalho_descricao : '',
-            turno_trabalho: trabalha === true ? atual.turno_trabalho : '',
-          }));
-        }} options={[['', 'Não informado'], ['sim', 'Sim'], ['nao', 'Não']]} />
-        {perfil.trabalha === true && (
-          <>
-            <ProfileField label="Com o que trabalha?" value={perfil.trabalho_descricao} onChange={(v) => setCampo('trabalho_descricao', v)} />
-            <ProfileSelect label="Turno de trabalho" value={perfil.turno_trabalho || ''} onChange={(v) => setCampo('turno_trabalho', v)} options={[['', 'Não informado'], ...TURNOS_TRABALHO.map((turno) => [turno, turno])]} />
-          </>
-        )}
-        <ProfileField label="Em qual área profissional pretende trabalhar futuramente?" value={perfil.area_profissional_interesse} onChange={(v) => setCampo('area_profissional_interesse', v)} />
-        <ProfileSelect label="Estuda?" value={boolSelectValue(perfil.estuda)} onChange={(v) => setCampo('estuda', boolFromSelect(v))} options={[['', 'Não informado'], ['sim', 'Sim'], ['nao', 'Não']]} />
-        {perfil.estuda === true && (
-          <>
-            <ProfileField label="Onde estuda?" value={perfil.estudo_instituicao} onChange={(v) => setCampo('estudo_instituicao', v)} />
-            <ProfileField label="Qual curso?" value={perfil.estudo_curso} onChange={(v) => setCampo('estudo_curso', v)} />
-            <ProfileSelect label="Turno de estudo" value={perfil.turno_estudo || ''} onChange={(v) => setCampo('turno_estudo', v)} options={[['', 'Não informado'], ...TURNOS.map((turno) => [turno, turno])]} />
-          </>
-        )}
-      </section>
-      <section style={styles.section}>
-        <h3><Users size={18} /> Família</h3>
-        <ProfileSelect label="Tem filhos?" value={boolSelectValue(perfil.tem_filhos)} onChange={(v) => {
-          const temFilhos = boolFromSelect(v);
-          setPerfil((atual) => ({ ...atual, tem_filhos: temFilhos, filhos_descricao: temFilhos === true ? atual.filhos_descricao : '' }));
-        }} options={[['', 'Não informado'], ['sim', 'Sim'], ['nao', 'Não']]} />
-        {perfil.tem_filhos === true && (
-          <>
-            <ProfileSelect
-              label="Quantidade de filhos"
-              value={quantidadeFromFilhos(filhos)}
-              onChange={(v) => setFilhos(ajustarQuantidadeFilhos(v, filhos))}
-              options={[['', 'Selecione...'], ...QTD_FILHOS.map((qtd) => [qtd, qtd])]}
-            />
-            <div className="children-editor">
-              {filhos.map((filho, index) => (
-                <div key={index} className="child-row">
-                  <ProfileField label={`Nome do filho ${index + 1}`} value={filho.nome} onChange={(v) => {
-                    const novos = [...filhos];
-                    novos[index] = { ...novos[index], nome: v };
-                    setFilhos(novos);
-                  }} />
-                  <ProfileField label="Idade" value={filho.idade} onChange={(v) => {
-                    const novos = [...filhos];
-                    novos[index] = { ...novos[index], idade: v };
-                    setFilhos(novos);
-                  }} />
-                </div>
-              ))}
-            </div>
-            {filhosInfo.textoLivre && <p className="legacy-note">Dado antigo: {filhosInfo.textoLivre}</p>}
-          </>
-        )}
-      </section>
-      <section style={styles.section}>
-        <h3><GraduationCap size={18} /> Curso</h3>
-        <ProfileSelect label="Nível de Engajamento" value={perfil.nivel_engajamento || ''} onChange={(v) => setCampo('nivel_engajamento', v)} options={[['', 'Não informado'], ['baixo', 'Baixo'], ['médio', 'Médio'], ['alto', 'Alto']]} color={pillColor(perfil.nivel_engajamento, ENG_COLORS)} />
-        <ProfileSelect label="Nível de Conhecimento em Programação" value={perfil.nivel_programacao || ''} onChange={(v) => setCampo('nivel_programacao', v)} options={[['', 'Não informado'], ['básico', 'Básico'], ['intermediário', 'Intermediário'], ['avançado', 'Avançado']]} color={pillColor(perfil.nivel_programacao, PROG_COLORS)} />
-      </section>
-      <section style={styles.section}>
-        <h3><Calendar size={18} /> Monitoria</h3>
-        <ProfileSelect label="Dia da monitoria" value={perfil.dia_monitoria || ''} onChange={(v) => setCampo('dia_monitoria', v)} options={[['', 'Não informado'], ...DIAS_MONITORIA.map((dia) => [dia, dia])]} />
-        <ProfileField label="Horário da monitoria" type="time" value={perfil.horario_monitoria} onChange={(v) => setCampo('horario_monitoria', v)} />
-      </section>
-      <section style={styles.section}>
-        <h3><ShieldCheck size={18} /> Acompanhamento psicológico</h3>
-        <ProfileSelect label="Faz acompanhamento?" value={boolSelectValue(perfil.acompanhamento_psicologico)} onChange={(v) => {
-          const faz = boolFromSelect(v);
-          setPerfil((atual) => ({ ...atual, acompanhamento_psicologico: faz, psicologo: faz === true ? atual.psicologo : '' }));
-        }} options={[['', 'Não informado'], ['sim', 'Sim'], ['nao', 'Não']]} />
-        {perfil.acompanhamento_psicologico === true && (
-          <ProfileSelect label="Psicólogo responsável" value={perfil.psicologo || ''} onChange={(v) => setCampo('psicologo', v)} options={[['', 'Selecione...'], ...PSICOLOGOS.map((nome) => [nome, nome])]} />
-        )}
-      </section>
     </div>
   );
 }
