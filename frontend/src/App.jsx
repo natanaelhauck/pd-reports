@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
-import { User, Calendar, ShieldCheck, Edit2, Save, X, LogIn, Briefcase, GraduationCap, Users, Moon, Sun, Eye, EyeOff } from 'lucide-react';
+import { User, Calendar, ShieldCheck, Save, X, LogIn, Briefcase, GraduationCap, Users, Moon, Sun, Eye, EyeOff } from 'lucide-react';
 import pdLogo from './assets/pd-logo.svg';
 import { AppHeader } from './components/AppHeader.jsx';
 import { CourseHoursDashboard } from './components/CourseHoursDashboard.jsx';
@@ -12,6 +12,7 @@ import { StudentProfileDataTab } from './components/StudentProfileDataTab.jsx';
 import { StudentHistoryTab } from './components/StudentHistoryTab.jsx';
 import { StudentMonitoringReportsTab } from './components/StudentMonitoringReportsTab.jsx';
 import { StudentConsumptionTab } from './components/StudentConsumptionTab.jsx';
+import { UserManagementPanel } from './components/UserManagementPanel.jsx';
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 const MONITORES = ['Alex', 'André', 'Douglas', 'Gabriel', 'Kellen', 'Natanael'];
@@ -1185,111 +1186,43 @@ export default function App() {
       )}
 
       {isAdmin && mostrarUsuarios && (
-        <section className="admin-panel" style={styles.section}>
-          <div className="panel-title-row">
-            <h2>Usuários</h2>
-            <button className="ui-button" type="button" onClick={() => setMostrarUsuarios(false)} style={styles.secondaryBtn}><X size={17} /></button>
-          </div>
-          <form onSubmit={cadastrarUsuario} className="admin-grid" autoComplete="off">
-            <ProfileField label="Nome" value={novoUsuario.nome} onChange={(v) => setNovoUsuario({ ...novoUsuario, nome: v })} />
-            <ProfileField label="E-mail" type="email" value={novoUsuario.email} onChange={(v) => setNovoUsuario({ ...novoUsuario, email: v })} autoComplete="new-email" />
-            <ProfileField label="Senha" type="password" value={novoUsuario.senha} onChange={(v) => setNovoUsuario({ ...novoUsuario, senha: v })} autoComplete="new-password" />
-            <ProfileSelect label="Perfil" value={novoUsuario.role} onChange={(v) => setNovoUsuario({ ...novoUsuario, role: v })} options={PERFIS_USUARIO} />
-            <button className="ui-button" type="submit" disabled={salvandoUsuario} style={styles.primaryBtn}>
-              <Save size={17} /> {salvandoUsuario ? 'Salvando...' : 'Cadastrar usuário'}
-            </button>
-          </form>
-          <div className="users-table-wrap">
-            <h3>Usuários cadastrados</h3>
-            <table className="users-table">
-              <thead>
-                <tr>
-                  <th>Nome</th>
-                  <th>E-mail</th>
-                  <th>Perfil</th>
-                  <th>Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {usuarios.map((u) => (
-                  <Fragment key={u.id || u.email}>
-                    <tr>
-                      <td>{formatarUsuario(u)}</td>
-                      <td>{u.email}</td>
-                      <td>{rotuloPerfilUsuario(u)}</td>
-                      <td>
-                        <div style={{ ...styles.actions, marginLeft: 0 }}>
-                          <button className="ui-button" type="button" style={styles.secondaryBtn} onClick={() => editarUsuario(u)}>
-                            <Edit2 size={16} /> Editar
-                          </button>
-                          <button className="ui-button" type="button" style={styles.secondaryBtn} onClick={() => {
-                            setSenhaUsuarioEditando(u.id);
-                            setNovaSenhaUsuario('');
-                            setMostrarSenhaUsuario(false);
-                            setUsuarioEditando(null);
-                          }}>
-                            Alterar senha
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                    {usuarioEditando === u.id && (
-                      <tr className="password-row">
-                        <td colSpan="4">
-                          <div className="password-inline-form">
-                            <ProfileField label="Nome" value={usuarioTemp.nome} onChange={(v) => setUsuarioTemp({ ...usuarioTemp, nome: v })} />
-                            <ProfileField label="E-mail" type="email" value={usuarioTemp.email} onChange={(v) => setUsuarioTemp({ ...usuarioTemp, email: v })} autoComplete="off" />
-                            <ProfileSelect label="Perfil" value={usuarioTemp.role} onChange={(v) => setUsuarioTemp({ ...usuarioTemp, role: v })} options={PERFIS_USUARIO} />
-                            <button className="ui-button" type="button" disabled={salvandoUsuarioEditando} style={styles.primaryBtn} onClick={() => salvarUsuario(u)}>
-                              {salvandoUsuarioEditando ? 'Salvando...' : 'Salvar'}
-                            </button>
-                            <button className="ui-button" type="button" style={styles.secondaryBtn} onClick={cancelarEdicaoUsuario}>
-                              Cancelar
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                    {senhaUsuarioEditando === u.id && (
-                      <tr className="password-row">
-                        <td colSpan="4">
-                          <div className="password-inline-form">
-                            <label style={{ display: 'block', marginTop: '10px' }}>
-                              <span style={styles.label}>Nova senha</span>
-                              <div style={{ ...styles.passwordWrap, marginBottom: 0 }}>
-                                <input type={mostrarSenhaUsuario ? 'text' : 'password'} style={{ ...styles.fieldInput, paddingRight: '48px' }} value={novaSenhaUsuario} onChange={(e) => setNovaSenhaUsuario(e.target.value)} autoComplete="new-password" />
-                                <button
-                                  className="ui-button"
-                                  type="button"
-                                  aria-label={mostrarSenhaUsuario ? 'Ocultar senha' : 'Mostrar senha'}
-                                  title={mostrarSenhaUsuario ? 'Ocultar senha' : 'Mostrar senha'}
-                                  onClick={() => setMostrarSenhaUsuario((atual) => !atual)}
-                                  style={styles.passwordToggle}
-                                >
-                                  {mostrarSenhaUsuario ? <EyeOff size={18} /> : <Eye size={18} />}
-                                </button>
-                              </div>
-                            </label>
-                            <button className="ui-button" type="button" disabled={salvandoSenhaUsuario} style={styles.primaryBtn} onClick={() => salvarSenhaUsuario(u)}>
-                              {salvandoSenhaUsuario ? 'Salvando...' : 'Salvar senha'}
-                            </button>
-                            <button className="ui-button" type="button" style={styles.secondaryBtn} onClick={() => {
-                              setSenhaUsuarioEditando(null);
-                              setNovaSenhaUsuario('');
-                              setMostrarSenhaUsuario(false);
-                            }}>
-                              Cancelar
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
+        <UserManagementPanel
+          usuarios={usuarios}
+          novoUsuario={novoUsuario}
+          usuarioTemp={usuarioTemp}
+          usuarioEditando={usuarioEditando}
+          senhaUsuarioEditando={senhaUsuarioEditando}
+          novaSenhaUsuario={novaSenhaUsuario}
+          mostrarSenhaUsuario={mostrarSenhaUsuario}
+          perfisUsuario={PERFIS_USUARIO}
+          salvandoUsuario={salvandoUsuario}
+          salvandoUsuarioEditando={salvandoUsuarioEditando}
+          salvandoSenhaUsuario={salvandoSenhaUsuario}
+          styles={styles}
+          formatarUsuario={formatarUsuario}
+          rotuloPerfilUsuario={rotuloPerfilUsuario}
+          onClose={() => setMostrarUsuarios(false)}
+          onSubmitNovoUsuario={cadastrarUsuario}
+          onNovoUsuarioChange={setNovoUsuario}
+          onUsuarioTempChange={setUsuarioTemp}
+          onEditarUsuario={editarUsuario}
+          onCancelarEdicaoUsuario={cancelarEdicaoUsuario}
+          onSalvarUsuario={salvarUsuario}
+          onIniciarEdicaoSenha={(usuarioAlvo) => {
+            setSenhaUsuarioEditando(usuarioAlvo.id);
+            setNovaSenhaUsuario('');
+            setMostrarSenhaUsuario(false);
+            setUsuarioEditando(null);
+          }}
+          onCancelarEdicaoSenha={() => {
+            setSenhaUsuarioEditando(null);
+            setNovaSenhaUsuario('');
+            setMostrarSenhaUsuario(false);
+          }}
+          onNovaSenhaUsuarioChange={setNovaSenhaUsuario}
+          onToggleMostrarSenhaUsuario={() => setMostrarSenhaUsuario((atual) => !atual)}
+          onSalvarSenhaUsuario={salvarSenhaUsuario}
+        />
       )}
 
       {aluno && (
