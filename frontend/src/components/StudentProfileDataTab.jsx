@@ -1,4 +1,23 @@
 import { Briefcase, Calendar, Edit2, GraduationCap, Save, ShieldCheck, User, Users, X } from 'lucide-react';
+import {
+  DIAS_MONITORIA,
+  ENG_COLORS,
+  PROG_COLORS,
+  PSICOLOGOS,
+  QTD_FILHOS,
+  TURNOS,
+  TURNOS_TRABALHO,
+} from '../constants/studentProfileOptions.js';
+import {
+  ajustarQuantidadeFilhos,
+  boolFromSelect,
+  boolSelectValue,
+  filhosResumo,
+  parseFilhos,
+  pillColor,
+  quantidadeFromFilhos,
+  stringifyFilhos,
+} from '../utils/studentProfileHelpers.js';
 
 export function StudentProfileDataTab({
   perfil,
@@ -7,21 +26,6 @@ export function StudentProfileDataTab({
   somenteLeitura = false,
   salvandoPerfil,
   styles = {},
-  turnos = [],
-  turnosTrabalho = [],
-  diasMonitoria = [],
-  qtdFilhos = [],
-  psicologos = [],
-  engColors = {},
-  progColors = {},
-  boolSelectValue,
-  boolFromSelect,
-  parseFilhos,
-  stringifyFilhos,
-  filhosResumo,
-  quantidadeFromFilhos,
-  ajustarQuantidadeFilhos,
-  pillColor,
   onEdit,
   onCancel,
   onSave,
@@ -77,8 +81,8 @@ export function StudentProfileDataTab({
           <section style={styles.section}>
             <h3><GraduationCap size={18} /> Curso</h3>
             <div className="profile-badge-row">
-              <ProfileBadge styles={styles} label="Nível de Engajamento" value={p.nivel_engajamento} color={pillColor(p.nivel_engajamento, engColors)} />
-              <ProfileBadge styles={styles} label="Nível de Conhecimento em Programação" value={p.nivel_programacao} color={pillColor(p.nivel_programacao, progColors)} />
+              <ProfileBadge styles={styles} label="Nível de Engajamento" value={p.nivel_engajamento} color={pillColor(p.nivel_engajamento, ENG_COLORS)} />
+              <ProfileBadge styles={styles} label="Nível de Conhecimento em Programação" value={p.nivel_programacao} color={pillColor(p.nivel_programacao, PROG_COLORS)} />
             </div>
           </section>
           <section style={styles.section}>
@@ -123,7 +127,7 @@ export function StudentProfileDataTab({
           {p.trabalha === true && (
             <>
               <ProfileField styles={styles} label="Com o que trabalha?" value={p.trabalho_descricao} disabled={!editPerfil} onChange={(value) => setCampo('trabalho_descricao', value)} />
-              <ProfileSelect styles={styles} label="Turno de trabalho" value={p.turno_trabalho || ''} disabled={!editPerfil} onChange={(value) => setCampo('turno_trabalho', value)} options={[['', 'Não informado'], ...turnosTrabalho.map((turno) => [turno, turno])]} />
+              <ProfileSelect styles={styles} label="Turno de trabalho" value={p.turno_trabalho || ''} disabled={!editPerfil} onChange={(value) => setCampo('turno_trabalho', value)} options={[['', 'Não informado'], ...TURNOS_TRABALHO.map((turno) => [turno, turno])]} />
             </>
           )}
           <ProfileField styles={styles} label="Em qual área profissional pretende trabalhar futuramente?" value={p.area_profissional_interesse} disabled={!editPerfil} onChange={(value) => setCampo('area_profissional_interesse', value)} />
@@ -132,7 +136,7 @@ export function StudentProfileDataTab({
             <>
               <ProfileField styles={styles} label="Onde estuda?" value={p.estudo_instituicao} disabled={!editPerfil} onChange={(value) => setCampo('estudo_instituicao', value)} />
               <ProfileField styles={styles} label="Qual curso?" value={p.estudo_curso} disabled={!editPerfil} onChange={(value) => setCampo('estudo_curso', value)} />
-              <ProfileSelect styles={styles} label="Turno de estudo" value={p.turno_estudo || ''} disabled={!editPerfil} onChange={(value) => setCampo('turno_estudo', value)} options={[['', 'Não informado'], ...turnos.map((turno) => [turno, turno])]} />
+              <ProfileSelect styles={styles} label="Turno de estudo" value={p.turno_estudo || ''} disabled={!editPerfil} onChange={(value) => setCampo('turno_estudo', value)} options={[['', 'Não informado'], ...TURNOS.map((turno) => [turno, turno])]} />
             </>
           )}
         </section>
@@ -150,7 +154,7 @@ export function StudentProfileDataTab({
                 value={quantidadeFromFilhos(filhos)}
                 disabled={!editPerfil}
                 onChange={(value) => setFilhos(ajustarQuantidadeFilhos(value, filhos))}
-                options={[['', 'Selecione...'], ...qtdFilhos.map((qtd) => [qtd, qtd])]}
+                options={[['', 'Selecione...'], ...QTD_FILHOS.map((qtd) => [qtd, qtd])]}
               />
               <div className="children-editor">
                 {filhos.map((filho, index) => (
@@ -174,12 +178,12 @@ export function StudentProfileDataTab({
         </section>
         <section style={styles.section}>
           <h3><GraduationCap size={18} /> Curso</h3>
-          <ProfileSelect styles={styles} label="Nível de Engajamento" value={p.nivel_engajamento || ''} disabled={!editPerfil} onChange={(value) => setCampo('nivel_engajamento', value)} options={[['', 'Não informado'], ['baixo', 'Baixo'], ['médio', 'Médio'], ['alto', 'Alto']]} color={pillColor(p.nivel_engajamento, engColors)} />
-          <ProfileSelect styles={styles} label="Nível de Conhecimento em Programação" value={p.nivel_programacao || ''} disabled={!editPerfil} onChange={(value) => setCampo('nivel_programacao', value)} options={[['', 'Não informado'], ['básico', 'Básico'], ['intermediário', 'Intermediário'], ['avançado', 'Avançado']]} color={pillColor(p.nivel_programacao, progColors)} />
+          <ProfileSelect styles={styles} label="Nível de Engajamento" value={p.nivel_engajamento || ''} disabled={!editPerfil} onChange={(value) => setCampo('nivel_engajamento', value)} options={[['', 'Não informado'], ['baixo', 'Baixo'], ['médio', 'Médio'], ['alto', 'Alto']]} color={pillColor(p.nivel_engajamento, ENG_COLORS)} />
+          <ProfileSelect styles={styles} label="Nível de Conhecimento em Programação" value={p.nivel_programacao || ''} disabled={!editPerfil} onChange={(value) => setCampo('nivel_programacao', value)} options={[['', 'Não informado'], ['básico', 'Básico'], ['intermediário', 'Intermediário'], ['avançado', 'Avançado']]} color={pillColor(p.nivel_programacao, PROG_COLORS)} />
         </section>
         <section style={styles.section}>
           <h3><Calendar size={18} /> Monitoria</h3>
-          <ProfileSelect styles={styles} label="Dia da monitoria" value={p.dia_monitoria || ''} disabled={!editPerfil} onChange={(value) => setCampo('dia_monitoria', value)} options={[['', 'Não informado'], ...diasMonitoria.map((dia) => [dia, dia])]} />
+          <ProfileSelect styles={styles} label="Dia da monitoria" value={p.dia_monitoria || ''} disabled={!editPerfil} onChange={(value) => setCampo('dia_monitoria', value)} options={[['', 'Não informado'], ...DIAS_MONITORIA.map((dia) => [dia, dia])]} />
           <ProfileField styles={styles} label="Horário da monitoria" type="time" value={p.horario_monitoria} disabled={!editPerfil} onChange={(value) => setCampo('horario_monitoria', value)} />
         </section>
         <section style={styles.section}>
@@ -189,7 +193,7 @@ export function StudentProfileDataTab({
             setPerfilTemp({ ...perfilTemp, acompanhamento_psicologico: faz, psicologo: faz === true ? perfilTemp.psicologo : '' });
           }} options={[['', 'Não informado'], ['sim', 'Sim'], ['nao', 'Não']]} />
           {p.acompanhamento_psicologico === true && (
-            <ProfileSelect styles={styles} label="Psicólogo responsável" value={p.psicologo || ''} disabled={!editPerfil} onChange={(value) => setCampo('psicologo', value)} options={[['', 'Selecione...'], ...psicologos.map((nome) => [nome, nome])]} />
+            <ProfileSelect styles={styles} label="Psicólogo responsável" value={p.psicologo || ''} disabled={!editPerfil} onChange={(value) => setCampo('psicologo', value)} options={[['', 'Selecione...'], ...PSICOLOGOS.map((nome) => [nome, nome])]} />
           )}
         </section>
       </div>

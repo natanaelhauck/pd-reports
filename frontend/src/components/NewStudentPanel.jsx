@@ -1,4 +1,24 @@
 import { Briefcase, Calendar, GraduationCap, Save, ShieldCheck, User, Users, X } from 'lucide-react';
+import {
+  DIAS_MONITORIA,
+  ENG_COLORS,
+  MONITORES,
+  PROG_COLORS,
+  PSICOLOGOS,
+  QTD_FILHOS,
+  STATUS_OPTIONS,
+  TURNOS,
+  TURNOS_TRABALHO,
+} from '../constants/studentProfileOptions.js';
+import {
+  ajustarQuantidadeFilhos,
+  boolFromSelect,
+  boolSelectValue,
+  parseFilhos,
+  pillColor,
+  quantidadeFromFilhos,
+  stringifyFilhos,
+} from '../utils/studentProfileHelpers.js';
 
 export function NewStudentPanel({
   novoAluno,
@@ -6,22 +26,6 @@ export function NewStudentPanel({
   mostrarPerfilNovoAluno,
   salvandoNovoAluno,
   styles = {},
-  statusOptions = [],
-  monitores = [],
-  turnos = [],
-  turnosTrabalho = [],
-  diasMonitoria = [],
-  qtdFilhos = [],
-  psicologos = [],
-  engColors = {},
-  progColors = {},
-  boolSelectValue,
-  boolFromSelect,
-  parseFilhos,
-  stringifyFilhos,
-  quantidadeFromFilhos,
-  ajustarQuantidadeFilhos,
-  pillColor,
   onNovoAlunoChange,
   onNovoAlunoPerfilChange,
   onTogglePerfil,
@@ -41,8 +45,8 @@ export function NewStudentPanel({
         <ProfileField styles={styles} label="E-mail" type="email" value={novoAluno.email} onChange={(value) => onNovoAlunoChange({ ...novoAluno, email: value })} />
         <ProfileField styles={styles} label="Nascimento" type="date" value={novoAluno.nascimento} onChange={(value) => onNovoAlunoChange({ ...novoAluno, nascimento: value })} />
         <ProfileField styles={styles} label="Patrimônio" value={novoAluno.patrimonio} onChange={(value) => onNovoAlunoChange({ ...novoAluno, patrimonio: value })} />
-        <ProfileSelect styles={styles} label="Monitor" value={novoAluno.monitor} onChange={(value) => onNovoAlunoChange({ ...novoAluno, monitor: value })} options={[['', 'Selecione...'], ...monitores.map((monitor) => [monitor, monitor])]} />
-        <ProfileSelect styles={styles} label="Status *" value={novoAluno.status} onChange={(value) => onNovoAlunoChange({ ...novoAluno, status: value })} options={statusOptions.map((status) => [status, status])} />
+        <ProfileSelect styles={styles} label="Monitor" value={novoAluno.monitor} onChange={(value) => onNovoAlunoChange({ ...novoAluno, monitor: value })} options={[['', 'Selecione...'], ...MONITORES.map((monitor) => [monitor, monitor])]} />
+        <ProfileSelect styles={styles} label="Status *" value={novoAluno.status} onChange={(value) => onNovoAlunoChange({ ...novoAluno, status: value })} options={STATUS_OPTIONS.map((status) => [status, status])} />
       </div>
       <div className="new-student-profile">
         <div className="new-student-profile-head">
@@ -59,20 +63,6 @@ export function NewStudentPanel({
             perfil={novoAlunoPerfil}
             setPerfil={onNovoAlunoPerfilChange}
             styles={styles}
-            turnos={turnos}
-            turnosTrabalho={turnosTrabalho}
-            diasMonitoria={diasMonitoria}
-            qtdFilhos={qtdFilhos}
-            psicologos={psicologos}
-            engColors={engColors}
-            progColors={progColors}
-            boolSelectValue={boolSelectValue}
-            boolFromSelect={boolFromSelect}
-            parseFilhos={parseFilhos}
-            stringifyFilhos={stringifyFilhos}
-            quantidadeFromFilhos={quantidadeFromFilhos}
-            ajustarQuantidadeFilhos={ajustarQuantidadeFilhos}
-            pillColor={pillColor}
           />
         )}
       </div>
@@ -87,20 +77,6 @@ function NewStudentProfileForm({
   perfil,
   setPerfil,
   styles,
-  turnos,
-  turnosTrabalho,
-  diasMonitoria,
-  qtdFilhos,
-  psicologos,
-  engColors,
-  progColors,
-  boolSelectValue,
-  boolFromSelect,
-  parseFilhos,
-  stringifyFilhos,
-  quantidadeFromFilhos,
-  ajustarQuantidadeFilhos,
-  pillColor,
 }) {
   const setCampo = (campo, valor) => setPerfil((atual) => ({ ...atual, [campo]: valor }));
   const filhosInfo = parseFilhos(perfil.filhos_descricao);
@@ -127,7 +103,7 @@ function NewStudentProfileForm({
         {perfil.trabalha === true && (
           <>
             <ProfileField styles={styles} label="Com o que trabalha?" value={perfil.trabalho_descricao} onChange={(value) => setCampo('trabalho_descricao', value)} />
-            <ProfileSelect styles={styles} label="Turno de trabalho" value={perfil.turno_trabalho || ''} onChange={(value) => setCampo('turno_trabalho', value)} options={[['', 'Não informado'], ...turnosTrabalho.map((turno) => [turno, turno])]} />
+            <ProfileSelect styles={styles} label="Turno de trabalho" value={perfil.turno_trabalho || ''} onChange={(value) => setCampo('turno_trabalho', value)} options={[['', 'Não informado'], ...TURNOS_TRABALHO.map((turno) => [turno, turno])]} />
           </>
         )}
         <ProfileField styles={styles} label="Em qual área profissional pretende trabalhar futuramente?" value={perfil.area_profissional_interesse} onChange={(value) => setCampo('area_profissional_interesse', value)} />
@@ -136,7 +112,7 @@ function NewStudentProfileForm({
           <>
             <ProfileField styles={styles} label="Onde estuda?" value={perfil.estudo_instituicao} onChange={(value) => setCampo('estudo_instituicao', value)} />
             <ProfileField styles={styles} label="Qual curso?" value={perfil.estudo_curso} onChange={(value) => setCampo('estudo_curso', value)} />
-            <ProfileSelect styles={styles} label="Turno de estudo" value={perfil.turno_estudo || ''} onChange={(value) => setCampo('turno_estudo', value)} options={[['', 'Não informado'], ...turnos.map((turno) => [turno, turno])]} />
+            <ProfileSelect styles={styles} label="Turno de estudo" value={perfil.turno_estudo || ''} onChange={(value) => setCampo('turno_estudo', value)} options={[['', 'Não informado'], ...TURNOS.map((turno) => [turno, turno])]} />
           </>
         )}
       </section>
@@ -153,7 +129,7 @@ function NewStudentProfileForm({
               label="Quantidade de filhos"
               value={quantidadeFromFilhos(filhos)}
               onChange={(value) => setFilhos(ajustarQuantidadeFilhos(value, filhos))}
-              options={[['', 'Selecione...'], ...qtdFilhos.map((qtd) => [qtd, qtd])]}
+              options={[['', 'Selecione...'], ...QTD_FILHOS.map((qtd) => [qtd, qtd])]}
             />
             <div className="children-editor">
               {filhos.map((filho, index) => (
@@ -177,12 +153,12 @@ function NewStudentProfileForm({
       </section>
       <section style={styles.section}>
         <h3><GraduationCap size={18} /> Curso</h3>
-        <ProfileSelect styles={styles} label="Nível de Engajamento" value={perfil.nivel_engajamento || ''} onChange={(value) => setCampo('nivel_engajamento', value)} options={[['', 'Não informado'], ['baixo', 'Baixo'], ['médio', 'Médio'], ['alto', 'Alto']]} color={pillColor(perfil.nivel_engajamento, engColors)} />
-        <ProfileSelect styles={styles} label="Nível de Conhecimento em Programação" value={perfil.nivel_programacao || ''} onChange={(value) => setCampo('nivel_programacao', value)} options={[['', 'Não informado'], ['básico', 'Básico'], ['intermediário', 'Intermediário'], ['avançado', 'Avançado']]} color={pillColor(perfil.nivel_programacao, progColors)} />
+        <ProfileSelect styles={styles} label="Nível de Engajamento" value={perfil.nivel_engajamento || ''} onChange={(value) => setCampo('nivel_engajamento', value)} options={[['', 'Não informado'], ['baixo', 'Baixo'], ['médio', 'Médio'], ['alto', 'Alto']]} color={pillColor(perfil.nivel_engajamento, ENG_COLORS)} />
+        <ProfileSelect styles={styles} label="Nível de Conhecimento em Programação" value={perfil.nivel_programacao || ''} onChange={(value) => setCampo('nivel_programacao', value)} options={[['', 'Não informado'], ['básico', 'Básico'], ['intermediário', 'Intermediário'], ['avançado', 'Avançado']]} color={pillColor(perfil.nivel_programacao, PROG_COLORS)} />
       </section>
       <section style={styles.section}>
         <h3><Calendar size={18} /> Monitoria</h3>
-        <ProfileSelect styles={styles} label="Dia da monitoria" value={perfil.dia_monitoria || ''} onChange={(value) => setCampo('dia_monitoria', value)} options={[['', 'Não informado'], ...diasMonitoria.map((dia) => [dia, dia])]} />
+        <ProfileSelect styles={styles} label="Dia da monitoria" value={perfil.dia_monitoria || ''} onChange={(value) => setCampo('dia_monitoria', value)} options={[['', 'Não informado'], ...DIAS_MONITORIA.map((dia) => [dia, dia])]} />
         <ProfileField styles={styles} label="Horário da monitoria" type="time" value={perfil.horario_monitoria} onChange={(value) => setCampo('horario_monitoria', value)} />
       </section>
       <section style={styles.section}>
@@ -192,7 +168,7 @@ function NewStudentProfileForm({
           setPerfil((atual) => ({ ...atual, acompanhamento_psicologico: faz, psicologo: faz === true ? atual.psicologo : '' }));
         }} options={[['', 'Não informado'], ['sim', 'Sim'], ['nao', 'Não']]} />
         {perfil.acompanhamento_psicologico === true && (
-          <ProfileSelect styles={styles} label="Psicólogo responsável" value={perfil.psicologo || ''} onChange={(value) => setCampo('psicologo', value)} options={[['', 'Selecione...'], ...psicologos.map((nome) => [nome, nome])]} />
+          <ProfileSelect styles={styles} label="Psicólogo responsável" value={perfil.psicologo || ''} onChange={(value) => setCampo('psicologo', value)} options={[['', 'Selecione...'], ...PSICOLOGOS.map((nome) => [nome, nome])]} />
         )}
       </section>
     </div>

@@ -20,11 +20,29 @@ import { useStudentHistory } from './hooks/useStudentHistory.js';
 import { useStudentMainData } from './hooks/useStudentMainData.js';
 import { useStudentProfileData } from './hooks/useStudentProfileData.js';
 import { useNewStudentForm } from './hooks/useNewStudentForm.js';
+import {
+  MONITORES,
+  PERFIS_USUARIO,
+  STATUS_OPTIONS,
+} from './constants/studentProfileOptions.js';
+import {
+  CAMPO_LABELS,
+  NOVO_ALUNO_INICIAL,
+  PERFIL_CADASTRO_INICIAL,
+  PERFIL_INICIAL,
+  criarTempSeguro,
+  getStatusColor,
+  monitorDisplay,
+  montarPayloadPerfil,
+  normalizarMonitor,
+  normalizarPerfil,
+  normalizarStatus,
+  semAcentos,
+  statusDisplay,
+  perfilCadastroTemDados,
+} from './utils/studentProfileHelpers.js';
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
-const MONITORES = ['Alex', 'André', 'Douglas', 'Gabriel', 'Kellen', 'Natanael'];
-const MONITORES_DASHBOARD = ['Alex', 'André', 'Douglas', 'Gabriel', 'Kellen', 'Natanael'];
-const STATUS_OPTIONS = ['MANTER', 'EM ANÁLISE', 'REMOVIDO', 'DESLIGADO'];
 const TABS = ['Dados principais', 'Perfil do aluno', 'Relatórios Monitoria', 'Consumo', 'Histórico'];
 const MONITORIA_COLUNAS = [
   ['presente', 'Presente'],
@@ -58,140 +76,6 @@ const PREFEITURA_MUNICIPAL_SCOPES = {
   },
 };
 
-const PERFIL_INICIAL = (matricula = '') => ({
-  matricula,
-  analise_perfil: '',
-  trabalha: null,
-  trabalho_descricao: '',
-  area_profissional_interesse: '',
-  turno_trabalho: '',
-  estuda: null,
-  estudo_instituicao: '',
-  estudo_curso: '',
-  turno_estudo: '',
-  tem_filhos: null,
-  filhos_descricao: '',
-  nivel_engajamento: '',
-  nivel_programacao: '',
-  previsao_formacao_ano: '',
-  previsao_formacao_semestre: '',
-  monitoria_1: false,
-  monitoria_2: false,
-  monitoria_3: false,
-  monitoria_4: false,
-  dia_monitoria: '',
-  horario_monitoria: '',
-  acompanhamento_psicologico: null,
-  psicologo: '',
-});
-
-const NOVO_ALUNO_INICIAL = { nome: '', matricula: '', telefone: '', email: '', nascimento: '', patrimonio: '', monitor: '', status: 'MANTER' };
-const PERFIL_CADASTRO_INICIAL = () => {
-  const perfil = PERFIL_INICIAL();
-  delete perfil.matricula;
-  return perfil;
-};
-const CAMPOS_PERFIL_FORM = Object.keys(PERFIL_CADASTRO_INICIAL());
-
-const STATUS_COLORS = {
-  MANTER: '#1f9d55',
-  'EM ANÁLISE': '#d97706',
-  REMOVIDO: '#64748b',
-  DESLIGADO: '#991b1b',
-  '': '#94a3b8',
-};
-
-const ENG_COLORS = { baixo: '#b91c1c', médio: '#d97706', medio: '#d97706', alto: '#15803d' };
-const PROG_COLORS = { básico: '#0284c7', basico: '#0284c7', intermediário: '#4f46e5', intermediario: '#4f46e5', avançado: '#166534', avancado: '#166534' };
-const CAMPO_LABELS = {
-  nome: 'Nome',
-  telefone: 'Telefone',
-  email: 'E-mail',
-  nascimento: 'Nascimento',
-  patrimonio: 'Patrimônio',
-  monitor: 'Monitor responsável',
-  status: 'Status',
-  'sistema.cadastro': 'Cadastro do aluno',
-  'perfil.analise_perfil': 'Perfil · Análise de perfil',
-  'perfil.trabalha': 'Perfil · Trabalha?',
-  'perfil.trabalho_descricao': 'Perfil · Descrição do trabalho',
-  'Área profissional de interesse': 'Área profissional de interesse',
-  'perfil.area_profissional_interesse': 'Área profissional de interesse',
-  'perfil.turno_trabalho': 'Perfil · Turno de trabalho',
-  'perfil.estuda': 'Perfil · Estuda?',
-  'perfil.estudo_instituicao': 'Perfil · Instituição de estudo',
-  'perfil.estudo_curso': 'Perfil · Curso',
-  'perfil.turno_estudo': 'Perfil · Turno de estudo',
-  'perfil.tem_filhos': 'Perfil · Tem filhos?',
-  'perfil.filhos_descricao': 'Perfil · Filhos',
-  'perfil.nivel_engajamento': 'Perfil · Nível de Engajamento',
-  'perfil.nivel_programacao': 'Perfil · Nível de Conhecimento em Programação',
-  'perfil.dia_monitoria': 'Perfil · Dia da monitoria',
-  'perfil.horario_monitoria': 'Perfil · Horário da monitoria',
-  'perfil.acompanhamento_psicologico': 'Perfil · Faz acompanhamento?',
-  'perfil.psicologo': 'Perfil · Psicólogo',
-};
-
-const semAcentos = (valor) => String(valor || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-
-const valorVazio = (valor) => {
-  const texto = String(valor ?? '').trim().toLowerCase();
-  return !texto || ['-', 'nan', 'none', 'null', 'não informado', 'nao informado'].includes(texto);
-};
-
-const normalizarStatus = (status) => {
-  if (valorVazio(status)) return '';
-  const chave = semAcentos(status).toUpperCase();
-  if (['DESLIGAR', 'DESLIGADO', 'DESLIGADA', 'INATIVO', 'CANCELADO'].some((p) => chave.includes(p))) return 'DESLIGADO';
-  if (['REMOVIDOS', 'REMOVIDO', 'REMOVER'].some((p) => chave.includes(p))) return 'REMOVIDO';
-  if (['EM ANALISE', 'ANALISE'].some((p) => chave.includes(p))) return 'EM ANÁLISE';
-  if (['MANTER', 'ATIVO', 'CURSANDO', 'CONTINUA', 'CONTINUAR'].some((p) => chave.includes(p))) return 'MANTER';
-  return '';
-};
-
-const normalizarMonitor = (monitor) => {
-  if (valorVazio(monitor)) return '';
-  const local = String(monitor).trim().split('@')[0].replace(/\d+/g, '');
-  const chave = semAcentos(local).toLowerCase().replace(/[^a-z]/g, '');
-  return MONITORES.find((m) => {
-    const monitorChave = semAcentos(m).toLowerCase();
-    return chave === monitorChave || chave.startsWith(monitorChave);
-  }) || '';
-};
-
-const monitorDisplay = (monitor) => normalizarMonitor(monitor) || 'Não informado';
-const statusDisplay = (status) => normalizarStatus(status) || 'NÃO INFORMADO';
-const getStatusColor = (status) => STATUS_COLORS[normalizarStatus(status)] || STATUS_COLORS[''];
-const pillColor = (valor, mapa) => mapa[semAcentos(valor).toLowerCase()] || '#64748b';
-
-const criarTempSeguro = (aluno = {}) => ({
-  nome: aluno.nome ?? '',
-  telefone: aluno.telefone ?? '',
-  email: aluno.email ?? '',
-  matricula: aluno.matricula ?? '',
-  nascimento: aluno.nascimento ?? '',
-  patrimonio: aluno.patrimonio ?? '',
-  monitor: normalizarMonitor(aluno.monitor),
-  status: normalizarStatus(aluno.status),
-});
-
-const normalizarPerfil = (perfil = {}) => {
-  const normalizado = PERFIL_INICIAL(perfil.matricula);
-  CAMPOS_PERFIL_FORM.forEach((campo) => {
-    if (Object.prototype.hasOwnProperty.call(perfil, campo)) {
-      normalizado[campo] = perfil[campo];
-    }
-  });
-  return normalizado;
-};
-
-const montarPayloadPerfil = (perfil = {}, matricula = '') => {
-  const normalizado = normalizarPerfil({ ...perfil, matricula });
-  return {
-    matricula: normalizado.matricula,
-    ...Object.fromEntries(CAMPOS_PERFIL_FORM.map((campo) => [campo, normalizado[campo]])),
-  };
-};
 const aguardar = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const erroDeConexao = (err) => (
@@ -303,65 +187,7 @@ const monitorDoUsuario = (usuario) => {
   return porEmail[String(usuario?.email || '').toLowerCase()] || normalizarMonitor(usuario?.nome);
 };
 
-const boolSelectValue = (valor) => (valor === true ? 'sim' : valor === false ? 'nao' : '');
-const boolFromSelect = (valor) => (valor === 'sim' ? true : valor === 'nao' ? false : null);
-const DIAS_MONITORIA = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira'];
-const QTD_FILHOS = ['1', '2', '3', '4', '5', '6+'];
-const TURNOS = ['Manhã', 'Tarde', 'Noite', 'Integral', 'Variável', 'EAD'];
-const TURNOS_TRABALHO = ['Manhã', 'Tarde', 'Noite', 'Integral', 'Escala', 'Freelancer', 'Outro'];
-const PSICOLOGOS = ['Isabela'];
-const PERFIS_USUARIO = [
-  ['monitor', 'Monitor'],
-  ['admin', 'Admin'],
-  ['psicologa', 'Psicóloga'],
-  ['prefeitura_itabira', 'Itabira - Prefeitura'],
-  ['prefeitura_bom_despacho', 'Bom Despacho - Prefeitura'],
-];
-
 const prefeituraMunicipalScope = (usuario) => PREFEITURA_MUNICIPAL_SCOPES[usuario?.role] || null;
-
-const parseFilhos = (valor) => {
-  if (!valor) return { filhos: [], textoLivre: '' };
-  try {
-    const parsed = JSON.parse(valor);
-    if (Array.isArray(parsed)) {
-      return { filhos: parsed.map((filho) => ({ nome: filho.nome || '', idade: filho.idade || '' })), textoLivre: '' };
-    }
-  } catch {
-    return { filhos: [], textoLivre: valor };
-  }
-  return { filhos: [], textoLivre: String(valor) };
-};
-
-const stringifyFilhos = (filhos) => JSON.stringify(filhos.map((filho) => ({ nome: filho.nome || '', idade: filho.idade || '' })));
-
-const quantidadeFromFilhos = (filhos) => {
-  if (!filhos.length) return '';
-  return filhos.length >= 6 ? '6+' : String(filhos.length);
-};
-
-const ajustarQuantidadeFilhos = (quantidade, filhosAtuais) => {
-  const total = quantidade === '6+' ? 6 : Number(quantidade || 0);
-  return Array.from({ length: total }, (_, index) => filhosAtuais[index] || { nome: '', idade: '' });
-};
-
-const perfilCadastroTemDados = (perfil) => Object.values(perfil || {}).some((valor) => {
-  if (typeof valor === 'boolean') return true;
-  if (valor === null || valor === undefined) return false;
-  return String(valor).trim() !== '';
-});
-
-const filhosResumo = (valor) => {
-  const { filhos, textoLivre } = parseFilhos(valor);
-  if (filhos.length) {
-    return filhos.map((filho, index) => {
-      const idade = String(filho.idade || '').trim();
-      const sufixoIdade = idade ? `, ${idade} ${Number(idade) === 1 ? 'ano' : 'anos'}` : '';
-      return `${index + 1}. ${filho.nome || 'Nome não informado'}${sufixoIdade}`;
-    });
-  }
-  return textoLivre ? [textoLivre] : ['Não informado'];
-};
 
 const formatarUsuario = (usuario) => {
   if (!usuario) return '';
@@ -858,22 +684,6 @@ export default function App() {
           mostrarPerfilNovoAluno={newStudentForm.mostrarPerfilNovoAluno}
           salvandoNovoAluno={newStudentForm.salvandoNovoAluno}
           styles={styles}
-          statusOptions={STATUS_OPTIONS}
-          monitores={MONITORES}
-          turnos={TURNOS}
-          turnosTrabalho={TURNOS_TRABALHO}
-          diasMonitoria={DIAS_MONITORIA}
-          qtdFilhos={QTD_FILHOS}
-          psicologos={PSICOLOGOS}
-          engColors={ENG_COLORS}
-          progColors={PROG_COLORS}
-          boolSelectValue={boolSelectValue}
-          boolFromSelect={boolFromSelect}
-          parseFilhos={parseFilhos}
-          stringifyFilhos={stringifyFilhos}
-          quantidadeFromFilhos={quantidadeFromFilhos}
-          ajustarQuantidadeFilhos={ajustarQuantidadeFilhos}
-          pillColor={pillColor}
           onNovoAlunoChange={newStudentForm.setNovoAluno}
           onNovoAlunoPerfilChange={newStudentForm.setNovoAlunoPerfil}
           onTogglePerfil={newStudentForm.alternarPerfilNovoAluno}
@@ -955,21 +765,6 @@ export default function App() {
               somenteLeitura={isPrefeituraMunicipal}
               salvandoPerfil={profileData.salvandoPerfil}
               styles={styles}
-              turnos={TURNOS}
-              turnosTrabalho={TURNOS_TRABALHO}
-              diasMonitoria={DIAS_MONITORIA}
-              qtdFilhos={QTD_FILHOS}
-              psicologos={PSICOLOGOS}
-              engColors={ENG_COLORS}
-              progColors={PROG_COLORS}
-              boolSelectValue={boolSelectValue}
-              boolFromSelect={boolFromSelect}
-              parseFilhos={parseFilhos}
-              stringifyFilhos={stringifyFilhos}
-              filhosResumo={filhosResumo}
-              quantidadeFromFilhos={quantidadeFromFilhos}
-              ajustarQuantidadeFilhos={ajustarQuantidadeFilhos}
-              pillColor={pillColor}
               onEdit={profileData.iniciarEdicaoPerfil}
               onCancel={profileData.cancelarEdicaoPerfil}
               onSave={profileData.salvarPerfil}
@@ -1162,7 +957,7 @@ function MonitoresDashboard({ usuario, authHeaders }) {
         <div className="monitors-actions">
           <ProfileField label="Mês" type="month" value={mes} onChange={setMes} />
           {isAdmin ? (
-            <ProfileSelect label="Monitor" value={monitorFiltro} onChange={setMonitorFiltro} options={[['', 'Todos'], ...MONITORES_DASHBOARD.map((monitor) => [monitor, monitor])]} />
+            <ProfileSelect label="Monitor" value={monitorFiltro} onChange={setMonitorFiltro} options={[['', 'Todos'], ...MONITORES.map((monitor) => [monitor, monitor])]} />
           ) : isPrefeituraMunicipal ? (
             <ProfileField label="Monitor" value="Todos" disabled onChange={() => {}} />
           ) : (
