@@ -32,7 +32,7 @@ from consumption_repository import (
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_XLSX_PATH = "dados/alunos_horas_extras_com_desafio_final.xlsx"
+DEFAULT_XLSX_PATH = "dados/consumo_local.xlsx"
 DEFAULT_SHEET_NAME = "Resultado"
 DEFAULT_HORAS_TOTAIS = 154
 DEFAULT_PRAZO_FINAL = "2026-11-30"

@@ -10,7 +10,7 @@ O módulo mais forte é o Consumo: atualização manual por `all_grades.json` e 
 
 - Resultado da revisão de arquivos rastreados: não foram encontrados `.env`, service account, `checker/`, logs, temporários, `node_modules` ou venv rastreados. Os resultados com termos sensíveis aparecem em arquivos de exemplo, documentação ou scripts.
 - Resultado da revisão de screenshots: os screenshots ainda referenciados no README existem e os dados pessoais visíveis estão borrados/anonimizados. A imagem `docs/images/dashboard-administrativo.png` mostra usuário/admin nominal no canto da aplicação e deixou de ser referenciada no README até existir versão anonimizada.
-- Pendências: `dados/alunos_horas_extras_com_desafio_final.xlsx` permanece rastreado e deve ser confirmado como demo/anonimizado. Se for dado real, substituir por amostra fictícia e planejar remoção do histórico Git.
+- Pendências: a planilha real anteriormente rastreada em `dados/` foi removida do versionamento. Se o repositório já tiver sido publicado com esse arquivo, planejar remoção do histórico Git antes de divulgar publicamente.
 
 ## Pontos fortes
 
@@ -97,7 +97,7 @@ O módulo mais forte é o Consumo: atualização manual por `all_grades.json` e 
 - Screenshots devem ser revisados antes de publicação para remover nomes, e-mails, matrículas, telefones e monitores reais.
 - Logs não devem incluir nome, e-mail, token, telefone ou payloads completos.
 - Arquivos reais de dados nunca devem ser adicionados ao repositório.
-- Confirmar se `dados/alunos_horas_extras_com_desafio_final.xlsx` é demo/anonimizado. Ele está rastreado pelo Git; se for dado real, substituir por amostra anonimizável e remover do histórico em uma rotina planejada.
+- Não versionar planilhas reais de alunos em `dados/`. O fallback XLSX deve usar arquivo local ignorado pelo Git, por exemplo `dados/consumo_local.xlsx`.
 
 ## Banco de dados e dados sensíveis
 
@@ -110,7 +110,7 @@ O módulo mais forte é o Consumo: atualização manual por `all_grades.json` e 
 
 ### Pontos de atenção
 
-- Confirmar a natureza pública/demo do XLSX rastreado em `dados/alunos_horas_extras_com_desafio_final.xlsx`.
+- Manter XLSX/CSV/JSON reais fora do Git. Se houver dataset demo, ele deve ser pequeno e explicitamente fictício/anonimizado.
 - Evitar exportações reais em `checker/`, `dados/`, `logs/` ou pastas temporárias.
 - Documentar política de retenção de logs e dados importados.
 - Usar dumps apenas fora do repositório ou com anonimização explícita.
@@ -132,7 +132,7 @@ O módulo mais forte é o Consumo: atualização manual por `all_grades.json` e 
 
 ## Melhorias críticas
 
-- Confirmar se `dados/alunos_horas_extras_com_desafio_final.xlsx` é público/demo ou se deve sair do repositório.
+- Se o repositório já tiver sido publicado com arquivo real em `dados/`, planejar remoção do histórico Git.
 - Revisar screenshots para remover qualquer dado pessoal ou nome de monitor real.
 - Garantir que produção use `CONSUMPTION_SOURCE_MODE=neon` e não dependa de XLSX.
 

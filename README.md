@@ -215,7 +215,7 @@ GOOGLE_SHEETS_ID=
 GOOGLE_SERVICE_ACCOUNT_JSON=
 GOOGLE_SERVICE_ACCOUNT_FILE=google-service-account.json
 FRONTEND_URL=https://pdreports.vercel.app
-INTEGRALIZACAO_XLSX_PATH=dados/alunos_horas_extras_com_desafio_final.xlsx
+INTEGRALIZACAO_XLSX_PATH=dados/consumo_local.xlsx
 INTEGRALIZACAO_HORAS_TOTAIS=154
 INTEGRALIZACAO_PRAZO_FINAL=2026-11-30
 CONSUMPTION_SOURCE_MODE=neon
@@ -241,6 +241,8 @@ CONSUMPTION_PROCESSING_MODE=external
 ```
 
 Em produção, o Consumo deve ler as runs persistidas no Neon. O fallback XLSX é mais útil para desenvolvimento ou diagnóstico local. O upload manual no painel administrativo gera uma run persistida no Neon e o Render pode apresentar cold start no primeiro acesso após períodos sem uso.
+
+Arquivos XLSX/CSV/JSON com dados reais de alunos não devem ser versionados. Se usar fallback XLSX local, mantenha o arquivo apenas no ambiente local e configure `INTEGRALIZACAO_XLSX_PATH`.
 
 ### Frontend
 
