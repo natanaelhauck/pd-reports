@@ -37,7 +37,7 @@ const consumoErroEhEstadoVazio = (err) => (
 const consumoErroMensagem = (err, usuario) => {
   const code = err?.response?.data?.code || err?.response?.data?.error;
   if (code === 'consumption_not_found') {
-    return usuario?.role === 'admin'
+    return ['admin', 'gestor_tk'].includes(usuario?.role)
       ? 'Nenhuma atualização de consumo encontrada. Clique em "Atualizar consumo" para carregar os dados.'
       : 'Nenhuma atualização de consumo disponível no momento.';
   }
@@ -109,7 +109,7 @@ export function CourseHoursDashboard({ apiBaseUrl, authHeaders, onSelectStudent,
   const [warningsUpload, setWarningsUpload] = useState([]);
   const [uploadStage, setUploadStage] = useState('idle');
 
-  const isAdmin = usuario?.role === 'admin';
+  const canManageConsumption = usuario?.role === 'admin' || usuario?.role === 'gestor_tk';
   const statusRunAtiva = statusAtualizacao?.status === 'pending' || statusAtualizacao?.status === 'running';
   const uploadEmAndamento = enviandoUpload || uploadStage === 'enviando' || uploadStage === 'processando';
   const carregarRequestId = useRef(0);
@@ -144,7 +144,7 @@ export function CourseHoursDashboard({ apiBaseUrl, authHeaders, onSelectStudent,
         if (isDev) console.info('Request de consumo abortado/timeout após retry.', err.code || err.name || err.message);
         setErro('Não foi possível carregar a lista de consumo. Tente novamente em instantes.');
       } else if (consumoErroEhEstadoVazio(err)) {
-        setDados({ alunos: [], resumo: {}, permissoes: { podeVerNaoVinculados: isAdmin }, resumoGeralFonte: {} });
+        setDados({ alunos: [], resumo: {}, permissoes: { podeVerNaoVinculados: canManageConsumption }, resumoGeralFonte: {} });
         setEstadoVazio(consumoErroMensagem(err, usuario));
       } else {
         setErro(consumoErroMensagem(err, usuario));
@@ -155,7 +155,7 @@ export function CourseHoursDashboard({ apiBaseUrl, authHeaders, onSelectStudent,
         setAvisoCarregamento('');
       }
     }
-  }, [apiBaseUrl, authHeaders, isAdmin, usuario]);
+  }, [apiBaseUrl, authHeaders, canManageConsumption, usuario]);
 
   const carregarStatus = useCallback(async () => {
     const requestId = statusRequestId.current + 1;
@@ -318,7 +318,7 @@ export function CourseHoursDashboard({ apiBaseUrl, authHeaders, onSelectStudent,
   const statusInfo = statusAtualizacaoInfo(statusAtualizacao);
   const ultimoSucesso = statusAtualizacao?.ultimaAtualizacaoBemSucedida;
   const atualizadoEm = formatarAtualizacao(ultimoSucesso?.finished_at);
-  const textoStatusTopo = isAdmin
+  const textoStatusTopo = canManageConsumption
     ? (carregandoStatus ? 'Verificando atualização...' : (statusInfo.detail || (atualizadoEm ? `Atualizado em ${atualizadoEm}` : 'Sem atualização recente')))
     : (atualizadoEm ? `Atualizado em ${atualizadoEm}` : 'Sem atualização recente');
 
@@ -333,15 +333,15 @@ export function CourseHoursDashboard({ apiBaseUrl, authHeaders, onSelectStudent,
             <span>{statusInfo.label}</span>
             <strong>{textoStatusTopo}</strong>
           </div>
-          {mensagemUpload && isAdmin && <p className="consumption-upload-feedback success">{mensagemUpload}</p>}
-          {warningsUpload.length > 0 && isAdmin && (
+          {mensagemUpload && canManageConsumption && <p className="consumption-upload-feedback success">{mensagemUpload}</p>}
+          {warningsUpload.length > 0 && canManageConsumption && (
             <ul className="consumption-upload-warnings">
               {warningsUpload.map((warning) => <li key={warning}>{warning}</li>)}
             </ul>
           )}
         </div>
         <div className="consumption-panel-actions">
-          {!isAdmin ? (
+          {!canManageConsumption ? (
             <span className="consumption-last-update-only">{textoStatusTopo}</span>
           ) : (
             <>
@@ -399,7 +399,7 @@ export function CourseHoursDashboard({ apiBaseUrl, authHeaders, onSelectStudent,
         </>
       )}
 
-      {modalAberto && isAdmin && (
+      {modalAberto && canManageConsumption && (
         <div className="consumption-upload-modal-backdrop" role="presentation" onClick={() => !uploadEmAndamento && setModalAberto(false)}>
           <div className="consumption-upload-modal" role="dialog" aria-modal="true" aria-labelledby="consumption-upload-title" onClick={(e) => e.stopPropagation()}>
             <div className="consumption-upload-modal-head">

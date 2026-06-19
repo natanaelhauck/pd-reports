@@ -239,7 +239,7 @@ def test_upload_success(client, report_path):
 
     temp_wrapper = make_temp_wrapper()
     with patched(app_module,
-                 require_admin=lambda: (ADMIN, None),
+                 require_operational_admin=lambda: (ADMIN, None),
                  conectar_db=lambda: type('Conn', (), {'close': lambda self: None})(),
                  upload_consumo_bloqueado=lambda *chaves: False,
                  registrar_tentativa_upload_consumo=lambda *chaves: None,
@@ -270,7 +270,7 @@ def test_checker_upload_start(client, paths):
         return {'run_id': 123, 'status': 'pending', 'message': 'Atualizacao recebida.'}
 
     with patched(app_module,
-                 require_admin=lambda: (ADMIN, None),
+                 require_operational_admin=lambda: (ADMIN, None),
                  conectar_db=lambda: type('Conn', (), {'close': lambda self: None})(),
                  upload_consumo_bloqueado=lambda *chaves: False,
                  registrar_tentativa_upload_consumo=lambda *chaves: None,
@@ -303,7 +303,7 @@ def test_checker_upload_sync_success(client, paths):
         return {'run_id': run_id, 'status': 'success', 'students': 800, 'courses': 6230, 'warnings': ['csv antigo']}
 
     with patched(app_module,
-                 require_admin=lambda: (ADMIN, None),
+                 require_operational_admin=lambda: (ADMIN, None),
                  conectar_db=lambda: type('Conn', (), {'close': lambda self: None})(),
                  upload_consumo_bloqueado=lambda *chaves: False,
                  registrar_tentativa_upload_consumo=lambda *chaves: None,
@@ -334,7 +334,7 @@ def test_checker_upload_sync_error(client, paths):
         raise TimeoutError(r'timeout lendo C:\segredo\certificados.csv')
 
     with patched(app_module,
-                 require_admin=lambda: (ADMIN, None),
+                 require_operational_admin=lambda: (ADMIN, None),
                  conectar_db=lambda: type('Conn', (), {'close': lambda self: None})(),
                  upload_consumo_bloqueado=lambda *chaves: False,
                  registrar_tentativa_upload_consumo=lambda *chaves: None,
@@ -354,12 +354,12 @@ def test_checker_upload_sync_error(client, paths):
 
 def test_upload_restrictions(client, report_path):
     for role in (MONITOR, PSICOLOGA, PREFEITURA):
-        with patched(app_module, require_admin=lambda role=role: (None, (app_module.jsonify({'erro': 'Apenas administradores podem executar esta ação.'}), 403))):
+        with patched(app_module, require_operational_admin=lambda role=role: (None, (app_module.jsonify({'erro': 'Apenas administradores podem executar esta ação.'}), 403))):
             response = post_upload(client, report_path)
             assert_equal(f'upload bloqueado para {role["role"]}', response.status_code, 403)
 
     with patched(app_module,
-                 require_admin=lambda: (ADMIN, None),
+                 require_operational_admin=lambda: (ADMIN, None),
                  upload_consumo_bloqueado=lambda *chaves: False,
                  registrar_tentativa_upload_consumo=lambda *chaves: None):
         app_module.CONSUMO_UPLOAD_ATTEMPTS.clear()
@@ -389,12 +389,12 @@ def test_upload_restrictions(client, report_path):
 
 def test_checker_upload_restrictions(client, paths):
     for role in (MONITOR, PSICOLOGA, PREFEITURA):
-        with patched(app_module, require_admin=lambda role=role: (None, (app_module.jsonify({'erro': 'Apenas administradores podem executar esta acao.'}), 403))):
+        with patched(app_module, require_operational_admin=lambda role=role: (None, (app_module.jsonify({'erro': 'Apenas administradores podem executar esta acao.'}), 403))):
             response = post_checker_upload(client, paths['grades'], paths['certificates'])
             assert_equal(f'checker upload bloqueado para {role["role"]}', response.status_code, 403)
 
     with patched(app_module,
-                 require_admin=lambda: (ADMIN, None),
+                 require_operational_admin=lambda: (ADMIN, None),
                  upload_consumo_bloqueado=lambda *chaves: False,
                  registrar_tentativa_upload_consumo=lambda *chaves: None):
         response = post_checker_upload(client, None, paths['certificates'])
@@ -418,7 +418,7 @@ def test_checker_upload_restrictions(client, paths):
         raise app_module.ConsumptionUpdateConflictError('Ja existe uma atualizacao de consumo em andamento.')
 
     with patched(app_module,
-                 require_admin=lambda: (ADMIN, None),
+                 require_operational_admin=lambda: (ADMIN, None),
                  conectar_db=lambda: type('Conn', (), {'close': lambda self: None})(),
                  upload_consumo_bloqueado=lambda *chaves: False,
                  registrar_tentativa_upload_consumo=lambda *chaves: None,
@@ -461,7 +461,7 @@ def test_upload_failure_keeps_status(client, report_path):
         raise RuntimeError('falha forçada')
 
     with patched(app_module,
-                 require_admin=lambda: (ADMIN, None),
+                 require_operational_admin=lambda: (ADMIN, None),
                  conectar_db=lambda: type('Conn', (), {'close': lambda self: None})(),
                  upload_consumo_bloqueado=lambda *chaves: False,
                  registrar_tentativa_upload_consumo=lambda *chaves: None,

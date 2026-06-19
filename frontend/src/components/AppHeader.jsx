@@ -8,6 +8,7 @@ export function AppHeader({
   onToggleTheme,
   onLogout,
   onOpenPasswordModal,
+  canChangePassword = true,
   styles = {},
 }) {
   return (
@@ -21,9 +22,11 @@ export function AppHeader({
         <p style={styles.subtitle}>Gestão de Alunos</p>
       </button>
       <div className="header-controls">
-        <button className="ui-button icon-button" type="button" title="Alterar minha senha" aria-label="Alterar minha senha" onClick={onOpenPasswordModal} style={styles.iconBtn}>
-          <KeyRound size={18} />
-        </button>
+        {canChangePassword && (
+          <button className="ui-button icon-button" type="button" title="Alterar minha senha" aria-label="Alterar minha senha" onClick={onOpenPasswordModal} style={styles.iconBtn}>
+            <KeyRound size={18} />
+          </button>
+        )}
         <button className="ui-button icon-button" type="button" title="Alternar tema" aria-label="Alternar tema" onClick={onToggleTheme} style={styles.iconBtn}>
           {isDarkTheme ? <Sun size={18} /> : <Moon size={18} />}
         </button>

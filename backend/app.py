@@ -118,11 +118,15 @@ CONSUMPTION_UPLOAD_RATE_LIMIT_WINDOW_SECONDS = int(os.getenv('CONSUMPTION_UPLOAD
 CONSUMPTION_UPLOAD_RATE_LIMIT_MAX_ATTEMPTS = int(os.getenv('CONSUMPTION_UPLOAD_RATE_LIMIT_MAX_ATTEMPTS', '3'))
 PREFEITURA_ITABIRA_ROLE = 'prefeitura_itabira'
 PREFEITURA_BOM_DESPACHO_ROLE = 'prefeitura_bom_despacho'
+GESTOR_TK_ROLE = 'gestor_tk'
+PREFEITURA_ITABIRA_EMAIL_CONFIGURED = 'PREFEITURA_ITABIRA_EMAIL' in os.environ
 PREFEITURA_ITABIRA_EMAIL = os.getenv('PREFEITURA_ITABIRA_EMAIL', 'prefeitura.itabira@example.com')
 PREFEITURA_ITABIRA_PASSWORD_HASH = os.getenv('PREFEITURA_ITABIRA_PASSWORD_HASH')
 DEFAULT_ADMIN_USER_NAME = os.getenv('DEFAULT_ADMIN_USER_NAME', 'Admin')
+DEFAULT_ADMIN_USER_EMAIL_CONFIGURED = 'DEFAULT_ADMIN_USER_EMAIL' in os.environ
 DEFAULT_ADMIN_USER_EMAIL = os.getenv('DEFAULT_ADMIN_USER_EMAIL', 'admin@example.com')
 DEFAULT_PSICOLOGA_USER_NAME = os.getenv('DEFAULT_PSICOLOGA_USER_NAME', 'Psicologa')
+DEFAULT_PSICOLOGA_USER_EMAIL_CONFIGURED = 'DEFAULT_PSICOLOGA_USER_EMAIL' in os.environ
 DEFAULT_PSICOLOGA_USER_EMAIL = os.getenv('DEFAULT_PSICOLOGA_USER_EMAIL', 'psicologa@example.com')
 MONITOR_EMAIL_ALEX = os.getenv('MONITOR_EMAIL_ALEX', 'alex.monitor@example.com')
 MONITOR_EMAIL_ANDRE = os.getenv('MONITOR_EMAIL_ANDRE', 'andre.monitor@example.com')
@@ -130,7 +134,7 @@ MONITOR_EMAIL_DOUGLAS = os.getenv('MONITOR_EMAIL_DOUGLAS', 'douglas.monitor@exam
 MONITOR_EMAIL_GABRIEL = os.getenv('MONITOR_EMAIL_GABRIEL', 'gabriel.monitor@example.com')
 MONITOR_EMAIL_KELLEN = os.getenv('MONITOR_EMAIL_KELLEN', 'kellen.monitor@example.com')
 MONITOR_EMAIL_NATANAEL = os.getenv('MONITOR_EMAIL_NATANAEL', 'natanael.monitor@example.com')
-USUARIO_ROLES_VALIDOS = {'admin', 'monitor', 'psicologa', PREFEITURA_ITABIRA_ROLE, PREFEITURA_BOM_DESPACHO_ROLE}
+USUARIO_ROLES_VALIDOS = {'admin', 'monitor', 'psicologa', GESTOR_TK_ROLE, PREFEITURA_ITABIRA_ROLE, PREFEITURA_BOM_DESPACHO_ROLE}
 AUTH_TOKEN_MAX_AGE_SECONDS = 60 * 60 * 12
 APP_TIMEZONE_NAME = os.getenv('APP_TIMEZONE', 'America/Sao_Paulo')
 try:
@@ -636,6 +640,18 @@ def require_admin():
         return None, (jsonify({"erro": "Apenas administradores podem executar esta ação."}), 403)
     return usuario, None
 
+def usuario_tem_acesso_operacional_total(usuario):
+    return (usuario or {}).get('role') in {'admin', 'psicologa', GESTOR_TK_ROLE}
+
+def usuario_pode_gerenciar_consumo(usuario):
+    return (usuario or {}).get('role') in {'admin', GESTOR_TK_ROLE}
+
+def usuario_pode_alterar_senha(usuario):
+    return (usuario or {}).get('role') != GESTOR_TK_ROLE
+
+def require_operational_admin():
+    return require_roles('admin', GESTOR_TK_ROLE)
+
 def require_roles(*roles):
     usuario, erro = require_auth()
     if erro:
@@ -645,7 +661,10 @@ def require_roles(*roles):
     return usuario, None
 
 def require_student_edit_permission():
-    return require_roles('admin', 'monitor', 'psicologa')
+    return require_roles('admin', 'monitor', 'psicologa', GESTOR_TK_ROLE)
+
+def require_student_create_permission():
+    return require_roles('admin', GESTOR_TK_ROLE)
 
 def upload_consumo_rate_limit_key(usuario=None):
     chaves = [f'ip:{cliente_ip()}']
@@ -731,7 +750,7 @@ def sanitizar_erro_consumo(exc=None, mensagem=None):
     return texto_erro
 
 def warnings_consumo_visiveis(run, usuario=None):
-    if not run or (usuario or {}).get('role') != 'admin':
+    if not run or not usuario_pode_gerenciar_consumo(usuario):
         return []
     warnings = run.get('warnings') or []
     if not isinstance(warnings, list):
@@ -866,7 +885,7 @@ def resposta_rate_limit_login():
     return jsonify({'erro': LOGIN_RATE_LIMIT_MESSAGE}), 429
 
 def validar_campos_admin_only(usuario, atual, novo, campos):
-    if usuario.get('role') == 'admin':
+    if (usuario or {}).get('role') in {'admin', GESTOR_TK_ROLE}:
         return None
     alterados = [
         campo for campo in campos
@@ -2105,7 +2124,7 @@ def usuario_pode_ver_aluno_pd(usuario, aluno):
 
 def filtrar_integralizacao_por_usuario(alunos, usuario):
     role = usuario.get('role')
-    if role in {'admin', 'psicologa'}:
+    if usuario_tem_acesso_operacional_total(usuario):
         return apply_student_scope_filter(usuario, alunos)
     if role in {PREFEITURA_ITABIRA_ROLE, PREFEITURA_BOM_DESPACHO_ROLE}:
         return apply_student_scope_filter(usuario, alunos)
@@ -2174,16 +2193,17 @@ def criar_admin_inicial(cursor):
     ''', ('Admin', ADMIN_EMAIL.strip().lower(), generate_password_hash(ADMIN_PASSWORD), 'admin'))
     print(f'Admin inicial criado: {ADMIN_EMAIL.strip().lower()}')
 
-def garantir_usuario_padrao(cursor, nome, email, role, senha_hash=None):
+def garantir_usuario_padrao(cursor, nome, email, role, senha_hash=None, atualizar_email=True):
     cursor.execute(
-        'SELECT id FROM usuarios WHERE lower(email)=lower(%s) OR lower(nome)=lower(%s) LIMIT 1',
-        (email, nome),
+        'SELECT id, email FROM usuarios WHERE lower(email)=lower(%s) OR lower(nome)=lower(%s) OR role=%s LIMIT 1',
+        (email, nome, role),
     )
     usuario = cursor.fetchone()
     if usuario:
+        email_destino = email if atualizar_email else usuario['email']
         cursor.execute(
             'UPDATE usuarios SET nome=%s, email=%s, role=%s, ativo=TRUE WHERE id=%s',
-            (nome, email, role, usuario['id']),
+            (nome, email_destino, role, usuario['id']),
         )
         return
 
@@ -2193,8 +2213,20 @@ def garantir_usuario_padrao(cursor, nome, email, role, senha_hash=None):
     ''', (nome, email, senha_hash or generate_password_hash(ADMIN_PASSWORD), role))
 
 def garantir_usuarios_padrao(cursor):
-    garantir_usuario_padrao(cursor, DEFAULT_ADMIN_USER_NAME, DEFAULT_ADMIN_USER_EMAIL, 'admin')
-    garantir_usuario_padrao(cursor, DEFAULT_PSICOLOGA_USER_NAME, DEFAULT_PSICOLOGA_USER_EMAIL, 'psicologa')
+    garantir_usuario_padrao(
+        cursor,
+        DEFAULT_ADMIN_USER_NAME,
+        DEFAULT_ADMIN_USER_EMAIL,
+        'admin',
+        atualizar_email=DEFAULT_ADMIN_USER_EMAIL_CONFIGURED,
+    )
+    garantir_usuario_padrao(
+        cursor,
+        DEFAULT_PSICOLOGA_USER_NAME,
+        DEFAULT_PSICOLOGA_USER_EMAIL,
+        'psicologa',
+        atualizar_email=DEFAULT_PSICOLOGA_USER_EMAIL_CONFIGURED,
+    )
     if PREFEITURA_ITABIRA_PASSWORD_HASH:
         garantir_usuario_padrao(
             cursor,
@@ -2202,16 +2234,29 @@ def garantir_usuarios_padrao(cursor):
             PREFEITURA_ITABIRA_EMAIL,
             PREFEITURA_ITABIRA_ROLE,
             PREFEITURA_ITABIRA_PASSWORD_HASH,
+            atualizar_email=PREFEITURA_ITABIRA_EMAIL_CONFIGURED,
         )
     else:
         cursor.execute(
             '''
-            UPDATE usuarios
-            SET nome=%s, email=%s, role=%s, ativo=TRUE
-            WHERE lower(email)=lower(%s) OR lower(nome)=lower(%s)
+            SELECT id, email
+            FROM usuarios
+            WHERE lower(email)=lower(%s) OR lower(nome)=lower(%s) OR role=%s
+            LIMIT 1
             ''',
-            ('Itabira - Prefeitura', PREFEITURA_ITABIRA_EMAIL, PREFEITURA_ITABIRA_ROLE, PREFEITURA_ITABIRA_EMAIL, 'Itabira - Prefeitura'),
+            (PREFEITURA_ITABIRA_EMAIL, 'Itabira - Prefeitura', PREFEITURA_ITABIRA_ROLE),
         )
+        prefeitura = cursor.fetchone()
+        if prefeitura:
+            email_destino = PREFEITURA_ITABIRA_EMAIL if PREFEITURA_ITABIRA_EMAIL_CONFIGURED else prefeitura['email']
+            cursor.execute(
+                '''
+                UPDATE usuarios
+                SET nome=%s, email=%s, role=%s, ativo=TRUE
+                WHERE id=%s
+                ''',
+                ('Itabira - Prefeitura', email_destino, PREFEITURA_ITABIRA_ROLE, prefeitura['id']),
+            )
 
 def criar_tabelas():
     conn = conectar_db()
@@ -2396,6 +2441,8 @@ def update_minha_senha():
     usuario, erro = require_auth()
     if erro:
         return erro
+    if not usuario_pode_alterar_senha(usuario):
+        return jsonify({"erro": "Você não tem permissão para alterar senha neste perfil."}), 403
 
     dados = request.get_json(silent=True) or {}
     erro_payload = rejeitar_campos_inesperados(dados, {'senha_atual', 'nova_senha', 'confirmacao_nova_senha'})
@@ -2581,7 +2628,7 @@ def get_aluno_por_matricula(matricula):
 
 @app.route('/api/admin/consumo/importar-relatorio', methods=['POST'])
 def importar_relatorio_consumo_admin():
-    usuario, erro = require_admin()
+    usuario, erro = require_operational_admin()
     if erro:
         return erro
 
@@ -2682,7 +2729,7 @@ def _validar_upload_checker_basico(arquivo, extensao, mimes_permitidos, nome_cam
 
 @app.route('/api/admin/consumo/atualizar', methods=['POST'])
 def atualizar_consumo_checker_admin():
-    usuario, erro = require_admin()
+    usuario, erro = require_operational_admin()
     if erro:
         return erro
 
@@ -2811,7 +2858,7 @@ def atualizar_consumo_checker_admin():
 
 @app.route('/api/consumo/atualizacao/status', methods=['GET'])
 def status_atualizacao_consumo():
-    usuario, erro = require_roles('admin', 'monitor', 'psicologa', PREFEITURA_ITABIRA_ROLE, PREFEITURA_BOM_DESPACHO_ROLE)
+    usuario, erro = require_roles('admin', 'monitor', 'psicologa', GESTOR_TK_ROLE, PREFEITURA_ITABIRA_ROLE, PREFEITURA_BOM_DESPACHO_ROLE)
     if erro:
         return erro
 
@@ -2851,7 +2898,7 @@ def status_atualizacao_consumo():
 
 @app.route('/api/admin/consumo/atualizacoes', methods=['GET'])
 def historico_atualizacoes_consumo():
-    _, erro = require_admin()
+    _, erro = require_operational_admin()
     if erro:
         return erro
 
@@ -2868,7 +2915,7 @@ def historico_atualizacoes_consumo():
 
 @app.route('/api/integralizacao', methods=['GET'])
 def get_integralizacao():
-    usuario, erro = require_roles('admin', 'monitor', 'psicologa', PREFEITURA_ITABIRA_ROLE, PREFEITURA_BOM_DESPACHO_ROLE)
+    usuario, erro = require_roles('admin', 'monitor', 'psicologa', GESTOR_TK_ROLE, PREFEITURA_ITABIRA_ROLE, PREFEITURA_BOM_DESPACHO_ROLE)
     if erro:
         return erro
 
@@ -2904,7 +2951,7 @@ def get_integralizacao():
             'resumo': resumo,
             'fonte': fonte_consumo_publica(fonte),
             'permissoes': {
-                'podeVerNaoVinculados': usuario.get('role') in {'admin', 'psicologa'},
+                'podeVerNaoVinculados': usuario_tem_acesso_operacional_total(usuario),
             },
             'resumoGeralFonte': {
                 **montar_resumo_geral(cruzamento['alunos']),
@@ -2950,7 +2997,7 @@ def get_integralizacao():
 
 @app.route('/api/alunos/<matricula>/integralizacao', methods=['GET'])
 def get_integralizacao_aluno(matricula):
-    usuario, erro = require_roles('admin', 'monitor', 'psicologa', PREFEITURA_ITABIRA_ROLE, PREFEITURA_BOM_DESPACHO_ROLE)
+    usuario, erro = require_roles('admin', 'monitor', 'psicologa', GESTOR_TK_ROLE, PREFEITURA_ITABIRA_ROLE, PREFEITURA_BOM_DESPACHO_ROLE)
     if erro:
         return erro
 
@@ -3067,7 +3114,7 @@ def get_relatorios_monitoria_aluno(matricula):
 
 @app.route('/api/relatorios-monitoria/refresh', methods=['POST'])
 def refresh_relatorios_monitoria():
-    _, erro = require_admin()
+    _, erro = require_operational_admin()
     if erro:
         return erro
     limpar_cache_relatorios()
@@ -3078,7 +3125,7 @@ def refresh_relatorios_monitoria():
 
 @app.route('/api/sync/refresh', methods=['POST'])
 def sync_refresh():
-    _, erro = require_roles('admin', 'monitor', 'psicologa')
+    _, erro = require_roles('admin', 'monitor', 'psicologa', GESTOR_TK_ROLE)
     if erro:
         return erro
     limpar_cache_relatorios()
@@ -3500,7 +3547,7 @@ def update_aluno():
 
 @app.route('/api/alunos/create', methods=['POST'])
 def criar_aluno():
-    usuario, erro = require_admin()
+    usuario, erro = require_student_create_permission()
     if erro:
         return erro
 

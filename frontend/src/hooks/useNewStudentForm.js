@@ -4,7 +4,7 @@ import axios from 'axios';
 export function useNewStudentForm({
   apiBaseUrl,
   authHeaders,
-  isAdmin,
+  canCreateAluno,
   setMensagem,
   mensagemErroApi,
   novoAlunoInicial,
@@ -46,7 +46,7 @@ export function useNewStudentForm({
 
   const cadastrarAluno = useCallback(async (e) => {
     e.preventDefault();
-    if (!isAdmin || salvandoNovoAluno) return;
+    if (!canCreateAluno || salvandoNovoAluno) return;
     setSalvandoNovoAluno(true);
     setMensagem(null);
     try {
@@ -71,7 +71,7 @@ export function useNewStudentForm({
   }, [
     apiBaseUrl,
     authConfig,
-    isAdmin,
+    canCreateAluno,
     limparNovoAluno,
     mensagemErroApi,
     mostrarPerfilNovoAluno,

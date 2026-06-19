@@ -327,6 +327,40 @@ def assert_psicologa_nao_cria_usuario(client):
     print(f'OK - psicologa tentando criar usuario recebe 403: {response.status_code}')
 
 
+def assert_gestor_tk_nao_cria_usuario(client):
+    response = client.post('/api/usuarios/create', json={
+        'nome': 'Usuario Indevido',
+        'email': 'usuario.indevido@example.com',
+        'senha': 'segura123',
+        'role': 'monitor',
+    })
+    assert response.status_code == 403, (
+        f'gestor_tk tentando criar usuario: esperado 403, recebido {response.status_code} - {response.get_json()}'
+    )
+    print(f'OK - gestor_tk tentando criar usuario recebe 403: {response.status_code}')
+
+
+def assert_gestor_tk_nao_altera_senhas(client):
+    response = client.post('/api/usuarios/me/password', json={
+        'senha_atual': 'senha123',
+        'nova_senha': 'nova123',
+        'confirmacao_nova_senha': 'nova123',
+    })
+    assert response.status_code == 403, (
+        f'gestor_tk alterando propria senha: esperado 403, recebido {response.status_code} - {response.get_json()}'
+    )
+    print(f'OK - gestor_tk nao altera propria senha: {response.status_code}')
+
+    response = client.post('/api/usuarios/update-password', json={
+        'usuario_id': 10,
+        'nova_senha': 'nova123',
+    })
+    assert response.status_code == 403, (
+        f'gestor_tk alterando senha de terceiro: esperado 403, recebido {response.status_code} - {response.get_json()}'
+    )
+    print(f'OK - gestor_tk nao altera senha de terceiro: {response.status_code}')
+
+
 def main():
     original_get_current_user = app_module.get_current_user
     original_conectar_db = app_module.conectar_db
@@ -357,11 +391,17 @@ def main():
         assert_status(client, 'psicologa tentando editar role recebe 403', 403)
         assert_psicologa_nao_cria_usuario(client)
 
+        instalar_usuario({'id': 12, 'nome': 'Gustavo - TK', 'email': 'gustavo@example.com', 'role': 'gestor_tk'})
+        assert_status(client, 'gestor_tk tentando editar usuario recebe 403', 403)
+        assert_gestor_tk_nao_cria_usuario(client)
+        assert_gestor_tk_nao_altera_senhas(client)
+
         instalar_usuario({'id': 1, 'nome': 'Admin', 'email': 'admin@example.com', 'role': 'admin'})
         assert_status(client, 'role invalido recebe 400', 400, json_extra={'role': 'superadmin'})
 
         instalar_db(target_role='monitor', admin_count=2)
         assert_status(client, 'admin editando role permitido recebe 200', 200)
+        assert_status(client, 'admin atribui role gestor_tk recebe 200', 200, json_extra={'role': 'gestor_tk'})
         assert_admin_altera_senha_usuario(client)
 
         instalar_db(target_role='admin', admin_count=1)

@@ -180,6 +180,7 @@ const monitorDoUsuario = (usuario) => {
 };
 
 const prefeituraMunicipalScope = (usuario) => PREFEITURA_MUNICIPAL_SCOPES[usuario?.role] || null;
+const usuarioEhGestorTk = (usuario) => usuario?.role === 'gestor_tk';
 
 const formatarUsuario = (usuario) => {
   if (!usuario) return '';
@@ -196,6 +197,7 @@ const rotuloPerfilUsuario = (usuario) => {
   const perfil = String(usuario?.role || '').trim().toLowerCase();
   const nome = String(usuario?.nome || '').trim().toLowerCase();
   if (perfil === 'admin') return 'Admin';
+  if (perfil === 'gestor_tk') return 'Gustavo - TK';
   if (perfil === 'psicologa') return 'Psicóloga';
   const prefeitura = prefeituraMunicipalScope(usuario);
   if (prefeitura) return prefeitura.label;
@@ -284,6 +286,10 @@ export default function App() {
   const cardRef = useRef(null);
   const atualizarAlunoNosResultadosRef = useRef(() => {});
   const isAdmin = usuario?.role === 'admin';
+  const isGestorTk = usuarioEhGestorTk(usuario);
+  const canCreateAluno = isAdmin || isGestorTk;
+  const canManageUsuarios = isAdmin;
+  const canChangeOwnPassword = !isGestorTk;
   const isPrefeituraMunicipal = Boolean(prefeituraMunicipalScope(usuario));
   const autenticado = Boolean(usuario?.token);
   const authHeaders = useMemo(() => (
@@ -383,7 +389,7 @@ export default function App() {
   const newStudentForm = useNewStudentForm({
     apiBaseUrl: API_BASE_URL,
     authHeaders,
-    isAdmin,
+    canCreateAluno,
     setMensagem,
     mensagemErroApi,
     novoAlunoInicial: NOVO_ALUNO_INICIAL,
@@ -487,6 +493,7 @@ export default function App() {
   };
 
   const abrirNovoAluno = () => {
+    if (!canCreateAluno) return;
     alunoSearch.fecharAlunoSelecionado();
     setMostrarMonitores(false);
     setMostrarUsuarios(false);
@@ -497,6 +504,7 @@ export default function App() {
   };
 
   const abrirUsuarios = async () => {
+    if (!canManageUsuarios) return;
     alunoSearch.fecharAlunoSelecionado();
     setMostrarMonitores(false);
     setMostrarIntegralizacao(false);
@@ -526,6 +534,7 @@ export default function App() {
   };
 
   const alterarMinhaSenha = async ({ senhaAtual, novaSenha, confirmacaoNovaSenha }) => {
+    if (!canChangeOwnPassword) return;
     if (alterandoMinhaSenha) return;
     setAlterandoMinhaSenha(true);
     setMensagem(null);
@@ -618,6 +627,7 @@ export default function App() {
         onToggleTheme={alternarTema}
         onLogout={sair}
         onOpenPasswordModal={() => setMostrarAlterarSenha(true)}
+        canChangePassword={canChangeOwnPassword}
         styles={styles}
       />
 
@@ -625,8 +635,8 @@ export default function App() {
         activeSection={activeSection}
         canViewMonitores={!isPrefeituraMunicipal}
         canViewConsumo
-        canCreateAluno={isAdmin}
-        canManageUsuarios={isAdmin}
+        canCreateAluno={canCreateAluno}
+        canManageUsuarios={canManageUsuarios}
         onHome={voltarParaInicio}
         onMonitores={abrirMonitores}
         onConsumo={abrirConsumo}
@@ -645,7 +655,7 @@ export default function App() {
 
       {mensagem && <div style={{ ...styles.message, ...estiloMensagem }}>{mensagem.texto}</div>}
 
-      {mostrarAlterarSenha && (
+      {mostrarAlterarSenha && canChangeOwnPassword && (
         <AlterarSenhaPropriaModal
           aberto={mostrarAlterarSenha}
           carregando={alterandoMinhaSenha}
@@ -667,7 +677,7 @@ export default function App() {
         />
       )}
 
-      {isAdmin && mostrarNovoAluno && (
+      {canCreateAluno && mostrarNovoAluno && (
         <NewStudentPanel
           novoAluno={newStudentForm.novoAluno}
           novoAlunoPerfil={newStudentForm.novoAlunoPerfil}
@@ -682,7 +692,7 @@ export default function App() {
         />
       )}
 
-      {isAdmin && mostrarUsuarios && (
+      {canManageUsuarios && mostrarUsuarios && (
         <UserManagementPanel
           usuarios={usersManagement.usuarios}
           novoUsuario={usersManagement.novoUsuario}
@@ -841,10 +851,11 @@ function MonitoresDashboard({ usuario, authHeaders }) {
   const [mensagemAtualizacao, setMensagemAtualizacao] = useState('');
 
   const isAdmin = usuario?.role === 'admin';
+  const canFilterMonitores = isAdmin || usuarioEhGestorTk(usuario);
   const prefeituraScope = prefeituraMunicipalScope(usuario);
   const isPrefeituraMunicipal = Boolean(prefeituraScope);
   const monitorUsuario = monitorDoUsuario(usuario);
-  const monitorEfetivo = usuario?.role === 'monitor' ? monitorUsuario : (isAdmin ? monitorFiltro : '');
+  const monitorEfetivo = usuario?.role === 'monitor' ? monitorUsuario : (canFilterMonitores ? monitorFiltro : '');
   const semanasPeriodo = useMemo(() => semanasUteisMonitoriaMes(mes), [mes]);
   const periodoOptions = useMemo(() => ([
     ['mes', 'Mês inteiro'],
@@ -946,7 +957,7 @@ function MonitoresDashboard({ usuario, authHeaders }) {
         </div>
         <div className="monitors-actions">
           <ProfileField label="Mês" type="month" value={mes} onChange={setMes} />
-          {isAdmin ? (
+          {canFilterMonitores ? (
             <ProfileSelect label="Monitor" value={monitorFiltro} onChange={setMonitorFiltro} options={[['', 'Todos'], ...MONITORES.map((monitor) => [monitor, monitor])]} />
           ) : isPrefeituraMunicipal ? (
             <ProfileField label="Monitor" value="Todos" disabled onChange={() => {}} />

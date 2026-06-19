@@ -122,6 +122,34 @@ python backend/scripts/criar_usuarios_monitores.py --input backend/tmp/monitores
 
 Nao versione listas reais de usuarios, e-mails ou senhas.
 
+### Reset seguro de senha de usuario
+
+Use este fluxo quando um usuario existente nao consegue mais autenticar e a senha precisa ser redefinida. A senha atual nao deve ser recuperada do banco.
+
+```powershell
+$env:RESET_PASSWORD_EMAIL="usuario@example.com"
+$env:RESET_PASSWORD_NEW_PASSWORD="nova_senha_local"
+python backend/scripts/resetar_senha_usuario.py --dry-run
+python backend/scripts/resetar_senha_usuario.py
+```
+
+O script nao imprime a senha nem o hash. Use apenas valores reais em variaveis de ambiente locais.
+
+### Usuario operacional Gustavo - TK
+
+O perfil interno `gestor_tk` tem acesso operacional amplo, mas nao acessa gestao de usuarios nem alteracao de senha.
+
+```powershell
+$env:PD_USER_NAME="Gustavo - TK"
+$env:PD_USER_EMAIL="gustavo@example.com"
+$env:PD_USER_PASSWORD="senha_temporaria_local"
+$env:PD_USER_ROLE="gestor_tk"
+python backend/scripts/criar_usuario_operacional.py --dry-run
+python backend/scripts/criar_usuario_operacional.py
+```
+
+Se o usuario ja existir e for necessario atualizar role/senha, use `--update-existing` de forma explicita. Nao versione e-mails ou senhas reais.
+
 ## Frontend
 
 1. Instale as dependencias:

@@ -65,6 +65,10 @@ O sistema foi construído com frontend e backend separados, persistência em Pos
 - Acesso específico para Prefeitura Itabira (`PDITA`) e Prefeitura Bom Despacho (`PDBD`)
 - Validações de autorização antes de consultas, edições, histórico, monitorias e consumo
 
+**Novo perfil operacional:**
+
+- **Gustavo - TK (`gestor_tk`)**: perfil operacional com acesso às visões e relatórios operacionais completos (Início, busca geral, Dados principais, Perfil do aluno, Consumo, Histórico, Relatórios Monitoria e Monitores). Não possui permissões de gestão de usuários nem alteração de senhas.
+
 ### Integrações e infraestrutura
 
 - Google Sheets API
@@ -215,6 +219,12 @@ Copie `backend/.env.example` para `backend/.env` e preencha os valores locais. N
 DATABASE_URL=
 ADMIN_EMAIL=
 ADMIN_PASSWORD=
+RESET_PASSWORD_EMAIL=
+RESET_PASSWORD_NEW_PASSWORD=
+PD_USER_NAME=
+PD_USER_EMAIL=
+PD_USER_PASSWORD=
+PD_USER_ROLE=
 DEFAULT_ADMIN_USER_EMAIL=
 DEFAULT_PSICOLOGA_USER_EMAIL=
 PREFEITURA_ITABIRA_EMAIL=
@@ -419,10 +429,13 @@ python backend/scripts/check_env.py
 python backend/scripts/corrigir_nomes.py
 python backend/scripts/corrigir_telefones.py
 python backend/scripts/criar_usuarios_monitores.py --input backend/tmp/monitores.csv
+python backend/scripts/resetar_senha_usuario.py --dry-run
+python backend/scripts/criar_usuario_operacional.py --dry-run
 python backend/scripts/importar_perfil_alunos.py
 ```
 
 O script de criacao de usuarios monitores exige `MONITOR_DEFAULT_PASSWORD` no ambiente e um CSV local nao versionado com colunas `nome,email`.
+Os scripts de reset de senha e criacao de usuario operacional usam apenas variaveis de ambiente locais e mascaram e-mails na saida.
 
 ---
 
