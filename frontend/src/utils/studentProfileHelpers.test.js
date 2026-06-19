@@ -37,7 +37,7 @@ describe('studentProfileHelpers', () => {
   describe('normalizarMonitor', () => {
     it('normaliza nomes e e-mails de monitores conhecidos', () => {
       expect(normalizarMonitor('Alex')).toBe(MONITORES[0]);
-      expect(normalizarMonitor('andre.costa@projetodesenvolve.com.br')).toBe(MONITORES[1]);
+      expect(normalizarMonitor('andre.monitor@example.com')).toBe(MONITORES[1]);
       expect(normalizarMonitor('Natanael123')).toBe(MONITORES[5]);
     });
 

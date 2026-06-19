@@ -53,6 +53,7 @@ Regras importantes:
 
 - Salve a credencial local em `backend/google-service-account.json`.
 - `backend/google-service-account.json` fica fora do Git.
+- Configure e-mails reais de administradores, prefeitura e monitores apenas no `backend/.env`, usando as variaveis do `backend/.env.example`.
 - Para ambiente local, use `FRONTEND_URL=http://localhost:5173`.
 - Para producao no Render, use `FRONTEND_URL=https://pdreports.vercel.app`.
 - Para producao, use `GOOGLE_SERVICE_ACCOUNT_JSON` como variavel de ambiente em uma unica linha; dentro da `private_key`, as quebras de linha precisam estar como `\n`.

@@ -27,10 +27,10 @@ from consumption_update_service import (
 )
 
 
-ADMIN = {'id': 1, 'nome': 'Admin', 'email': 'admin@pdreports.local', 'role': 'admin', 'ativo': True}
-MONITOR = {'id': 2, 'nome': 'Monitor', 'email': 'monitor@pdreports.local', 'role': 'monitor', 'ativo': True}
-PSICOLOGA = {'id': 3, 'nome': 'Psicóloga', 'email': 'psico@pdreports.local', 'role': 'psicologa', 'ativo': True}
-PREFEITURA = {'id': 4, 'nome': 'Itabira - Prefeitura', 'email': 'prefeitura@pdreports.local', 'role': 'prefeitura_itabira', 'ativo': True}
+ADMIN = {'id': 1, 'nome': 'Admin', 'email': 'admin@example.com', 'role': 'admin', 'ativo': True}
+MONITOR = {'id': 2, 'nome': 'Monitor', 'email': 'monitor@example.com', 'role': 'monitor', 'ativo': True}
+PSICOLOGA = {'id': 3, 'nome': 'Psicóloga', 'email': 'psicologa@example.com', 'role': 'psicologa', 'ativo': True}
+PREFEITURA = {'id': 4, 'nome': 'Itabira - Prefeitura', 'email': 'prefeitura@example.com', 'role': 'prefeitura_itabira', 'ativo': True}
 
 
 @contextmanager

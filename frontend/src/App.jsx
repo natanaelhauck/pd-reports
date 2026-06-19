@@ -176,15 +176,7 @@ const resumoCurto = (texto, limite = 180) => {
 
 const resumoMonitoriaVazio = () => ({ aluno_finalizou: 0, aluno_nao_agendado: 0, falta: 0, presente: 0, total: 0 });
 const monitorDoUsuario = (usuario) => {
-  const porEmail = {
-    'alex.fonseca@projetodesenvolve.com.br': 'Alex',
-    'andre.costa@projetodesenvolve.com.br': 'André',
-    'douglas.freitas@projetodesenvolve.com.br': 'Douglas',
-    'gabriel.lopes@projetodesenvolve.com.br': 'Gabriel',
-    'kellen.cruz@projetodesenvolve.com.br': 'Kellen',
-    'natanaelhauck@projetodesenvolve.com.br': 'Natanael',
-  };
-  return porEmail[String(usuario?.email || '').toLowerCase()] || normalizarMonitor(usuario?.nome);
+  return normalizarMonitor(usuario?.nome) || normalizarMonitor(usuario?.email);
 };
 
 const prefeituraMunicipalScope = (usuario) => PREFEITURA_MUNICIPAL_SCOPES[usuario?.role] || null;
@@ -192,12 +184,10 @@ const prefeituraMunicipalScope = (usuario) => PREFEITURA_MUNICIPAL_SCOPES[usuari
 const formatarUsuario = (usuario) => {
   if (!usuario) return '';
   const perfil = String(usuario.role || '').trim().toLowerCase();
-  const email = String(usuario.email || '').trim().toLowerCase();
   let nome = String(usuario.nome || usuario.email || '').trim();
   const prefeitura = prefeituraMunicipalScope(usuario);
   if (prefeitura) return nome || prefeitura.label;
-  if (perfil === 'admin' && nome.toLowerCase() === 'admin') nome = 'Natanael';
-  if (!nome && email === 'natanaelhauck@projetodesenvolve.com.br') nome = 'Natanael';
+  if (perfil === 'admin' && nome.toLowerCase() === 'admin') nome = 'Admin';
   const perfilLabel = rotuloPerfilUsuario({ ...usuario, nome });
   return [nome || 'Usuário', perfilLabel].filter(Boolean).join(' - ');
 };

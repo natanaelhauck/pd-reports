@@ -83,7 +83,7 @@ def main():
 
     service = instalar_sheet([
         ['', '', 'Nome', 'PDITA', '', '', '', '', 'Nome do Agente'],
-        ['', '', 'Aluno Teste', ' PDBD149 ', '', '', '', '', 'alex.fonseca@projetodesenvolve.com.br'],
+        ['', '', 'Aluno Teste', ' PDBD149 ', '', '', '', '', 'alex.monitor@example.com'],
     ])
     resultado = app_module.atualizar_campos_aluno_na_planilha(' pdbd149 ', {
         'monitor': ('Alex', 'Natanael'),
@@ -94,12 +94,12 @@ def main():
     assert_equal(
         'monitor Natanael vira email na planilha',
         atualizacao['values'],
-        [['natanael.hauck@projetodesenvolve.com.br']],
+        [['natanael.monitor@example.com']],
     )
 
     service = instalar_sheet([
         ['', '', 'Nome', 'PDITA', '', '', '', '', 'Nome do Agente'],
-        ['', '', 'Aluno Teste', 'PDITA001', '', '', '', '', 'natanael.hauck@projetodesenvolve.com.br'],
+        ['', '', 'Aluno Teste', 'PDITA001', '', '', '', '', 'natanael.monitor@example.com'],
     ])
     resultado = app_module.atualizar_campos_aluno_na_planilha('PDITA001', {
         'monitor': ('Natanael', 'André'),
@@ -108,7 +108,7 @@ def main():
     assert_equal(
         'monitor André vira email na planilha',
         primeira_atualizacao(service)['values'],
-        [['andre.costa@projetodesenvolve.com.br']],
+        [['andre.monitor@example.com']],
     )
 
     instalar_sheet([
@@ -206,7 +206,7 @@ def main():
         }
         instalar_sheet([
             ['', '', 'Nome', 'PDITA', '', '', '', '', 'Nome do Agente'],
-            ['', '', 'Mikael Tiago Da Silva', 'PDBD149', '', '', '', '', 'alex.fonseca@projetodesenvolve.com.br'],
+            ['', '', 'Aluno Teste', 'PDBD149', '', '', '', '', 'alex.monitor@example.com'],
         ])
         response = app_module.app.test_client().get('/api/admin/sheets-sync-check?matricula=PDBD149')
         assert_equal('diagnostico admin retorna 200', response.status_code, 200)

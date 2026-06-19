@@ -79,7 +79,7 @@ def root():
     }), 200
 
 DATABASE_URL = os.getenv('DATABASE_URL')
-ADMIN_EMAIL = os.getenv('ADMIN_EMAIL', 'admin@pdreports.local')
+ADMIN_EMAIL = os.getenv('ADMIN_EMAIL', 'admin@example.com')
 ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD')
 GOOGLE_SHEETS_ID = os.getenv('GOOGLE_SHEETS_ID')
 GOOGLE_SERVICE_ACCOUNT_JSON = os.getenv('GOOGLE_SERVICE_ACCOUNT_JSON')
@@ -118,8 +118,18 @@ CONSUMPTION_UPLOAD_RATE_LIMIT_WINDOW_SECONDS = int(os.getenv('CONSUMPTION_UPLOAD
 CONSUMPTION_UPLOAD_RATE_LIMIT_MAX_ATTEMPTS = int(os.getenv('CONSUMPTION_UPLOAD_RATE_LIMIT_MAX_ATTEMPTS', '3'))
 PREFEITURA_ITABIRA_ROLE = 'prefeitura_itabira'
 PREFEITURA_BOM_DESPACHO_ROLE = 'prefeitura_bom_despacho'
-PREFEITURA_ITABIRA_EMAIL = os.getenv('PREFEITURA_ITABIRA_EMAIL', 'prefeitura.itabira@projetodesenvolve.com.br')
+PREFEITURA_ITABIRA_EMAIL = os.getenv('PREFEITURA_ITABIRA_EMAIL', 'prefeitura.itabira@example.com')
 PREFEITURA_ITABIRA_PASSWORD_HASH = os.getenv('PREFEITURA_ITABIRA_PASSWORD_HASH')
+DEFAULT_ADMIN_USER_NAME = os.getenv('DEFAULT_ADMIN_USER_NAME', 'Admin')
+DEFAULT_ADMIN_USER_EMAIL = os.getenv('DEFAULT_ADMIN_USER_EMAIL', 'admin@example.com')
+DEFAULT_PSICOLOGA_USER_NAME = os.getenv('DEFAULT_PSICOLOGA_USER_NAME', 'Psicologa')
+DEFAULT_PSICOLOGA_USER_EMAIL = os.getenv('DEFAULT_PSICOLOGA_USER_EMAIL', 'psicologa@example.com')
+MONITOR_EMAIL_ALEX = os.getenv('MONITOR_EMAIL_ALEX', 'alex.monitor@example.com')
+MONITOR_EMAIL_ANDRE = os.getenv('MONITOR_EMAIL_ANDRE', 'andre.monitor@example.com')
+MONITOR_EMAIL_DOUGLAS = os.getenv('MONITOR_EMAIL_DOUGLAS', 'douglas.monitor@example.com')
+MONITOR_EMAIL_GABRIEL = os.getenv('MONITOR_EMAIL_GABRIEL', 'gabriel.monitor@example.com')
+MONITOR_EMAIL_KELLEN = os.getenv('MONITOR_EMAIL_KELLEN', 'kellen.monitor@example.com')
+MONITOR_EMAIL_NATANAEL = os.getenv('MONITOR_EMAIL_NATANAEL', 'natanael.monitor@example.com')
 USUARIO_ROLES_VALIDOS = {'admin', 'monitor', 'psicologa', PREFEITURA_ITABIRA_ROLE, PREFEITURA_BOM_DESPACHO_ROLE}
 AUTH_TOKEN_MAX_AGE_SECONDS = 60 * 60 * 12
 APP_TIMEZONE_NAME = os.getenv('APP_TIMEZONE', 'America/Sao_Paulo')
@@ -157,23 +167,18 @@ CONSOLIDADOS_MONITORIA_HISTORICOS = {
     },
 }
 
-MONITOR_POR_EMAIL = {
-    'alex.fonseca@projetodesenvolve.com.br': 'Alex',
-    'andre.costa@projetodesenvolve.com.br': 'André',
-    'douglas.freitas@projetodesenvolve.com.br': 'Douglas',
-    'gabriel.lopes@projetodesenvolve.com.br': 'Gabriel',
-    'kellen.cruz@projetodesenvolve.com.br': 'Kellen',
-    'natanael.hauck@projetodesenvolve.com.br': 'Natanael',
-    'natanaelhauck@projetodesenvolve.com.br': 'Natanael',
-}
-
 MONITOR_EMAIL_POR_NOME = {
-    'Alex': 'alex.fonseca@projetodesenvolve.com.br',
-    'André': 'andre.costa@projetodesenvolve.com.br',
-    'Douglas': 'douglas.freitas@projetodesenvolve.com.br',
-    'Gabriel': 'gabriel.lopes@projetodesenvolve.com.br',
-    'Kellen': 'kellen.cruz@projetodesenvolve.com.br',
-    'Natanael': 'natanael.hauck@projetodesenvolve.com.br',
+    'Alex': MONITOR_EMAIL_ALEX,
+    'André': MONITOR_EMAIL_ANDRE,
+    'Douglas': MONITOR_EMAIL_DOUGLAS,
+    'Gabriel': MONITOR_EMAIL_GABRIEL,
+    'Kellen': MONITOR_EMAIL_KELLEN,
+    'Natanael': MONITOR_EMAIL_NATANAEL,
+}
+MONITOR_POR_EMAIL = {
+    email.strip().lower(): nome
+    for nome, email in MONITOR_EMAIL_POR_NOME.items()
+    if str(email or '').strip()
 }
 
 MOTIVOS_FALTA_OFICIAIS = (
@@ -1797,7 +1802,7 @@ def normalizar_status_filtro_monitoria(valor):
     return ''
 
 def monitor_do_usuario(usuario):
-    email = usuario.get('email')
+    email = str(usuario.get('email') or '').strip().lower()
     if email in MONITOR_POR_EMAIL:
         return MONITOR_POR_EMAIL[email]
     nome = normalizar_monitor(usuario.get('nome'))
@@ -2188,8 +2193,8 @@ def garantir_usuario_padrao(cursor, nome, email, role, senha_hash=None):
     ''', (nome, email, senha_hash or generate_password_hash(ADMIN_PASSWORD), role))
 
 def garantir_usuarios_padrao(cursor):
-    garantir_usuario_padrao(cursor, 'Yuka', 'yuka@projetodesenvolve.com.br', 'admin')
-    garantir_usuario_padrao(cursor, 'Isabela', 'isabela@projetodesenvolve.com.br', 'psicologa')
+    garantir_usuario_padrao(cursor, DEFAULT_ADMIN_USER_NAME, DEFAULT_ADMIN_USER_EMAIL, 'admin')
+    garantir_usuario_padrao(cursor, DEFAULT_PSICOLOGA_USER_NAME, DEFAULT_PSICOLOGA_USER_EMAIL, 'psicologa')
     if PREFEITURA_ITABIRA_PASSWORD_HASH:
         garantir_usuario_padrao(
             cursor,

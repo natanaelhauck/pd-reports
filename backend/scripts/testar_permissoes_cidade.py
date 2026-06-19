@@ -24,7 +24,7 @@ from access_scope import apply_student_scope_filter, can_access_student, get_use
 ADMIN = {
     'id': 1,
     'nome': 'Admin',
-    'email': 'admin@pdreports.local',
+    'email': 'admin@example.com',
     'role': 'admin',
     'ativo': True,
 }
@@ -32,7 +32,7 @@ ADMIN = {
 PSICOLOGA = {
     'id': 2,
     'nome': 'Isabela',
-    'email': 'isabela@projetodesenvolve.com.br',
+    'email': 'psicologa@example.com',
     'role': 'psicologa',
     'ativo': True,
 }
@@ -40,7 +40,7 @@ PSICOLOGA = {
 MONITOR = {
     'id': 3,
     'nome': 'Natanael',
-    'email': 'natanael.hauck@projetodesenvolve.com.br',
+    'email': 'natanael.monitor@example.com',
     'role': 'monitor',
     'ativo': True,
 }
@@ -48,7 +48,7 @@ MONITOR = {
 PREFEITURA_ITABIRA = {
     'id': 4,
     'nome': 'Itabira - Prefeitura',
-    'email': 'prefeitura.itabira@projetodesenvolve.com.br',
+    'email': 'prefeitura.itabira@example.com',
     'role': 'prefeitura_itabira',
     'ativo': True,
 }
@@ -56,7 +56,7 @@ PREFEITURA_ITABIRA = {
 PREFEITURA_BD = {
     'id': 5,
     'nome': 'Bom Despacho - Prefeitura',
-    'email': 'prefeitura.bd@exemplo.local',
+    'email': 'prefeitura.bd@example.com',
     'role': 'prefeitura_bom_despacho',
     'ativo': True,
 }
