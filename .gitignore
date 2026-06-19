@@ -63,6 +63,8 @@ checker/all_grades.json
 checker/certificados_*.csv
 checker/relatorio_final.xlsx
 checker/*.xlsx
+backend/scripts/*monitores*.csv
+backend/scripts/*usuarios*.csv
 dados/alunos.xlsx
 dados/perfil_alunos.xlsx
 dados/**/*.xlsx

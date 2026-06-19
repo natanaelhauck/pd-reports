@@ -46,6 +46,7 @@ ADMIN_PASSWORD=sua_senha_local
 GOOGLE_SHEETS_ID=id_da_planilha
 GOOGLE_SERVICE_ACCOUNT_FILE=google-service-account.json
 FRONTEND_URL=http://localhost:5173
+MONITOR_DEFAULT_PASSWORD=senha_temporaria_local
 ```
 
 Regras importantes:
@@ -92,6 +93,29 @@ INTEGRALIZACAO_SHEET_NAME=Resultado
 ```
 
 Arquivos `.xlsx`, `.xls`, `.csv` e `.json` dentro de `dados/` ficam fora do Git. Use apenas arquivos locais ou exemplos explicitamente fictícios/anonimizados.
+
+### Criacao local de usuarios monitores
+
+O script administrativo de monitores nao contem lista de usuarios nem senha fixa. Para usar localmente, crie um CSV fora do Git, por exemplo:
+
+```text
+backend/tmp/monitores.csv
+```
+
+Formato esperado:
+
+```csv
+nome,email
+Monitor Exemplo,monitor@example.com
+```
+
+Configure `MONITOR_DEFAULT_PASSWORD` no `backend/.env` e execute:
+
+```powershell
+python backend/scripts/criar_usuarios_monitores.py --input backend/tmp/monitores.csv
+```
+
+Nao versione listas reais de usuarios, e-mails ou senhas.
 
 ## Frontend
 

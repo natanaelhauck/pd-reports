@@ -386,9 +386,11 @@ python backend/scripts/aplicar_migrations.py
 python backend/scripts/check_env.py
 python backend/scripts/corrigir_nomes.py
 python backend/scripts/corrigir_telefones.py
-python backend/scripts/criar_usuarios_monitores.py
+python backend/scripts/criar_usuarios_monitores.py --input backend/tmp/monitores.csv
 python backend/scripts/importar_perfil_alunos.py
 ```
+
+O script de criacao de usuarios monitores exige `MONITOR_DEFAULT_PASSWORD` no ambiente e um CSV local nao versionado com colunas `nome,email`.
 
 ---
 
