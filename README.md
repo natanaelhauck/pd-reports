@@ -7,6 +7,7 @@ Sistema web de gestão acadêmica para acompanhamento de alunos, relatórios de 
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Database-blue)
 ![Vercel](https://img.shields.io/badge/Vercel-Deploy-black)
 ![Render](https://img.shields.io/badge/Render-API-green)
+![Frontend CI](https://github.com/natanaelhauck/sistema_alunos/actions/workflows/frontend-ci.yml/badge.svg)
 
 ---
 
@@ -206,6 +207,8 @@ Os dados exibidos nesta versão pública foram anonimizados ou substituídos por
 
 ## Variáveis de ambiente
 
+Copie `backend/.env.example` para `backend/.env` e preencha os valores locais. Nunca versione `backend/.env`, credenciais, service accounts ou exports reais.
+
 ### Backend
 
 ```env
@@ -272,9 +275,9 @@ Documentação detalhada:
 
 ```bash
 cd backend
-python -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements.txt
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
 python app.py
 ```
 
@@ -282,8 +285,11 @@ python app.py
 
 ```bash
 cd frontend
-npm install
+npm ci
 npm run dev
+npm run test
+npm run lint
+npm run build
 ```
 
 ---
@@ -350,6 +356,21 @@ Variável:
 
 ```env
 VITE_API_URL=https://sistema-alunos-mwkw.onrender.com
+```
+
+---
+
+## CI/CD
+
+O repositório inclui o workflow `.github/workflows/frontend-ci.yml`, executado em push e pull request para `main` e `master`.
+
+O CI do frontend usa Node 20 e executa:
+
+```bash
+npm ci
+npm run lint
+npm run test
+npm run build
 ```
 
 ---
@@ -421,6 +442,8 @@ python backend/scripts/testar_upload_consumo.py
 ### Frontend
 
 ```bash
+npm --prefix frontend run test
+npm --prefix frontend run lint
 npm --prefix frontend run build
 ```
 

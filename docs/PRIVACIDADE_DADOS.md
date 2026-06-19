@@ -28,6 +28,8 @@ Se não houver uma imagem anonimizada equivalente, a imagem não deve ser refere
 
 Dados de exemplo devem ser explicitamente fictícios. Use nomes, e-mails e matrículas sintéticas, sem reaproveitar dados de produção ou exports reais.
 
+E-mails operacionais reais devem ficar apenas em `.env` local ou variáveis de ambiente do provedor. Exemplos versionados devem usar domínios fictícios, como `example.com`.
+
 ## Arquivos fora do Git
 
 Arquivos de produção/local devem permanecer fora do Git via `.gitignore`, especialmente:
@@ -38,6 +40,7 @@ Arquivos de produção/local devem permanecer fora do Git via `.gitignore`, espe
 - `.env`;
 - credenciais e service accounts;
 - exports reais;
+- listas locais de usuários ou monitores, como CSVs em `backend/tmp/`;
 - dumps de banco;
 - ambientes virtuais e dependências instaladas.
 

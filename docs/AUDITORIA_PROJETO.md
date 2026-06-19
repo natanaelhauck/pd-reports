@@ -9,7 +9,7 @@ O módulo mais forte é o Consumo: atualização manual por `all_grades.json` e 
 ## Verificação de dados públicos
 
 - Resultado da revisão de arquivos rastreados: não foram encontrados `.env`, service account, `checker/`, logs, temporários, `node_modules` ou venv rastreados. Os resultados com termos sensíveis aparecem em arquivos de exemplo, documentação ou scripts.
-- Resultado da revisão de screenshots: os screenshots ainda referenciados no README existem e os dados pessoais visíveis estão borrados/anonimizados. A imagem `docs/images/dashboard-administrativo.png` mostra usuário/admin nominal no canto da aplicação e deixou de ser referenciada no README até existir versão anonimizada.
+- Resultado da revisão de screenshots: os screenshots ainda referenciados no README existem e os dados pessoais visíveis estão borrados/anonimizados. A imagem `docs/images/dashboard-administrativo.png` permanece no repositório, mas não é referenciada no README até existir versão anonimizada.
 - Pendências: a planilha real anteriormente rastreada em `dados/` foi removida do versionamento. Se o repositório já tiver sido publicado com esse arquivo, planejar remoção do histórico Git antes de divulgar publicamente.
 
 ## Pontos fortes
@@ -50,14 +50,16 @@ O módulo mais forte é o Consumo: atualização manual por `all_grades.json` e 
 - Há tratamento de timeout e mensagens específicas em pontos sensíveis.
 - Ícones do `lucide-react` padronizam ações principais.
 - A refatoração visual do frontend avançou: navegação, cabeçalho, busca, shell do perfil, abas do perfil, Consumo individual, gestão de usuários e formulário de novo aluno já foram extraídos de `App.jsx`.
+- A refatoração de estado também avançou com hooks para usuários, busca de alunos, histórico, dados principais, perfil do aluno e cadastro de novo aluno.
+- Vitest cobre helpers puros de perfil/cadastro e o frontend tem workflow de CI para lint, testes e build.
 
 ### Riscos e melhorias
 
-- `frontend/src/App.jsx` ainda concentra muitos estados, callbacks e chamadas de API, apesar de a camada visual principal já ter sido parcialmente extraída.
+- `frontend/src/App.jsx` ainda atua como orquestrador principal de telas e fluxos, embora esteja significativamente menor após as extrações.
 - Muitos estilos ainda estão inline, misturados com CSS global.
-- Seria útil extrair hooks para alunos, usuários, perfil, monitoria, busca e navegação.
+- Ainda seria útil extrair hooks menores para monitoria, Consumo individual e estado de navegação.
 - Acessibilidade básica existe, mas ainda vale revisar foco, labels e navegação por teclado em modais e abas.
-- Testes automatizados de frontend ainda não cobrem os fluxos principais.
+- Testes automatizados de frontend ainda cobrem principalmente helpers puros; os fluxos principais ainda precisam de testes de componente ou E2E.
 
 ## Backend
 
@@ -123,6 +125,7 @@ O módulo mais forte é o Consumo: atualização manual por `all_grades.json` e 
 - Screenshots mostram o produto em funcionamento.
 - Documentação operacional existe para setup local, consumo e permissões municipais.
 - O projeto demonstra integração real entre Vercel, Render, Neon e Google Sheets API.
+- GitHub Actions valida lint, testes unitários e build do frontend.
 
 ### Pontos de atenção
 
@@ -138,8 +141,7 @@ O módulo mais forte é o Consumo: atualização manual por `all_grades.json` e 
 
 ## Melhorias importantes
 
-- Concluir a quebra de `App.jsx` extraindo hooks de API/estado, não apenas componentes visuais.
-- Criar hooks como `useAlunoSearch`, `useStudentProfile`, `useUsersManagement` e `useNavigationState`.
+- Continuar a quebra de `App.jsx` extraindo hooks de monitoria, Consumo individual e navegação.
 - Adicionar testes automatizados de frontend para navegação, busca e Consumo.
 - Formalizar migrations e checklist de deploy.
 - Adicionar monitoramento simples de latência dos endpoints principais.
@@ -149,14 +151,14 @@ O módulo mais forte é o Consumo: atualização manual por `all_grades.json` e 
 - Migrar autenticação para cookies `HttpOnly` ou sessão com refresh controlado.
 - Criar painel de auditoria administrativa.
 - Adicionar testes end-to-end com Playwright.
-- Adicionar pipeline CI para py_compile, scripts críticos e build do frontend.
+- Expandir CI para `py_compile`, scripts críticos e validações backend.
 - Criar dataset demo pequeno e explicitamente anonimizado.
 
 ## Sugestão de próximos commits
 
-- `refactor: Extrai hooks de busca e perfil do aluno`
-- `refactor: Extrai hook de gestao de usuarios`
+- `refactor: Extrai hook de monitoria do aluno`
+- `refactor: Extrai hook de consumo individual`
 - `test: Cobre fluxo de consumo no frontend`
-- `chore: Adiciona CI de validacao do projeto`
+- `ci: Adiciona validacao backend ao pipeline`
 - `docs: Publica dataset demo anonimizado`
 - `security: Revisa armazenamento de token no frontend`

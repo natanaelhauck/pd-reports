@@ -34,7 +34,11 @@ backend\venv\Scripts\python.exe
 
 O workspace tambem aponta para esse interpretador em `.vscode/settings.json`. Se o VSCode ainda mostrar imports como nao resolvidos, use `Python: Select Interpreter`, escolha esse arquivo e depois rode `Developer: Reload Window`.
 
-6. Crie manualmente o arquivo `backend/.env`.
+6. Crie o arquivo `backend/.env` a partir do exemplo versionado:
+
+```powershell
+Copy-Item .env.example .env
+```
 
 Esse arquivo contem segredos locais e nao vai para o Git. Nao cole JSON formatado em varias linhas no `.env`.
 
@@ -124,7 +128,7 @@ Nao versione listas reais de usuarios, e-mails ou senhas.
 
 ```powershell
 cd frontend
-npm install
+npm ci
 ```
 
 2. Crie manualmente `frontend/.env`:
@@ -140,3 +144,11 @@ npm run dev
 ```
 
 O Vite deve abrir em `http://localhost:5173`.
+
+4. Rode as validacoes do frontend:
+
+```powershell
+npm run test
+npm run lint
+npm run build
+```
