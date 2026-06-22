@@ -2191,7 +2191,7 @@ def criar_admin_inicial(cursor):
         INSERT INTO usuarios (nome, email, senha_hash, role, ativo)
         VALUES (%s, %s, %s, %s, TRUE)
     ''', ('Admin', ADMIN_EMAIL.strip().lower(), generate_password_hash(ADMIN_PASSWORD), 'admin'))
-    print(f'Admin inicial criado: {ADMIN_EMAIL.strip().lower()}')
+    print(f'Admin inicial criado: {mascarar_email_log(ADMIN_EMAIL)}')
 
 def garantir_usuario_padrao(cursor, nome, email, role, senha_hash=None, atualizar_email=True):
     cursor.execute(
