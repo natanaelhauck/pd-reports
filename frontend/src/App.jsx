@@ -81,6 +81,7 @@ const aguardar = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const erroDeConexao = (err) => (
   !err.response
   || err.code === 'ECONNABORTED'
+  || err.code === 'ERR_CANCELED'
   || err.code === 'ERR_NETWORK'
   || [502, 503, 504].includes(err.response?.status)
 );

@@ -1,6 +1,8 @@
 import { useCallback, useMemo, useState } from 'react';
 import axios from 'axios';
 
+const API_TIMEOUT_MS = 60000;
+
 export function useAlunoSearch({
   apiBaseUrl,
   authHeaders,
@@ -83,7 +85,7 @@ export function useAlunoSearch({
     setBuscando(true);
     setMensagem(null);
     try {
-      const res = await axios.get(`${apiBaseUrl}/api/alunos`, authConfig({ params: { q: termo }, timeout: 12000 }));
+      const res = await axios.get(`${apiBaseUrl}/api/alunos`, authConfig({ params: { q: termo }, timeout: API_TIMEOUT_MS }));
       setAlunos(res.data);
       if (res.data.length === 0) {
         setAluno(null);
@@ -158,7 +160,7 @@ export function useAlunoSearch({
     setBuscando(true);
     setMensagem(null);
     try {
-      const res = await axios.get(`${apiBaseUrl}/api/alunos/${encodeURIComponent(matricula)}`, authConfig({ timeout: 12000 }));
+      const res = await axios.get(`${apiBaseUrl}/api/alunos/${encodeURIComponent(matricula)}`, authConfig({ timeout: API_TIMEOUT_MS }));
       const selecionado = res.data;
       resetBuscaGeral();
       setMostrarNovoAluno(false);

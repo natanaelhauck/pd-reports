@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import axios from 'axios';
 
+const API_TIMEOUT_MS = 60000;
 const NOVO_USUARIO_INICIAL = { nome: '', email: '', senha: '', role: 'monitor' };
 const USUARIO_TEMP_INICIAL = { nome: '', email: '', role: 'monitor' };
 
@@ -49,7 +50,7 @@ export function useUsersManagement({
     if (!canManageUsuarios) return false;
     setMensagem(null);
     try {
-      const res = await axios.get(`${apiBaseUrl}/api/usuarios`, authConfig({ timeout: 12000 }));
+      const res = await axios.get(`${apiBaseUrl}/api/usuarios`, authConfig({ timeout: API_TIMEOUT_MS }));
       setUsuarios(res.data);
       return true;
     } catch (err) {
@@ -64,7 +65,7 @@ export function useUsersManagement({
     setSalvandoUsuario(true);
     setMensagem(null);
     try {
-      const res = await axios.post(`${apiBaseUrl}/api/usuarios/create`, novoUsuario, authConfig({ timeout: 12000 }));
+      const res = await axios.post(`${apiBaseUrl}/api/usuarios/create`, novoUsuario, authConfig({ timeout: API_TIMEOUT_MS }));
       setUsuarios((atuais) => ordenarUsuarios([...atuais, res.data.usuario]));
       setNovoUsuario(NOVO_USUARIO_INICIAL);
       setMensagem({ tipo: 'sucesso', texto: res.data.mensagem || 'Usuário cadastrado com sucesso.' });
@@ -98,7 +99,7 @@ export function useUsersManagement({
     setSalvandoUsuarioEditando(true);
     setMensagem(null);
     try {
-      const res = await axios.put(`${apiBaseUrl}/api/usuarios/${usuarioAlvo.id}`, usuarioTemp, authConfig({ timeout: 12000 }));
+      const res = await axios.put(`${apiBaseUrl}/api/usuarios/${usuarioAlvo.id}`, usuarioTemp, authConfig({ timeout: API_TIMEOUT_MS }));
       setUsuarios((atuais) => ordenarUsuarios(
         atuais.map((item) => (item.id === usuarioAlvo.id ? res.data.usuario : item))
       ));
@@ -145,7 +146,7 @@ export function useUsersManagement({
       const res = await axios.post(`${apiBaseUrl}/api/usuarios/update-password`, {
         usuario_id: usuarioAlvo.id,
         nova_senha: novaSenhaUsuario,
-      }, authConfig({ timeout: 12000 }));
+      }, authConfig({ timeout: API_TIMEOUT_MS }));
       setSenhaUsuarioEditando(null);
       setNovaSenhaUsuario('');
       setMostrarSenhaUsuario(false);
@@ -169,7 +170,7 @@ export function useUsersManagement({
     if (!canManageUsuarios || !usuarioAlvo?.id) return;
     setMensagem(null);
     try {
-      const res = await axios.delete(`${apiBaseUrl}/api/usuarios/${usuarioAlvo.id}`, authConfig({ timeout: 12000 }));
+      const res = await axios.delete(`${apiBaseUrl}/api/usuarios/${usuarioAlvo.id}`, authConfig({ timeout: API_TIMEOUT_MS }));
       setUsuarios((atuais) => atuais.filter((item) => item.id !== usuarioAlvo.id));
       if (usuarioEditando === usuarioAlvo.id) cancelarEdicaoUsuario();
       if (senhaUsuarioEditando === usuarioAlvo.id) cancelarEdicaoSenha();
