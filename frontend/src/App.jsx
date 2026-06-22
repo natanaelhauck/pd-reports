@@ -88,7 +88,19 @@ const erroDeConexao = (err) => (
 const MENSAGEM_SERVIDOR_INICIANDO = 'Servidor iniciando. Aguarde alguns segundos e tente novamente.';
 
 const mensagemErroApi = (err, fallback) => {
+  const status = err.response?.status;
+  const detalheResposta = typeof err.response?.data === 'string' ? err.response.data : err.response?.data?.erro || err.response?.data?.message;
+  const detalhe = String(detalheResposta || err.message || err.code || 'sem detalhe').slice(0, 240);
+  let endpointTexto = 'endpoint desconhecido';
+  try {
+    const endpoint = err.config?.url ? new URL(err.config.url, window.location.origin) : null;
+    if (endpoint) endpointTexto = `${endpoint.origin}${endpoint.pathname}`;
+  } catch {
+    endpointTexto = 'endpoint invalido';
+  }
+  console.warn(`${fallback}: status ${status || 'sem resposta'}, endpoint ${endpointTexto}, detalhe ${detalhe}`);
   if (erroDeConexao(err)) return MENSAGEM_SERVIDOR_INICIANDO;
+  if ((status === 400 || status >= 500) && !err.response?.data?.erro) return `${fallback} Verifique os logs da API.`;
   return err.response?.data?.erro || fallback;
 };
 
