@@ -51,6 +51,7 @@ GOOGLE_SHEETS_ID=id_da_planilha
 GOOGLE_SERVICE_ACCOUNT_FILE=google-service-account.json
 FRONTEND_URL=http://localhost:5173
 MONITOR_DEFAULT_PASSWORD=senha_temporaria_local
+ALUNOS_BASE_PATH=dados/alunos.xlsx
 ```
 
 Regras importantes:
@@ -98,6 +99,16 @@ INTEGRALIZACAO_SHEET_NAME=Resultado
 ```
 
 Arquivos `.xlsx`, `.xls`, `.csv` e `.json` dentro de `dados/` ficam fora do Git. Use apenas arquivos locais ou exemplos explicitamente fictícios/anonimizados.
+
+### Base local de alunos
+
+Para preencher ou complementar campos como patrimonio a partir de uma planilha local, configure:
+
+```env
+ALUNOS_BASE_PATH=dados/alunos.xlsx
+```
+
+Esse arquivo deve permanecer local e ignorado pelo Git. Use somente dados ficticios/anonimizados em arquivos de exemplo. O ingresso exibido na tela vem da fonte de Consumo; para atualiza-lo, reprocesse o fluxo de Consumo com a fonte local/Neon configurada.
 
 ### Criacao local de usuarios monitores
 
@@ -149,6 +160,19 @@ python backend/scripts/criar_usuario_operacional.py
 ```
 
 Se o usuario ja existir e for necessario atualizar role/senha, use `--update-existing` de forma explicita. Nao versione e-mails ou senhas reais.
+
+### Proprietario da gestao de usuarios
+
+A tela `Usuarios` e os endpoints de criacao/edicao/desativacao de usuarios exigem o role `owner_admin`. Para promover um usuario existente localmente, use variaveis de ambiente com valores reais apenas no terminal:
+
+```powershell
+$env:PD_USER_NAME="Proprietario"
+$env:PD_USER_EMAIL="usuario@example.com"
+$env:PD_USER_PASSWORD="senha_temporaria_local"
+$env:PD_USER_ROLE="owner_admin"
+python backend/scripts/criar_usuario_operacional.py --dry-run --update-existing
+python backend/scripts/criar_usuario_operacional.py --update-existing
+```
 
 ## Frontend
 

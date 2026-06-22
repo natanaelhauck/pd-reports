@@ -60,6 +60,7 @@ O sistema foi construído com frontend e backend separados, persistência em Pos
 
 - Login com perfis de acesso
 - Gestão de usuários
+- Gestão de usuários restrita ao role `owner_admin`; `admin` permanece como perfil operacional sem acesso a Usuários
 - Permissões por papel no frontend e no backend
 - Escopos municipais por matrícula
 - Acesso específico para Prefeitura Itabira (`PDITA`) e Prefeitura Bom Despacho (`PDBD`)

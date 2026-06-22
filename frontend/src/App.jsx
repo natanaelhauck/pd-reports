@@ -181,6 +181,7 @@ const monitorDoUsuario = (usuario) => {
 
 const prefeituraMunicipalScope = (usuario) => PREFEITURA_MUNICIPAL_SCOPES[usuario?.role] || null;
 const usuarioEhGestorTk = (usuario) => usuario?.role === 'gestor_tk';
+const usuarioEhOwnerAdmin = (usuario) => usuario?.role === 'owner_admin';
 
 const formatarUsuario = (usuario) => {
   if (!usuario) return '';
@@ -197,6 +198,7 @@ const rotuloPerfilUsuario = (usuario) => {
   const perfil = String(usuario?.role || '').trim().toLowerCase();
   const nome = String(usuario?.nome || '').trim().toLowerCase();
   if (perfil === 'admin') return 'Admin';
+  if (perfil === 'owner_admin') return 'Proprietario';
   if (perfil === 'gestor_tk') return 'Gustavo - TK';
   if (perfil === 'psicologa') return 'Psicóloga';
   const prefeitura = prefeituraMunicipalScope(usuario);
@@ -287,8 +289,9 @@ export default function App() {
   const atualizarAlunoNosResultadosRef = useRef(() => {});
   const isAdmin = usuario?.role === 'admin';
   const isGestorTk = usuarioEhGestorTk(usuario);
-  const canCreateAluno = isAdmin || isGestorTk;
-  const canManageUsuarios = isAdmin;
+  const isOwnerAdmin = usuarioEhOwnerAdmin(usuario);
+  const canCreateAluno = isOwnerAdmin || isAdmin || isGestorTk;
+  const canManageUsuarios = isOwnerAdmin;
   const canChangeOwnPassword = !isGestorTk;
   const isPrefeituraMunicipal = Boolean(prefeituraMunicipalScope(usuario));
   const autenticado = Boolean(usuario?.token);
@@ -302,7 +305,7 @@ export default function App() {
   const usersManagement = useUsersManagement({
     apiBaseUrl: API_BASE_URL,
     authHeaders,
-    isAdmin,
+    canManageUsuarios,
     setMensagem,
     getErrorMessage: mensagemErroApi,
   });
@@ -708,6 +711,7 @@ export default function App() {
           styles={styles}
           formatarUsuario={formatarUsuario}
           rotuloPerfilUsuario={rotuloPerfilUsuario}
+          currentUserId={usuario?.id}
           onClose={() => setMostrarUsuarios(false)}
           onSubmitNovoUsuario={usersManagement.cadastrarUsuario}
           onNovoUsuarioChange={usersManagement.setNovoUsuario}
@@ -720,6 +724,7 @@ export default function App() {
           onNovaSenhaUsuarioChange={usersManagement.setNovaSenhaUsuario}
           onToggleMostrarSenhaUsuario={usersManagement.alternarMostrarSenhaUsuario}
           onSalvarSenhaUsuario={usersManagement.salvarSenhaUsuario}
+          onDesativarUsuario={usersManagement.desativarUsuario}
         />
       )}
 
@@ -851,7 +856,7 @@ function MonitoresDashboard({ usuario, authHeaders }) {
   const [mensagemAtualizacao, setMensagemAtualizacao] = useState('');
 
   const isAdmin = usuario?.role === 'admin';
-  const canFilterMonitores = isAdmin || usuarioEhGestorTk(usuario);
+  const canFilterMonitores = isAdmin || usuarioEhOwnerAdmin(usuario) || usuarioEhGestorTk(usuario);
   const prefeituraScope = prefeituraMunicipalScope(usuario);
   const isPrefeituraMunicipal = Boolean(prefeituraScope);
   const monitorUsuario = monitorDoUsuario(usuario);

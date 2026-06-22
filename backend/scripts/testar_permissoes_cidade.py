@@ -224,15 +224,15 @@ def testar_gates_de_edicao():
         with patched(app_module, require_auth=lambda: (PREFEITURA_BD, None)):
             assert_status('prefeitura bom despacho nao edita aluno', app_module.require_student_edit_permission, 403)
         with patched(app_module, require_auth=lambda: (PREFEITURA_ITABIRA, None)):
-            assert_status('prefeitura itabira nao cria usuario', app_module.require_admin, 403)
+            assert_status('prefeitura itabira nao cria usuario', app_module.require_user_management, 403)
         with patched(app_module, require_auth=lambda: (PREFEITURA_BD, None)):
-            assert_status('prefeitura bom despacho nao cria usuario', app_module.require_admin, 403)
+            assert_status('prefeitura bom despacho nao cria usuario', app_module.require_user_management, 403)
         with patched(app_module, require_auth=lambda: (PREFEITURA_ITABIRA, None)):
-            assert_status('prefeitura itabira nao cadastra aluno', app_module.require_admin, 403)
+            assert_status('prefeitura itabira nao cadastra aluno', app_module.require_student_create_permission, 403)
         with patched(app_module, require_auth=lambda: (PREFEITURA_BD, None)):
-            assert_status('prefeitura bom despacho nao cadastra aluno', app_module.require_admin, 403)
+            assert_status('prefeitura bom despacho nao cadastra aluno', app_module.require_student_create_permission, 403)
         with patched(app_module, require_auth=lambda: (GESTOR_TK, None)):
-            assert_status('gestor tk nao gerencia usuarios', app_module.require_admin, 403)
+            assert_status('gestor tk nao gerencia usuarios', app_module.require_user_management, 403)
         with patched(app_module, require_auth=lambda: (GESTOR_TK, None)):
             usuario, erro = app_module.require_student_create_permission()
             assert_equal('gestor tk cadastra aluno', erro, None)
@@ -310,6 +310,28 @@ def testar_endpoints_bloqueados_gestor_tk():
                 )
 
 
+def testar_endpoints_bloqueados_admin_comum():
+    bloqueios = [
+        ('GET', '/api/usuarios', 'nao lista usuarios'),
+        ('POST', '/api/usuarios/create', 'nao cria usuario'),
+        ('POST', '/api/usuarios/update-password', 'nao altera senha de terceiro'),
+    ]
+    with app_module.app.test_client() as client:
+        with patched(app_module, get_current_user=lambda: ADMIN):
+            for method, path, descricao in bloqueios:
+                kwargs = {}
+                if method == 'POST':
+                    kwargs['json'] = {}
+                assert_endpoint_status(
+                    client,
+                    f"admin comum {descricao}",
+                    method,
+                    path,
+                    403,
+                    **kwargs,
+                )
+
+
 def main():
     testar_helper_cidade()
     testar_acesso_individual()
@@ -317,6 +339,7 @@ def main():
     testar_gates_de_edicao()
     testar_endpoints_bloqueados_prefeitura()
     testar_endpoints_bloqueados_gestor_tk()
+    testar_endpoints_bloqueados_admin_comum()
     print('Todos os testes de permissao por cidade passaram.')
 
 

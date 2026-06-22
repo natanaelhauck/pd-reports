@@ -11,6 +11,7 @@ from werkzeug.security import generate_password_hash
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 VALID_ROLES = {
+    "owner_admin",
     "admin",
     "monitor",
     "psicologa",

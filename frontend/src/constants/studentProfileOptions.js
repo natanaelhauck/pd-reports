@@ -19,6 +19,7 @@ export const TURNOS_TRABALHO = ['Manhã', 'Tarde', 'Noite', 'Integral', 'Escala'
 export const PSICOLOGOS = ['Isabela'];
 
 export const PERFIS_USUARIO = [
+  ['owner_admin', 'Proprietario'],
   ['monitor', 'Monitor'],
   ['admin', 'Admin'],
   ['gestor_tk', 'Gustavo - TK'],

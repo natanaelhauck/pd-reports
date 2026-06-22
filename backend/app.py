@@ -94,7 +94,9 @@ allowed_origins = ['http://localhost:5173']
 if FRONTEND_URL:
     allowed_origins.insert(0, FRONTEND_URL.rstrip('/'))
 CORS(app, resources={r"/api/*": {"origins": allowed_origins}})
-CAMINHO_PLANILHA = PROJECT_ROOT / 'dados' / 'alunos.xlsx'
+CAMINHO_PLANILHA = Path(os.getenv('ALUNOS_BASE_PATH', 'dados/alunos.xlsx'))
+if not CAMINHO_PLANILHA.is_absolute():
+    CAMINHO_PLANILHA = PROJECT_ROOT / CAMINHO_PLANILHA
 GOOGLE_SHEETS_SCOPE = 'https://www.googleapis.com/auth/spreadsheets'
 RELATORIOS_MONITORIA_ABA = 'Relatórios Monitoria'
 RELATORIOS_MONITORIA_DATA_MINIMA = date(2026, 3, 23)
@@ -119,6 +121,7 @@ CONSUMPTION_UPLOAD_RATE_LIMIT_MAX_ATTEMPTS = int(os.getenv('CONSUMPTION_UPLOAD_R
 PREFEITURA_ITABIRA_ROLE = 'prefeitura_itabira'
 PREFEITURA_BOM_DESPACHO_ROLE = 'prefeitura_bom_despacho'
 GESTOR_TK_ROLE = 'gestor_tk'
+OWNER_ADMIN_ROLE = 'owner_admin'
 PREFEITURA_ITABIRA_EMAIL_CONFIGURED = 'PREFEITURA_ITABIRA_EMAIL' in os.environ
 PREFEITURA_ITABIRA_EMAIL = os.getenv('PREFEITURA_ITABIRA_EMAIL', 'prefeitura.itabira@example.com')
 PREFEITURA_ITABIRA_PASSWORD_HASH = os.getenv('PREFEITURA_ITABIRA_PASSWORD_HASH')
@@ -134,7 +137,15 @@ MONITOR_EMAIL_DOUGLAS = os.getenv('MONITOR_EMAIL_DOUGLAS', 'douglas.monitor@exam
 MONITOR_EMAIL_GABRIEL = os.getenv('MONITOR_EMAIL_GABRIEL', 'gabriel.monitor@example.com')
 MONITOR_EMAIL_KELLEN = os.getenv('MONITOR_EMAIL_KELLEN', 'kellen.monitor@example.com')
 MONITOR_EMAIL_NATANAEL = os.getenv('MONITOR_EMAIL_NATANAEL', 'natanael.monitor@example.com')
-USUARIO_ROLES_VALIDOS = {'admin', 'monitor', 'psicologa', GESTOR_TK_ROLE, PREFEITURA_ITABIRA_ROLE, PREFEITURA_BOM_DESPACHO_ROLE}
+USUARIO_ROLES_VALIDOS = {
+    OWNER_ADMIN_ROLE,
+    'admin',
+    'monitor',
+    'psicologa',
+    GESTOR_TK_ROLE,
+    PREFEITURA_ITABIRA_ROLE,
+    PREFEITURA_BOM_DESPACHO_ROLE,
+}
 AUTH_TOKEN_MAX_AGE_SECONDS = 60 * 60 * 12
 APP_TIMEZONE_NAME = os.getenv('APP_TIMEZONE', 'America/Sao_Paulo')
 try:
@@ -640,17 +651,28 @@ def require_admin():
         return None, (jsonify({"erro": "Apenas administradores podem executar esta ação."}), 403)
     return usuario, None
 
+def usuario_pode_gerenciar_usuarios(usuario):
+    return (usuario or {}).get('role') == OWNER_ADMIN_ROLE
+
 def usuario_tem_acesso_operacional_total(usuario):
-    return (usuario or {}).get('role') in {'admin', 'psicologa', GESTOR_TK_ROLE}
+    return (usuario or {}).get('role') in {OWNER_ADMIN_ROLE, 'admin', 'psicologa', GESTOR_TK_ROLE}
 
 def usuario_pode_gerenciar_consumo(usuario):
-    return (usuario or {}).get('role') in {'admin', GESTOR_TK_ROLE}
+    return (usuario or {}).get('role') in {OWNER_ADMIN_ROLE, 'admin', GESTOR_TK_ROLE}
 
 def usuario_pode_alterar_senha(usuario):
     return (usuario or {}).get('role') != GESTOR_TK_ROLE
 
 def require_operational_admin():
-    return require_roles('admin', GESTOR_TK_ROLE)
+    return require_roles(OWNER_ADMIN_ROLE, 'admin', GESTOR_TK_ROLE)
+
+def require_user_management():
+    usuario, erro = require_auth()
+    if erro:
+        return None, erro
+    if not usuario_pode_gerenciar_usuarios(usuario):
+        return None, (jsonify({"erro": "Apenas o proprietario pode gerenciar usuarios."}), 403)
+    return usuario, None
 
 def require_roles(*roles):
     usuario, erro = require_auth()
@@ -661,10 +683,10 @@ def require_roles(*roles):
     return usuario, None
 
 def require_student_edit_permission():
-    return require_roles('admin', 'monitor', 'psicologa', GESTOR_TK_ROLE)
+    return require_roles(OWNER_ADMIN_ROLE, 'admin', 'monitor', 'psicologa', GESTOR_TK_ROLE)
 
 def require_student_create_permission():
-    return require_roles('admin', GESTOR_TK_ROLE)
+    return require_roles(OWNER_ADMIN_ROLE, 'admin', GESTOR_TK_ROLE)
 
 def upload_consumo_rate_limit_key(usuario=None):
     chaves = [f'ip:{cliente_ip()}']
@@ -801,6 +823,10 @@ def admin_ativo_count(cursor):
     cursor.execute("SELECT COUNT(*) AS total FROM usuarios WHERE role='admin' AND ativo=TRUE")
     return int(cursor.fetchone()['total'])
 
+def owner_admin_ativo_count(cursor):
+    cursor.execute("SELECT COUNT(*) AS total FROM usuarios WHERE role=%s AND ativo=TRUE", (OWNER_ADMIN_ROLE,))
+    return int(cursor.fetchone()['total'])
+
 def email_valido(email):
     return bool(re.fullmatch(r'[^@\s]+@[^@\s]+\.[^@\s]+', email or ''))
 
@@ -885,7 +911,7 @@ def resposta_rate_limit_login():
     return jsonify({'erro': LOGIN_RATE_LIMIT_MESSAGE}), 429
 
 def validar_campos_admin_only(usuario, atual, novo, campos):
-    if (usuario or {}).get('role') in {'admin', GESTOR_TK_ROLE}:
+    if (usuario or {}).get('role') in {OWNER_ADMIN_ROLE, 'admin', GESTOR_TK_ROLE}:
         return None
     alterados = [
         campo for campo in campos
@@ -2359,15 +2385,18 @@ def importar_planilha_para_neon():
 
     coluna_monitor = detectar_coluna_monitor(df)
     colunas_status = detectar_colunas_status(df)
+    coluna_patrimonio = detectar_coluna_por_nomes(df.columns, SHEETS_STUDENT_FIELD_HEADERS['patrimonio'])
 
     conn = conectar_db()
     cursor = cursor_db(conn)
     inseridos = 0
     for _, row in df.iterrows():
         cursor.execute('''
-            INSERT INTO alunos (nome, telefone, email, matricula, nascimento, monitor, status)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (matricula) DO NOTHING
+            INSERT INTO alunos (nome, telefone, email, matricula, nascimento, monitor, status, patrimonio)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (matricula) DO UPDATE SET
+                patrimonio=COALESCE(NULLIF(EXCLUDED.patrimonio, ''), alunos.patrimonio),
+                atualizado_em=CURRENT_TIMESTAMP
         ''', (
             str(row.get('Nome', '-')),
             str(row.get('Celular', '-')),
@@ -2376,6 +2405,7 @@ def importar_planilha_para_neon():
             str(row.get('Aniversário', '-'))[:10],
             normalizar_monitor(row.get(coluna_monitor, '')) if coluna_monitor else '',
             status_da_linha(row, colunas_status),
+            normalizar_patrimonio(row.get(coluna_patrimonio, '')) if coluna_patrimonio else '',
         ))
         inseridos += cursor.rowcount
 
@@ -2512,7 +2542,7 @@ def get_alunos():
                 aluno = row_to_dict(cursor.fetchone())
                 if not aluno or not usuario_pode_ver_matricula(usuario, aluno.get('matricula')):
                     return jsonify([])
-                return jsonify([formatar_aluno(aluno)])
+                return jsonify(anexar_consumo_alunos([formatar_aluno(aluno)]))
 
             filtro = f'%{termo}%'
             if '@' in termo:
@@ -2534,14 +2564,26 @@ def get_alunos():
                     return jsonify(alunos)
 
                 if tipo_busca == 'identificador':
-                    cursor.execute('''
-                        SELECT * FROM alunos
-                        WHERE matricula ILIKE %s
-                           OR telefone ILIKE %s
-                           OR patrimonio ILIKE %s
-                        ORDER BY nome
-                        LIMIT 50
-                    ''', (filtro, filtro, filtro))
+                    try:
+                        cursor.execute('''
+                            SELECT * FROM alunos
+                            WHERE matricula ILIKE %s
+                               OR telefone ILIKE %s
+                               OR patrimonio ILIKE %s
+                            ORDER BY nome
+                            LIMIT 50
+                        ''', (filtro, filtro, filtro))
+                    except psycopg2.Error:
+                        if conn:
+                            conn.rollback()
+                        cursor = cursor_db(conn)
+                        cursor.execute('''
+                            SELECT * FROM alunos
+                            WHERE matricula ILIKE %s
+                               OR telefone ILIKE %s
+                            ORDER BY nome
+                            LIMIT 50
+                        ''', (filtro, filtro))
                     alunos = filtrar_alunos_por_usuario(formatar_alunos_com_consumo(cursor.fetchall()), usuario)
                     return jsonify(alunos)
 
@@ -2610,7 +2652,7 @@ def get_aluno_por_matricula(matricula):
             return jsonify({'erro': 'Você não tem permissão para ver este aluno.'}), 403
 
         status_final = 200
-        return jsonify(formatar_aluno(aluno))
+        return jsonify(anexar_consumo_alunos([formatar_aluno(aluno)])[0])
     except psycopg2.Error as exc:
         status_final = 503
         return erro_banco(exc)
@@ -2858,7 +2900,7 @@ def atualizar_consumo_checker_admin():
 
 @app.route('/api/consumo/atualizacao/status', methods=['GET'])
 def status_atualizacao_consumo():
-    usuario, erro = require_roles('admin', 'monitor', 'psicologa', GESTOR_TK_ROLE, PREFEITURA_ITABIRA_ROLE, PREFEITURA_BOM_DESPACHO_ROLE)
+    usuario, erro = require_roles(OWNER_ADMIN_ROLE, 'admin', 'monitor', 'psicologa', GESTOR_TK_ROLE, PREFEITURA_ITABIRA_ROLE, PREFEITURA_BOM_DESPACHO_ROLE)
     if erro:
         return erro
 
@@ -2915,7 +2957,7 @@ def historico_atualizacoes_consumo():
 
 @app.route('/api/integralizacao', methods=['GET'])
 def get_integralizacao():
-    usuario, erro = require_roles('admin', 'monitor', 'psicologa', GESTOR_TK_ROLE, PREFEITURA_ITABIRA_ROLE, PREFEITURA_BOM_DESPACHO_ROLE)
+    usuario, erro = require_roles(OWNER_ADMIN_ROLE, 'admin', 'monitor', 'psicologa', GESTOR_TK_ROLE, PREFEITURA_ITABIRA_ROLE, PREFEITURA_BOM_DESPACHO_ROLE)
     if erro:
         return erro
 
@@ -2997,7 +3039,7 @@ def get_integralizacao():
 
 @app.route('/api/alunos/<matricula>/integralizacao', methods=['GET'])
 def get_integralizacao_aluno(matricula):
-    usuario, erro = require_roles('admin', 'monitor', 'psicologa', GESTOR_TK_ROLE, PREFEITURA_ITABIRA_ROLE, PREFEITURA_BOM_DESPACHO_ROLE)
+    usuario, erro = require_roles(OWNER_ADMIN_ROLE, 'admin', 'monitor', 'psicologa', GESTOR_TK_ROLE, PREFEITURA_ITABIRA_ROLE, PREFEITURA_BOM_DESPACHO_ROLE)
     if erro:
         return erro
 
@@ -3125,7 +3167,7 @@ def refresh_relatorios_monitoria():
 
 @app.route('/api/sync/refresh', methods=['POST'])
 def sync_refresh():
-    _, erro = require_roles('admin', 'monitor', 'psicologa', GESTOR_TK_ROLE)
+    _, erro = require_roles(OWNER_ADMIN_ROLE, 'admin', 'monitor', 'psicologa', GESTOR_TK_ROLE)
     if erro:
         return erro
     limpar_cache_relatorios()
@@ -3136,7 +3178,7 @@ def sync_refresh():
 
 @app.route('/api/admin/sheets-sync-check', methods=['GET'])
 def admin_sheets_sync_check():
-    _, erro = require_admin()
+    _, erro = require_operational_admin()
     if erro:
         return erro
 
@@ -3627,7 +3669,7 @@ def criar_aluno():
 
 @app.route('/api/usuarios', methods=['GET'])
 def listar_usuarios():
-    _, erro = require_admin()
+    _, erro = require_user_management()
     if erro:
         return erro
 
@@ -3638,6 +3680,7 @@ def listar_usuarios():
         cursor.execute('''
             SELECT id, nome, email, role, ativo, criado_em
             FROM usuarios
+            WHERE ativo=TRUE
             ORDER BY nome
         ''')
         return jsonify([row_to_dict(row) for row in cursor.fetchall()])
@@ -3649,7 +3692,7 @@ def listar_usuarios():
 
 @app.route('/api/usuarios/create', methods=['POST'])
 def criar_usuario():
-    usuario_logado, erro = require_admin()
+    usuario_logado, erro = require_user_management()
     if erro:
         return erro
 
@@ -3706,7 +3749,7 @@ def criar_usuario():
 
 @app.route('/api/usuarios/<int:usuario_id>', methods=['PUT'])
 def update_usuario(usuario_id):
-    usuario_logado, erro = require_admin()
+    usuario_logado, erro = require_user_management()
     if erro:
         return erro
 
@@ -3740,8 +3783,8 @@ def update_usuario(usuario_id):
         if cursor.fetchone():
             return jsonify({"erro": "Já existe usuário com esse e-mail."}), 409
 
-        if usuario_atual.get('role') == 'admin' and role != 'admin' and usuario_atual.get('ativo') and admin_ativo_count(cursor) <= 1:
-            return jsonify({"erro": "Não é possível rebaixar o último admin ativo."}), 400
+        if usuario_atual.get('role') == OWNER_ADMIN_ROLE and role != OWNER_ADMIN_ROLE and usuario_atual.get('ativo') and owner_admin_ativo_count(cursor) <= 1:
+            return jsonify({"erro": "Nao e possivel rebaixar o ultimo proprietario ativo."}), 400
 
         cursor.execute('''
             UPDATE usuarios
@@ -3772,9 +3815,56 @@ def update_usuario(usuario_id):
         if conn:
             conn.close()
 
+@app.route('/api/usuarios/<int:usuario_id>', methods=['DELETE'])
+def desativar_usuario(usuario_id):
+    usuario_logado, erro = require_user_management()
+    if erro:
+        return erro
+
+    if int(usuario_logado.get('id') or 0) == int(usuario_id):
+            return jsonify({"erro": "Nao e possivel desativar o proprio usuario."}), 400
+
+    conn = None
+    try:
+        conn = conectar_db()
+        cursor = cursor_db(conn)
+        cursor.execute('SELECT id, nome, email, role, ativo, criado_em FROM usuarios WHERE id=%s', (usuario_id,))
+        usuario_alvo = row_to_dict(cursor.fetchone())
+        if not usuario_alvo:
+            return jsonify({"erro": "Usuario nao encontrado."}), 404
+        if not usuario_alvo.get('ativo'):
+            return jsonify({"erro": "Usuario ja esta desativado."}), 400
+        if usuario_alvo.get('role') == OWNER_ADMIN_ROLE and owner_admin_ativo_count(cursor) <= 1:
+            return jsonify({"erro": "Nao e possivel desativar o ultimo proprietario ativo."}), 400
+
+        cursor.execute('''
+            UPDATE usuarios
+            SET ativo=FALSE
+            WHERE id=%s
+            RETURNING id, nome, email, role, ativo, criado_em
+        ''', (usuario_id,))
+        usuario_desativado = row_to_dict(cursor.fetchone())
+        conn.commit()
+        registrar_evento_seguranca(
+            'usuario_desativado',
+            usuario=usuario_logado,
+            ip=cliente_ip(),
+            usuario_alvo_id=usuario_id,
+            usuario_alvo_email=usuario_desativado.get('email'),
+            usuario_alvo_role=usuario_desativado.get('role'),
+        )
+        return jsonify({"mensagem": "Usuario desativado com sucesso.", "usuario": usuario_desativado})
+    except psycopg2.Error as exc:
+        if conn:
+            conn.rollback()
+        return erro_banco(exc)
+    finally:
+        if conn:
+            conn.close()
+
 @app.route('/api/usuarios/update-password', methods=['POST'])
 def update_usuario_password():
-    usuario_logado, erro = require_admin()
+    usuario_logado, erro = require_user_management()
     if erro:
         return erro
 

@@ -1,5 +1,5 @@
 import { Fragment } from 'react';
-import { Edit2, Eye, EyeOff, Save, X } from 'lucide-react';
+import { Edit2, Eye, EyeOff, Save, Trash2, X } from 'lucide-react';
 
 export function UserManagementPanel({
   usuarios,
@@ -16,6 +16,7 @@ export function UserManagementPanel({
   styles = {},
   formatarUsuario,
   rotuloPerfilUsuario,
+  currentUserId,
   onClose,
   onSubmitNovoUsuario,
   onNovoUsuarioChange,
@@ -28,7 +29,13 @@ export function UserManagementPanel({
   onNovaSenhaUsuarioChange,
   onToggleMostrarSenhaUsuario,
   onSalvarSenhaUsuario,
+  onDesativarUsuario,
 }) {
+  const confirmarDesativacao = (usuario) => {
+    if (!window.confirm(`Desativar o usuário ${formatarUsuario(usuario)}?`)) return;
+    onDesativarUsuario(usuario);
+  };
+
   return (
     <section className="admin-panel" style={styles.section}>
       <div className="panel-title-row">
@@ -69,6 +76,16 @@ export function UserManagementPanel({
                       </button>
                       <button className="ui-button" type="button" style={styles.secondaryBtn} onClick={() => onIniciarEdicaoSenha(usuario)}>
                         Alterar senha
+                      </button>
+                      <button
+                        className="ui-button"
+                        type="button"
+                        style={styles.secondaryBtn}
+                        disabled={usuario.id === currentUserId}
+                        onClick={() => confirmarDesativacao(usuario)}
+                        title={usuario.id === currentUserId ? 'Não é possível desativar o próprio usuário' : 'Desativar usuário'}
+                      >
+                        <Trash2 size={16} /> Desativar
                       </button>
                     </div>
                   </td>

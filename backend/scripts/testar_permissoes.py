@@ -26,9 +26,10 @@ class FakeConnection:
 
 
 class FakeCursor:
-    def __init__(self, target_role='monitor', admin_count=2):
+    def __init__(self, target_role='monitor', admin_count=2, owner_count=2):
         self.target_role = target_role
         self.admin_count = admin_count
+        self.owner_count = owner_count
         self.last_result = None
         self.profile = None
         self.login_user = {
@@ -58,6 +59,17 @@ class FakeCursor:
             self.last_result = None
         elif "select count(*) as total from usuarios where role='admin' and ativo=true" in sql_normalizado:
             self.last_result = {'total': self.admin_count}
+        elif 'select count(*) as total from usuarios where role=%s and ativo=true' in sql_normalizado:
+            self.last_result = {'total': self.owner_count if params and params[0] == 'owner_admin' else 0}
+        elif 'select id, nome, email, role, ativo, criado_em from usuarios where id=%s' in sql_normalizado:
+            self.last_result = {
+                'id': params[0],
+                'nome': self.login_user['nome'],
+                'email': self.login_user['email'],
+                'role': self.target_role,
+                'ativo': True,
+                'criado_em': None,
+            }
         elif sql_normalizado.startswith('update usuarios'):
             if 'set senha_hash=%s' in sql_normalizado:
                 self.last_result = {
@@ -66,6 +78,15 @@ class FakeCursor:
                     'email': self.login_user['email'],
                     'role': self.target_role,
                     'ativo': True,
+                    'criado_em': None,
+                }
+            elif 'set ativo=false' in sql_normalizado:
+                self.last_result = {
+                    'id': params[0],
+                    'nome': self.login_user['nome'],
+                    'email': self.login_user['email'],
+                    'role': self.target_role,
+                    'ativo': False,
                     'criado_em': None,
                 }
             else:
@@ -123,8 +144,8 @@ def instalar_usuario(usuario):
     app_module.get_current_user = lambda: usuario
 
 
-def instalar_db(target_role='monitor', admin_count=2):
-    cursor = FakeCursor(target_role=target_role, admin_count=admin_count)
+def instalar_db(target_role='monitor', admin_count=2, owner_count=2):
+    cursor = FakeCursor(target_role=target_role, admin_count=admin_count, owner_count=owner_count)
     app_module.conectar_db = lambda: FakeConnection()
     app_module.cursor_db = lambda conn: cursor
 
@@ -361,6 +382,43 @@ def assert_gestor_tk_nao_altera_senhas(client):
     print(f'OK - gestor_tk nao altera senha de terceiro: {response.status_code}')
 
 
+def assert_admin_nao_gerencia_usuarios(client):
+    response = client.post('/api/usuarios/create', json={
+        'nome': 'Usuario Indevido',
+        'email': 'usuario.indevido@example.com',
+        'senha': 'segura123',
+        'role': 'monitor',
+    })
+    assert response.status_code == 403, (
+        f'admin comum criando usuario: esperado 403, recebido {response.status_code} - {response.get_json()}'
+    )
+
+    response = client.post('/api/usuarios/update-password', json={
+        'usuario_id': 10,
+        'nova_senha': 'nova123',
+    })
+    assert response.status_code == 403, (
+        f'admin comum alterando senha de terceiro: esperado 403, recebido {response.status_code} - {response.get_json()}'
+    )
+    print('OK - admin comum nao gerencia usuarios nem senhas de terceiros')
+
+
+def assert_owner_desativa_usuario(client):
+    response = client.delete('/api/usuarios/10')
+    assert response.status_code == 200, (
+        f'owner desativando usuario: esperado 200, recebido {response.status_code} - {response.get_json()}'
+    )
+    print(f'OK - owner desativa usuario: {response.status_code}')
+
+
+def assert_owner_nao_desativa_proprio_usuario(client):
+    response = client.delete('/api/usuarios/1')
+    assert response.status_code == 400, (
+        f'owner desativando proprio usuario: esperado 400, recebido {response.status_code} - {response.get_json()}'
+    )
+    print(f'OK - owner nao desativa proprio usuario: {response.status_code}')
+
+
 def main():
     original_get_current_user = app_module.get_current_user
     original_conectar_db = app_module.conectar_db
@@ -397,15 +455,21 @@ def main():
         assert_gestor_tk_nao_altera_senhas(client)
 
         instalar_usuario({'id': 1, 'nome': 'Admin', 'email': 'admin@example.com', 'role': 'admin'})
-        assert_status(client, 'role invalido recebe 400', 400, json_extra={'role': 'superadmin'})
+        assert_status(client, 'admin comum tentando editar usuario recebe 403', 403)
+        assert_admin_nao_gerencia_usuarios(client)
 
         instalar_db(target_role='monitor', admin_count=2)
-        assert_status(client, 'admin editando role permitido recebe 200', 200)
-        assert_status(client, 'admin atribui role gestor_tk recebe 200', 200, json_extra={'role': 'gestor_tk'})
+        instalar_usuario({'id': 1, 'nome': 'Owner', 'email': 'owner@example.com', 'role': 'owner_admin'})
+        assert_status(client, 'role invalido recebe 400', 400, json_extra={'role': 'superadmin'})
+        assert_status(client, 'owner editando role permitido recebe 200', 200)
+        assert_status(client, 'owner atribui role gestor_tk recebe 200', 200, json_extra={'role': 'gestor_tk'})
+        assert_status(client, 'owner atribui role owner_admin recebe 200', 200, json_extra={'role': 'owner_admin'})
         assert_admin_altera_senha_usuario(client)
+        assert_owner_desativa_usuario(client)
+        assert_owner_nao_desativa_proprio_usuario(client)
 
-        instalar_db(target_role='admin', admin_count=1)
-        assert_status(client, 'tentativa de deixar sistema sem admin e bloqueada', 400)
+        instalar_db(target_role='owner_admin', owner_count=1)
+        assert_status(client, 'tentativa de deixar sistema sem proprietario e bloqueada', 400, json_extra={'role': 'admin'})
     finally:
         app_module.get_current_user = original_get_current_user
         app_module.conectar_db = original_conectar_db

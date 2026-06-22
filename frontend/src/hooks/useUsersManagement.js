@@ -11,7 +11,7 @@ const ordenarUsuarios = (usuarios) => [...usuarios].sort((a, b) =>
 export function useUsersManagement({
   apiBaseUrl,
   authHeaders,
-  isAdmin,
+  canManageUsuarios,
   setMensagem,
   getErrorMessage,
 }) {
@@ -46,7 +46,7 @@ export function useUsersManagement({
   }, [resetarFormularioUsuarios]);
 
   const carregarUsuarios = useCallback(async () => {
-    if (!isAdmin) return false;
+    if (!canManageUsuarios) return false;
     setMensagem(null);
     try {
       const res = await axios.get(`${apiBaseUrl}/api/usuarios`, authConfig({ timeout: 12000 }));
@@ -56,11 +56,11 @@ export function useUsersManagement({
       setMensagem({ tipo: 'erro', texto: getErrorMessage(err, 'Não foi possível carregar usuários.') });
       return false;
     }
-  }, [apiBaseUrl, authConfig, getErrorMessage, isAdmin, setMensagem]);
+  }, [apiBaseUrl, authConfig, canManageUsuarios, getErrorMessage, setMensagem]);
 
   const cadastrarUsuario = useCallback(async (e) => {
     e.preventDefault();
-    if (!isAdmin || salvandoUsuario) return;
+    if (!canManageUsuarios || salvandoUsuario) return;
     setSalvandoUsuario(true);
     setMensagem(null);
     try {
@@ -73,7 +73,7 @@ export function useUsersManagement({
     } finally {
       setSalvandoUsuario(false);
     }
-  }, [apiBaseUrl, authConfig, getErrorMessage, isAdmin, novoUsuario, salvandoUsuario, setMensagem]);
+  }, [apiBaseUrl, authConfig, canManageUsuarios, getErrorMessage, novoUsuario, salvandoUsuario, setMensagem]);
 
   const editarUsuario = useCallback((usuarioAlvo) => {
     setUsuarioEditando(usuarioAlvo.id);
@@ -94,7 +94,7 @@ export function useUsersManagement({
   }, []);
 
   const salvarUsuario = useCallback(async (usuarioAlvo) => {
-    if (!isAdmin || salvandoUsuarioEditando) return;
+    if (!canManageUsuarios || salvandoUsuarioEditando) return;
     setSalvandoUsuarioEditando(true);
     setMensagem(null);
     try {
@@ -114,7 +114,7 @@ export function useUsersManagement({
     authConfig,
     cancelarEdicaoUsuario,
     getErrorMessage,
-    isAdmin,
+    canManageUsuarios,
     salvandoUsuarioEditando,
     setMensagem,
     usuarioTemp,
@@ -138,7 +138,7 @@ export function useUsersManagement({
   }, []);
 
   const salvarSenhaUsuario = useCallback(async (usuarioAlvo) => {
-    if (!isAdmin || salvandoSenhaUsuario) return;
+    if (!canManageUsuarios || salvandoSenhaUsuario) return;
     setSalvandoSenhaUsuario(true);
     setMensagem(null);
     try {
@@ -159,10 +159,36 @@ export function useUsersManagement({
     apiBaseUrl,
     authConfig,
     getErrorMessage,
-    isAdmin,
+    canManageUsuarios,
     novaSenhaUsuario,
     salvandoSenhaUsuario,
     setMensagem,
+  ]);
+
+  const desativarUsuario = useCallback(async (usuarioAlvo) => {
+    if (!canManageUsuarios || !usuarioAlvo?.id) return;
+    setMensagem(null);
+    try {
+      const res = await axios.delete(`${apiBaseUrl}/api/usuarios/${usuarioAlvo.id}`, authConfig({ timeout: 12000 }));
+      setUsuarios((atuais) => atuais.filter((item) => item.id !== usuarioAlvo.id));
+      if (usuarioEditando === usuarioAlvo.id) cancelarEdicaoUsuario();
+      if (senhaUsuarioEditando === usuarioAlvo.id) cancelarEdicaoSenha();
+      await carregarUsuarios();
+      setMensagem({ tipo: 'sucesso', texto: res.data.mensagem || 'Usuario desativado com sucesso.' });
+    } catch (err) {
+      setMensagem({ tipo: 'erro', texto: getErrorMessage(err, 'Erro ao desativar usuÃ¡rio.') });
+    }
+  }, [
+    apiBaseUrl,
+    authConfig,
+    cancelarEdicaoSenha,
+    cancelarEdicaoUsuario,
+    canManageUsuarios,
+    carregarUsuarios,
+    getErrorMessage,
+    senhaUsuarioEditando,
+    setMensagem,
+    usuarioEditando,
   ]);
 
   return {
@@ -188,6 +214,7 @@ export function useUsersManagement({
     cancelarEdicaoSenha,
     alternarMostrarSenhaUsuario,
     salvarSenhaUsuario,
+    desativarUsuario,
     resetarFormularioUsuarios,
     limparGestaoUsuarios,
   };
