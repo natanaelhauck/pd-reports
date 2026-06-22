@@ -60,8 +60,6 @@ def normalizar_entrada(args):
     email = str(args.email or "").strip().lower()
     role = str(args.role or "").strip().lower()
 
-    if not nome:
-        raise RuntimeError("Informe PD_USER_NAME ou --name.")
     if not email or "@" not in email:
         raise RuntimeError("Informe um e-mail valido por PD_USER_EMAIL ou --email.")
     if role not in VALID_ROLES:
@@ -82,7 +80,7 @@ def obter_senha(args):
 def buscar_usuario(cursor, email):
     cursor.execute(
         """
-        SELECT id, email, role, ativo
+        SELECT id, nome, email, role, ativo
         FROM usuarios
         WHERE lower(email)=lower(%s)
         """,
@@ -114,19 +112,36 @@ def main():
             )
             return 0
 
-        senha = obter_senha(args)
-        senha_hash = generate_password_hash(senha)
+        if not usuario_atual and not nome:
+            raise RuntimeError("Informe PD_USER_NAME ou --name para criar usuario.")
+
+        senha = None
+        if not usuario_atual or args.password_stdin or os.getenv("PD_USER_PASSWORD"):
+            senha = obter_senha(args)
+        senha_hash = generate_password_hash(senha) if senha else None
 
         if usuario_atual:
-            cursor.execute(
-                """
-                UPDATE usuarios
-                SET nome=%s, role=%s, senha_hash=%s, ativo=TRUE
-                WHERE id=%s
-                RETURNING id, email, role, ativo
-                """,
-                (nome, role, senha_hash, usuario_atual["id"]),
-            )
+            nome_destino = nome or usuario_atual["nome"]
+            if senha_hash:
+                cursor.execute(
+                    """
+                    UPDATE usuarios
+                    SET nome=%s, role=%s, senha_hash=%s, ativo=TRUE
+                    WHERE id=%s
+                    RETURNING id, email, role, ativo
+                    """,
+                    (nome_destino, role, senha_hash, usuario_atual["id"]),
+                )
+            else:
+                cursor.execute(
+                    """
+                    UPDATE usuarios
+                    SET nome=%s, role=%s, ativo=TRUE
+                    WHERE id=%s
+                    RETURNING id, email, role, ativo
+                    """,
+                    (nome_destino, role, usuario_atual["id"]),
+                )
             usuario = cursor.fetchone()
             conn.commit()
             print(f"Usuario atualizado: {mascarar_email(usuario['email'])} role={usuario['role']}.")

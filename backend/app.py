@@ -2589,15 +2589,16 @@ def get_alunos():
 
                 cursor.execute('''
                     SELECT * FROM alunos
+                    WHERE nome ILIKE %s
                     ORDER BY nome
-                    LIMIT 2000
-                ''')
+                    LIMIT 200
+                ''', (filtro,))
             except psycopg2.Error:
                 if conn:
                     conn.rollback()
                 cursor = cursor_db(conn)
                 if tipo_busca == 'nome':
-                    cursor.execute('SELECT * FROM alunos ORDER BY nome LIMIT 2000')
+                    cursor.execute('SELECT * FROM alunos WHERE nome ILIKE %s ORDER BY nome LIMIT 200', (filtro,))
                 else:
                     raise
 
