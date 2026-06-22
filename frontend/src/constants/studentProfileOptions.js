@@ -22,7 +22,7 @@ export const PERFIS_USUARIO = [
   ['owner_admin', 'Proprietario'],
   ['monitor', 'Monitor'],
   ['admin', 'Admin'],
-  ['gestor_tk', 'Gustavo - TK'],
+  ['gestor_tk', 'TK'],
   ['psicologa', 'Psicóloga'],
   ['prefeitura_itabira', 'Itabira - Prefeitura'],
   ['prefeitura_bom_despacho', 'Bom Despacho - Prefeitura'],

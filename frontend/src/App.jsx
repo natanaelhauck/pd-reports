@@ -85,7 +85,10 @@ const erroDeConexao = (err) => (
   || [502, 503, 504].includes(err.response?.status)
 );
 
+const MENSAGEM_SERVIDOR_INICIANDO = 'Servidor iniciando. Aguarde alguns segundos e tente novamente.';
+
 const mensagemErroApi = (err, fallback) => {
+  if (erroDeConexao(err)) return MENSAGEM_SERVIDOR_INICIANDO;
   return err.response?.data?.erro || fallback;
 };
 
@@ -199,7 +202,7 @@ const rotuloPerfilUsuario = (usuario) => {
   const nome = String(usuario?.nome || '').trim().toLowerCase();
   if (perfil === 'admin') return 'Admin';
   if (perfil === 'owner_admin') return 'Proprietario';
-  if (perfil === 'gestor_tk') return 'Gustavo - TK';
+  if (perfil === 'gestor_tk') return 'TK';
   if (perfil === 'psicologa') return 'Psicóloga';
   const prefeitura = prefeituraMunicipalScope(usuario);
   if (prefeitura) return prefeitura.label;
