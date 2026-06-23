@@ -2237,7 +2237,8 @@ def formatar_aluno_lista(aluno):
 
 ALUNOS_BUSCA_LIMIT = 50
 ALUNO_LISTA_COLUNAS = 'id, nome, email, matricula, monitor, status'
-ALUNO_DETALHE_COLUNAS = 'id, nome, telefone, email, matricula, nascimento, ingresso, monitor, status, patrimonio'
+ALUNO_DETALHE_COLUNAS_BASE = ['id', 'nome', 'telefone', 'email', 'matricula', 'nascimento', 'monitor', 'status']
+ALUNO_DETALHE_COLUNAS_OPCIONAIS = ['ingresso', 'patrimonio']
 
 def escopo_alunos_sql(usuario):
     scope = get_user_city_scope(usuario)
@@ -2261,6 +2262,23 @@ def buscar_alunos_leve(cursor, usuario, where_sql, params, limit=ALUNOS_BUSCA_LI
         [*params, *escopo_params, limit],
     )
     return [formatar_aluno_lista(row_to_dict(row)) for row in cursor.fetchall()]
+
+def colunas_alunos_existentes(cursor, colunas):
+    cursor.execute(
+        '''
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_schema='public'
+          AND table_name='alunos'
+          AND column_name = ANY(%s)
+        ''',
+        (colunas,),
+    )
+    return {row['column_name'] for row in cursor.fetchall()}
+
+def colunas_detalhe_aluno(cursor):
+    opcionais = colunas_alunos_existentes(cursor, ALUNO_DETALHE_COLUNAS_OPCIONAIS)
+    return [*ALUNO_DETALHE_COLUNAS_BASE, *[coluna for coluna in ALUNO_DETALHE_COLUNAS_OPCIONAIS if coluna in opcionais]]
 
 def garantir_coluna(cursor, tabela, coluna, tipo):
     cursor.execute('''
@@ -2682,8 +2700,9 @@ def get_aluno_por_matricula(matricula):
     try:
         conn = conectar_db()
         cursor = cursor_db(conn)
+        colunas = ', '.join(colunas_detalhe_aluno(cursor))
         cursor.execute(
-            f'SELECT {ALUNO_DETALHE_COLUNAS} FROM alunos WHERE matricula=%s LIMIT 1',
+            f'SELECT {colunas} FROM alunos WHERE matricula=%s LIMIT 1',
             (matricula_normalizada,),
         )
         aluno = row_to_dict(cursor.fetchone())
@@ -2700,6 +2719,12 @@ def get_aluno_por_matricula(matricula):
         return jsonify(formatar_aluno(aluno))
     except psycopg2.Error as exc:
         status_final = 503
+        app.logger.error(
+            '[ERRO] /api/alunos/<matricula> tipo=%s detalhe=%s matricula=%s',
+            exc.__class__.__name__,
+            (getattr(exc, 'pgcode', None) or str(exc).splitlines()[0])[:120],
+            matricula_log,
+        )
         return erro_banco(exc)
     finally:
         app.logger.info(
