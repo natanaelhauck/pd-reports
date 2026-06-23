@@ -841,7 +841,7 @@ export default function App() {
               const selecionado = aluno?.matricula === item.matricula;
               const itemColor = getStatusColor(item.status);
               return (
-                <button className={`result-button${selecionado ? ' selected' : ''}`} type="button" key={item.matricula || item.id} style={{ ...styles.resultBtn, borderColor: selecionado ? itemColor : 'var(--pd-border)', backgroundColor: selecionado ? `${itemColor}0d` : 'var(--pd-surface)' }} onClick={() => alunoSearch.selecionarAluno(item)}>
+                <button className={`result-button${selecionado ? ' selected' : ''}`} type="button" key={item.matricula || item.id} style={{ ...styles.resultBtn, borderColor: selecionado ? itemColor : 'var(--pd-border)', backgroundColor: selecionado ? `${itemColor}0d` : 'var(--pd-surface)' }} onClick={() => alunoSearch.abrirAlunoPorMatricula(item.matricula)}>
                   <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '10px' }}>
                     <strong style={{ color: 'var(--pd-title)', lineHeight: 1.25 }}>{item.nome}</strong>
                     <span style={{ flexShrink: 0, color: itemColor, background: `${itemColor}14`, border: `1px solid ${itemColor}35`, borderRadius: '999px', padding: '3px 8px', fontSize: '10px', fontWeight: 900 }}>{statusDisplay(item.status)}</span>

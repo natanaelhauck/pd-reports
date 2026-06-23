@@ -2199,6 +2199,38 @@ def formatar_aluno(aluno):
         aluno['idade'] = "-"
     return aluno
 
+def formatar_aluno_lista(aluno):
+    aluno['monitor'] = normalizar_monitor(aluno.get('monitor'))
+    aluno['status'] = normalizar_status(aluno.get('status'))
+    return aluno
+
+ALUNOS_BUSCA_LIMIT = 50
+ALUNO_LISTA_COLUNAS = 'id, nome, email, matricula, monitor, status'
+ALUNO_DETALHE_COLUNAS = 'id, nome, telefone, email, matricula, nascimento, monitor, status, patrimonio'
+
+def escopo_alunos_sql(usuario):
+    scope = get_user_city_scope(usuario)
+    prefixes = scope.get('prefixes') or ()
+    if not scope.get('restricted') or not prefixes:
+        return '', []
+    return (
+        ' AND (' + ' OR '.join(['matricula LIKE %s'] * len(prefixes)) + ')',
+        [f'{prefix}%' for prefix in prefixes],
+    )
+
+def buscar_alunos_leve(cursor, usuario, where_sql, params, limit=ALUNOS_BUSCA_LIMIT):
+    escopo_sql, escopo_params = escopo_alunos_sql(usuario)
+    cursor.execute(
+        f'''
+        SELECT {ALUNO_LISTA_COLUNAS}
+        FROM alunos
+        WHERE {where_sql}{escopo_sql}
+        LIMIT %s
+        ''',
+        [*params, *escopo_params, limit],
+    )
+    return [formatar_aluno_lista(row_to_dict(row)) for row in cursor.fetchall()]
+
 def garantir_coluna(cursor, tabela, coluna, tipo):
     cursor.execute('''
         SELECT 1
@@ -2529,20 +2561,23 @@ def get_alunos():
     usuario, erro = require_auth()
     if erro:
         return erro
+
+    inicio = time.perf_counter()
+    termo = (request.args.get('q') or request.args.get('busca') or '').strip()
     conn = None
+    status_final = 500
+    total_resultados = 0
     try:
-        termo = (request.args.get('q') or request.args.get('busca') or '').strip()
         conn = conectar_db()
         cursor = cursor_db(conn)
 
         if termo:
             if parece_matricula_exata(termo):
                 matricula_normalizada = normalizar_matricula(termo)
-                cursor.execute('SELECT * FROM alunos WHERE matricula=%s LIMIT 1', (matricula_normalizada,))
-                aluno = row_to_dict(cursor.fetchone())
-                if not aluno or not usuario_pode_ver_matricula(usuario, aluno.get('matricula')):
-                    return jsonify([])
-                return jsonify(anexar_consumo_alunos([formatar_aluno(aluno)]))
+                alunos = buscar_alunos_leve(cursor, usuario, 'matricula=%s', [matricula_normalizada], limit=1)
+                total_resultados = len(alunos)
+                status_final = 200
+                return jsonify(alunos)
 
             filtro = f'%{termo}%'
             if '@' in termo:
@@ -2554,70 +2589,45 @@ def get_alunos():
 
             try:
                 if tipo_busca == 'email':
-                    cursor.execute('''
-                        SELECT * FROM alunos
-                        WHERE email ILIKE %s
-                        ORDER BY nome
-                        LIMIT 50
-                    ''', (filtro,))
-                    alunos = filtrar_alunos_por_usuario(formatar_alunos_com_consumo(cursor.fetchall()), usuario)
+                    alunos = buscar_alunos_leve(cursor, usuario, 'email ILIKE %s', [filtro])
+                    total_resultados = len(alunos)
+                    status_final = 200
                     return jsonify(alunos)
 
                 if tipo_busca == 'identificador':
-                    try:
-                        cursor.execute('''
-                            SELECT * FROM alunos
-                            WHERE matricula ILIKE %s
-                               OR telefone ILIKE %s
-                               OR patrimonio ILIKE %s
-                            ORDER BY nome
-                            LIMIT 50
-                        ''', (filtro, filtro, filtro))
-                    except psycopg2.Error:
-                        if conn:
-                            conn.rollback()
-                        cursor = cursor_db(conn)
-                        cursor.execute('''
-                            SELECT * FROM alunos
-                            WHERE matricula ILIKE %s
-                               OR telefone ILIKE %s
-                            ORDER BY nome
-                            LIMIT 50
-                        ''', (filtro, filtro))
-                    alunos = filtrar_alunos_por_usuario(formatar_alunos_com_consumo(cursor.fetchall()), usuario)
+                    alunos = buscar_alunos_leve(
+                        cursor,
+                        usuario,
+                        '(matricula ILIKE %s OR telefone ILIKE %s)',
+                        [filtro, filtro],
+                    )
+                    total_resultados = len(alunos)
+                    status_final = 200
                     return jsonify(alunos)
 
-                cursor.execute('''
-                    SELECT * FROM alunos
-                    WHERE nome ILIKE %s
-                    ORDER BY nome
-                    LIMIT 200
-                ''', (filtro,))
+                alunos = buscar_alunos_leve(cursor, usuario, 'nome ILIKE %s', [filtro])
             except psycopg2.Error:
                 if conn:
                     conn.rollback()
-                cursor = cursor_db(conn)
-                if tipo_busca == 'nome':
-                    cursor.execute('SELECT * FROM alunos WHERE nome ILIKE %s ORDER BY nome LIMIT 200', (filtro,))
-                else:
-                    raise
+                raise
 
-            alunos_filtrados = []
-            matriculas_adicionadas = set()
-            for row in cursor.fetchall():
-                aluno = row_to_dict(row)
-                matricula = aluno.get('matricula')
-                if nome_corresponde(aluno.get('nome') or '', termo) and matricula not in matriculas_adicionadas:
-                    alunos_filtrados.append(formatar_aluno(aluno))
-                    matriculas_adicionadas.add(matricula)
-                if len(alunos_filtrados) >= 50:
-                    break
-            return jsonify(filtrar_alunos_por_usuario(anexar_consumo_alunos(alunos_filtrados), usuario))
+            total_resultados = len(alunos)
+            status_final = 200
+            return jsonify(alunos)
         else:
+            status_final = 200
             return jsonify([])
     except psycopg2.Error as exc:
+        status_final = 503
         return erro_banco(exc)
     finally:
+        app.logger.info(
+            '[PERF] /api/alunos q=%s resultados=%s tempo_ms=%s status=%s',
+            '***' if termo else '',
+            total_resultados,
+            int((time.perf_counter() - inicio) * 1000),
+            status_final,
+        )
         if conn:
             conn.close()
 
@@ -2633,15 +2643,13 @@ def get_aluno_por_matricula(matricula):
     conn = None
     status_final = 500
     permitido = False
-    app.logger.info(
-        'alunos.detail.start matricula=%s role=%s',
-        matricula_log,
-        usuario.get('role'),
-    )
     try:
         conn = conectar_db()
         cursor = cursor_db(conn)
-        cursor.execute('SELECT * FROM alunos WHERE matricula=%s LIMIT 1', (matricula_normalizada,))
+        cursor.execute(
+            f'SELECT {ALUNO_DETALHE_COLUNAS} FROM alunos WHERE matricula=%s LIMIT 1',
+            (matricula_normalizada,),
+        )
         aluno = row_to_dict(cursor.fetchone())
         if not aluno:
             status_final = 404
@@ -2653,18 +2661,17 @@ def get_aluno_por_matricula(matricula):
             return jsonify({'erro': 'Você não tem permissão para ver este aluno.'}), 403
 
         status_final = 200
-        return jsonify(anexar_consumo_alunos([formatar_aluno(aluno)])[0])
+        return jsonify(formatar_aluno(aluno))
     except psycopg2.Error as exc:
         status_final = 503
         return erro_banco(exc)
     finally:
         app.logger.info(
-            'alunos.detail.done elapsed_ms=%s matricula=%s role=%s permitido=%s status=%s',
+            '[PERF] /api/alunos/<matricula> tempo_ms=%s status=%s matricula=%s permitido=%s',
             int((time.perf_counter() - inicio) * 1000),
-            matricula_log,
-            usuario.get('role'),
-            permitido,
             status_final,
+            matricula_log,
+            permitido,
         )
         if conn:
             conn.close()
