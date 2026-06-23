@@ -348,6 +348,7 @@ SHEETS_STUDENT_FIELD_HEADERS = {
     'telefone': ['Telefone', 'Celular'],
     'email': ['Email', 'E-mail'],
     'nascimento': ['Nascimento', 'Data de nascimento'],
+    'ingresso': ['Ingresso', 'Data de entrada', 'Data de ingresso', 'Entrada'],
     'monitor': ['Nome do Agente', 'Monitor', 'Agente', 'Agente de Sucesso'],
     'status': ['Status', 'Situação', 'Situacao'],
     'patrimonio': ['Patrimônio', 'Patrimonio'],
@@ -421,6 +422,34 @@ def normalizar_patrimonio(valor):
     if re.fullmatch(r'\d+\.0+', texto):
         texto = texto.split('.', 1)[0]
     return re.sub(r'\s+', '', texto)
+
+def normalizar_ingresso(valor):
+    if valor is None or pd.isna(valor):
+        return ''
+    if isinstance(valor, datetime):
+        return valor.date().isoformat()
+    if isinstance(valor, date):
+        return valor.isoformat()
+    if isinstance(valor, (int, float)) and not isinstance(valor, bool):
+        data = pd.to_datetime(valor, unit='D', origin='1899-12-30', errors='coerce')
+        return '' if pd.isna(data) else data.date().isoformat()
+
+    texto = corrigir_mojibake(valor).strip()
+    if valor_vazio(texto):
+        return ''
+    data = pd.to_datetime(texto, dayfirst=True, errors='coerce')
+    return texto if pd.isna(data) else data.date().isoformat()
+
+def formatar_ingresso(valor):
+    texto = str(valor or '').strip()
+    if not texto:
+        return ''
+    for formato in ('%Y-%m-%d', '%d/%m/%Y', '%d-%m-%Y'):
+        try:
+            return datetime.strptime(texto[:10], formato).strftime('%d/%m/%Y')
+        except ValueError:
+            pass
+    return texto
 
 def normalizar_turno(valor):
     if valor is None or pd.isna(valor):
@@ -2186,6 +2215,8 @@ def calcular_idade(data_nasc):
 
 def formatar_aluno(aluno):
     aluno.setdefault('patrimonio', '')
+    aluno['ingresso'] = normalizar_ingresso(aluno.get('ingresso'))
+    aluno['ingresso_formatado'] = formatar_ingresso(aluno.get('ingresso'))
     aluno['monitor'] = normalizar_monitor(aluno.get('monitor'))
     aluno['status'] = normalizar_status(aluno.get('status'))
 
@@ -2206,7 +2237,7 @@ def formatar_aluno_lista(aluno):
 
 ALUNOS_BUSCA_LIMIT = 50
 ALUNO_LISTA_COLUNAS = 'id, nome, email, matricula, monitor, status'
-ALUNO_DETALHE_COLUNAS = 'id, nome, telefone, email, matricula, nascimento, monitor, status, patrimonio'
+ALUNO_DETALHE_COLUNAS = 'id, nome, telefone, email, matricula, nascimento, ingresso, monitor, status, patrimonio'
 
 def escopo_alunos_sql(usuario):
     scope = get_user_city_scope(usuario)
@@ -2327,6 +2358,7 @@ def criar_tabelas():
             email TEXT,
             matricula TEXT UNIQUE,
             nascimento TEXT,
+            ingresso TEXT,
             monitor TEXT,
             status TEXT,
             patrimonio TEXT,
@@ -2386,6 +2418,7 @@ def criar_tabelas():
     ''')
 
     for coluna, tipo in {
+        'ingresso': 'TEXT',
         'patrimonio': 'TEXT',
         'atualizado_em': 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
     }.items():
@@ -2417,6 +2450,7 @@ def importar_planilha_para_neon():
 
     coluna_monitor = detectar_coluna_monitor(df)
     colunas_status = detectar_colunas_status(df)
+    coluna_ingresso = detectar_coluna_por_nomes(df.columns, SHEETS_STUDENT_FIELD_HEADERS['ingresso'])
     coluna_patrimonio = detectar_coluna_por_nomes(df.columns, SHEETS_STUDENT_FIELD_HEADERS['patrimonio'])
 
     conn = conectar_db()
@@ -2424,9 +2458,10 @@ def importar_planilha_para_neon():
     inseridos = 0
     for _, row in df.iterrows():
         cursor.execute('''
-            INSERT INTO alunos (nome, telefone, email, matricula, nascimento, monitor, status, patrimonio)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO alunos (nome, telefone, email, matricula, nascimento, ingresso, monitor, status, patrimonio)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (matricula) DO UPDATE SET
+                ingresso=COALESCE(NULLIF(EXCLUDED.ingresso, ''), alunos.ingresso),
                 patrimonio=COALESCE(NULLIF(EXCLUDED.patrimonio, ''), alunos.patrimonio),
                 atualizado_em=CURRENT_TIMESTAMP
         ''', (
@@ -2435,6 +2470,7 @@ def importar_planilha_para_neon():
             str(row.get('email', '-')),
             str(row.get('PDITA', '-')),
             str(row.get('Aniversário', '-'))[:10],
+            normalizar_ingresso(row.get(coluna_ingresso, '')) if coluna_ingresso else '',
             normalizar_monitor(row.get(coluna_monitor, '')) if coluna_monitor else '',
             status_da_linha(row, colunas_status),
             normalizar_patrimonio(row.get(coluna_patrimonio, '')) if coluna_patrimonio else '',

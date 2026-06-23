@@ -45,7 +45,7 @@ export function StudentMainDataTab({
             {editMode ? <select style={styles.fieldInput} value={temp.status || ''} onChange={(event) => onFieldChange('status', event.target.value)}><option value="">NÃO INFORMADO</option>{statusOptions.map((status) => <option key={status} value={status}>{status}</option>)}</select> : <span style={styles.val}>{formatStatus(aluno.status)}</span>}
           </div>
         </div>
-        <InfoItem styles={styles} icon={<GraduationCap size={18} color={corStatus} />} label="Ingresso" value={aluno.dataEntradaCursoFormatada || 'Não informado'} />
+        <InfoItem styles={styles} icon={<GraduationCap size={18} color={corStatus} />} label="Ingresso" value={aluno.ingresso_formatado || aluno.ingresso || aluno.dataEntradaCursoFormatada || 'Não informado'} />
         <FieldItem styles={styles} icon={<Calendar size={18} color={corStatus} />} label="Nascimento e Idade" type="date" editMode={editMode} value={temp.nascimento} display={`${aluno.nascimento_formatado} ${aluno.idade !== '-' ? `(${aluno.idade} anos)` : ''}`} onChange={(value) => onFieldChange('nascimento', value)} />
         <FieldItem styles={styles} icon={<Laptop size={18} color={corStatus} />} label="Patrimônio" editMode={editMode} value={temp.patrimonio} display={aluno.patrimonio || 'Não informado'} onChange={(value) => onFieldChange('patrimonio', value)} />
         <div style={styles.infoItem}>

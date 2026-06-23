@@ -102,13 +102,13 @@ Arquivos `.xlsx`, `.xls`, `.csv` e `.json` dentro de `dados/` ficam fora do Git.
 
 ### Base local de alunos
 
-Para preencher ou complementar campos como patrimonio a partir de uma planilha local, configure:
+Para preencher ou complementar campos como ingresso e patrimonio a partir de uma planilha local, configure:
 
 ```env
 ALUNOS_BASE_PATH=dados/alunos.xlsx
 ```
 
-Esse arquivo deve permanecer local e ignorado pelo Git. Use somente dados ficticios/anonimizados em arquivos de exemplo. O ingresso exibido na tela vem da fonte de Consumo; para atualiza-lo, reprocesse o fluxo de Consumo com a fonte local/Neon configurada.
+Esse arquivo deve permanecer local e ignorado pelo Git. Use somente dados ficticios/anonimizados em arquivos de exemplo. Para atualizar ingresso e patrimonio no banco, aplique as migrations e importe a base local.
 
 ### Criacao local de usuarios monitores
 
