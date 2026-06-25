@@ -44,6 +44,7 @@ import {
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 const TABS = ['Dados principais', 'Perfil do aluno', 'Relatórios Monitoria', 'Consumo', 'Histórico'];
+const TABS_RESTRITAS = ['Dados principais', 'Perfil do aluno', 'Consumo'];
 const MONITORIA_COLUNAS = [
   ['presente', 'Presente'],
   ['falta', 'Falta'],
@@ -197,6 +198,7 @@ const monitorDoUsuario = (usuario) => {
 
 const prefeituraMunicipalScope = (usuario) => PREFEITURA_MUNICIPAL_SCOPES[usuario?.role] || null;
 const usuarioEhGestorTk = (usuario) => usuario?.role === 'gestor_tk';
+const usuarioEhEdViewer = (usuario) => usuario?.role === 'ed_viewer';
 const usuarioEhOwnerAdmin = (usuario) => usuario?.role === 'owner_admin';
 
 const formatarUsuario = (usuario) => {
@@ -216,6 +218,7 @@ const rotuloPerfilUsuario = (usuario) => {
   if (perfil === 'admin') return 'Admin';
   if (perfil === 'owner_admin') return 'Proprietario';
   if (perfil === 'gestor_tk') return 'TK';
+  if (perfil === 'ed_viewer') return 'ED';
   if (perfil === 'psicologa') return 'Psicóloga';
   const prefeitura = prefeituraMunicipalScope(usuario);
   if (prefeitura) return prefeitura.label;
@@ -305,11 +308,13 @@ export default function App() {
   const atualizarAlunoNosResultadosRef = useRef(() => {});
   const isAdmin = usuario?.role === 'admin';
   const isGestorTk = usuarioEhGestorTk(usuario);
+  const isEdViewer = usuarioEhEdViewer(usuario);
   const isOwnerAdmin = usuarioEhOwnerAdmin(usuario);
-  const canCreateAluno = isOwnerAdmin || isAdmin || isGestorTk;
+  const canCreateAluno = isOwnerAdmin || isAdmin;
   const canManageUsuarios = isOwnerAdmin;
-  const canChangeOwnPassword = !isGestorTk;
+  const canChangeOwnPassword = !isGestorTk && !isEdViewer;
   const isPrefeituraMunicipal = Boolean(prefeituraMunicipalScope(usuario));
+  const alunoSomenteLeitura = isPrefeituraMunicipal || isGestorTk || isEdViewer;
   const autenticado = Boolean(usuario?.token);
   const authHeaders = useMemo(() => (
     usuario?.token ? { Authorization: `Bearer ${usuario.token}` } : {}
@@ -420,9 +425,10 @@ export default function App() {
     onClose: fecharNovoAluno,
   });
   const temaEscuro = tema === 'dark';
+  const usarAbasRestritas = isPrefeituraMunicipal || isEdViewer;
   const tabsVisiveis = useMemo(() => (
-    isPrefeituraMunicipal ? TABS.filter((tab) => tab !== 'Relatórios Monitoria' && tab !== 'Histórico') : TABS
-  ), [isPrefeituraMunicipal]);
+    usarAbasRestritas ? TABS_RESTRITAS : TABS
+  ), [usarAbasRestritas]);
 
   const estiloMensagem = mensagem?.tipo === 'sucesso'
     ? { background: '#ecfdf5', color: '#166534', border: '1px solid #bbf7d0' }
@@ -472,7 +478,7 @@ export default function App() {
     if (!tabsVisiveis.includes(tab)) return;
     setActiveTab(tab);
     if (tab === 'Perfil do aluno' && aluno) profileData.carregarPerfilAluno(aluno.matricula);
-    if (tab === 'Histórico' && aluno && !isPrefeituraMunicipal) studentHistory.carregarHistorico(aluno.matricula);
+    if (tab === 'Histórico' && aluno && !usarAbasRestritas) studentHistory.carregarHistorico(aluno.matricula);
   };
 
   const login = async (e) => {
@@ -534,6 +540,7 @@ export default function App() {
   };
 
   const abrirMonitores = () => {
+    if (isPrefeituraMunicipal || isEdViewer) return;
     alunoSearch.fecharAlunoSelecionado();
     setMostrarNovoAluno(false);
     setMostrarUsuarios(false);
@@ -652,7 +659,7 @@ export default function App() {
 
       <MainNavigation
         activeSection={activeSection}
-        canViewMonitores={!isPrefeituraMunicipal}
+        canViewMonitores={!isPrefeituraMunicipal && !isEdViewer}
         canViewConsumo
         canCreateAluno={canCreateAluno}
         canManageUsuarios={canManageUsuarios}
@@ -683,7 +690,7 @@ export default function App() {
         />
       )}
 
-      {mostrarMonitores && (
+      {mostrarMonitores && !isEdViewer && !isPrefeituraMunicipal && (
         <MonitoresDashboard usuario={usuario} authHeaders={authHeaders} />
       )}
 
@@ -754,7 +761,7 @@ export default function App() {
           cardRef={cardRef}
           statusLabel={statusDisplay(statusAtual)}
           statusColor={corStatus}
-          editMode={mainData.editMode}
+          editMode={mainData.editMode && !alunoSomenteLeitura}
           nameValue={mainData.temp.nome}
           onNameChange={(nome) => mainData.setCampoTemp('nome', nome)}
           styles={styles}
@@ -770,7 +777,7 @@ export default function App() {
               onFieldChange={mainData.setCampoTemp}
               salvando={mainData.salvando}
               corStatus={corStatus}
-              somenteLeitura={isPrefeituraMunicipal}
+              somenteLeitura={alunoSomenteLeitura}
               styles={styles}
               statusOptions={STATUS_OPTIONS}
               monitores={MONITORES}
@@ -783,7 +790,7 @@ export default function App() {
               perfil={profileData.perfil}
               perfilTemp={profileData.perfilTemp}
               editPerfil={profileData.editPerfil}
-              somenteLeitura={isPrefeituraMunicipal}
+              somenteLeitura={alunoSomenteLeitura}
               salvandoPerfil={profileData.salvandoPerfil}
               styles={styles}
               onEdit={profileData.iniciarEdicaoPerfil}

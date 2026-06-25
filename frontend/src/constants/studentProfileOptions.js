@@ -23,6 +23,7 @@ export const PERFIS_USUARIO = [
   ['monitor', 'Monitor'],
   ['admin', 'Admin'],
   ['gestor_tk', 'TK'],
+  ['ed_viewer', 'ED'],
   ['psicologa', 'Psicóloga'],
   ['prefeitura_itabira', 'Itabira - Prefeitura'],
   ['prefeitura_bom_despacho', 'Bom Despacho - Prefeitura'],

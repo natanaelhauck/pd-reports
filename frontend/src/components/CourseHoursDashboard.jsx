@@ -37,7 +37,7 @@ const consumoErroEhEstadoVazio = (err) => (
 const consumoErroMensagem = (err, usuario) => {
   const code = err?.response?.data?.code || err?.response?.data?.error;
   if (code === 'consumption_not_found') {
-    return ['owner_admin', 'admin', 'gestor_tk'].includes(usuario?.role)
+    return ['owner_admin', 'admin'].includes(usuario?.role)
       ? 'Nenhuma atualização de consumo encontrada. Clique em "Atualizar consumo" para carregar os dados.'
       : 'Nenhuma atualização de consumo disponível no momento.';
   }
@@ -109,7 +109,7 @@ export function CourseHoursDashboard({ apiBaseUrl, authHeaders, onSelectStudent,
   const [warningsUpload, setWarningsUpload] = useState([]);
   const [uploadStage, setUploadStage] = useState('idle');
 
-  const canManageConsumption = ['owner_admin', 'admin', 'gestor_tk'].includes(usuario?.role);
+  const canManageConsumption = ['owner_admin', 'admin'].includes(usuario?.role);
   const statusRunAtiva = statusAtualizacao?.status === 'pending' || statusAtualizacao?.status === 'running';
   const uploadEmAndamento = enviandoUpload || uploadStage === 'enviando' || uploadStage === 'processando';
   const carregarRequestId = useRef(0);

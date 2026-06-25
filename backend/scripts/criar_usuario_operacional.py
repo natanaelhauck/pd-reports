@@ -16,6 +16,7 @@ VALID_ROLES = {
     "monitor",
     "psicologa",
     "gestor_tk",
+    "ed_viewer",
     "prefeitura_itabira",
     "prefeitura_bom_despacho",
 }

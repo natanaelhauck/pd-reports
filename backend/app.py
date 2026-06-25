@@ -121,6 +121,7 @@ CONSUMPTION_UPLOAD_RATE_LIMIT_MAX_ATTEMPTS = int(os.getenv('CONSUMPTION_UPLOAD_R
 PREFEITURA_ITABIRA_ROLE = 'prefeitura_itabira'
 PREFEITURA_BOM_DESPACHO_ROLE = 'prefeitura_bom_despacho'
 GESTOR_TK_ROLE = 'gestor_tk'
+ED_VIEWER_ROLE = 'ed_viewer'
 OWNER_ADMIN_ROLE = 'owner_admin'
 PREFEITURA_ITABIRA_EMAIL_CONFIGURED = 'PREFEITURA_ITABIRA_EMAIL' in os.environ
 PREFEITURA_ITABIRA_EMAIL = os.getenv('PREFEITURA_ITABIRA_EMAIL', 'prefeitura.itabira@example.com')
@@ -143,6 +144,7 @@ USUARIO_ROLES_VALIDOS = {
     'monitor',
     'psicologa',
     GESTOR_TK_ROLE,
+    ED_VIEWER_ROLE,
     PREFEITURA_ITABIRA_ROLE,
     PREFEITURA_BOM_DESPACHO_ROLE,
 }
@@ -684,16 +686,16 @@ def usuario_pode_gerenciar_usuarios(usuario):
     return (usuario or {}).get('role') == OWNER_ADMIN_ROLE
 
 def usuario_tem_acesso_operacional_total(usuario):
-    return (usuario or {}).get('role') in {OWNER_ADMIN_ROLE, 'admin', 'psicologa', GESTOR_TK_ROLE}
+    return (usuario or {}).get('role') in {OWNER_ADMIN_ROLE, 'admin', 'psicologa', GESTOR_TK_ROLE, ED_VIEWER_ROLE}
 
 def usuario_pode_gerenciar_consumo(usuario):
-    return (usuario or {}).get('role') in {OWNER_ADMIN_ROLE, 'admin', GESTOR_TK_ROLE}
+    return (usuario or {}).get('role') in {OWNER_ADMIN_ROLE, 'admin'}
 
 def usuario_pode_alterar_senha(usuario):
-    return (usuario or {}).get('role') != GESTOR_TK_ROLE
+    return (usuario or {}).get('role') not in {GESTOR_TK_ROLE, ED_VIEWER_ROLE}
 
 def require_operational_admin():
-    return require_roles(OWNER_ADMIN_ROLE, 'admin', GESTOR_TK_ROLE)
+    return require_roles(OWNER_ADMIN_ROLE, 'admin')
 
 def require_user_management():
     usuario, erro = require_auth()
@@ -712,10 +714,10 @@ def require_roles(*roles):
     return usuario, None
 
 def require_student_edit_permission():
-    return require_roles(OWNER_ADMIN_ROLE, 'admin', 'monitor', 'psicologa', GESTOR_TK_ROLE)
+    return require_roles(OWNER_ADMIN_ROLE, 'admin', 'monitor', 'psicologa')
 
 def require_student_create_permission():
-    return require_roles(OWNER_ADMIN_ROLE, 'admin', GESTOR_TK_ROLE)
+    return require_roles(OWNER_ADMIN_ROLE, 'admin')
 
 def upload_consumo_rate_limit_key(usuario=None):
     chaves = [f'ip:{cliente_ip()}']
@@ -2969,7 +2971,7 @@ def atualizar_consumo_checker_admin():
 
 @app.route('/api/consumo/atualizacao/status', methods=['GET'])
 def status_atualizacao_consumo():
-    usuario, erro = require_roles(OWNER_ADMIN_ROLE, 'admin', 'monitor', 'psicologa', GESTOR_TK_ROLE, PREFEITURA_ITABIRA_ROLE, PREFEITURA_BOM_DESPACHO_ROLE)
+    usuario, erro = require_roles(OWNER_ADMIN_ROLE, 'admin', 'monitor', 'psicologa', GESTOR_TK_ROLE, ED_VIEWER_ROLE, PREFEITURA_ITABIRA_ROLE, PREFEITURA_BOM_DESPACHO_ROLE)
     if erro:
         return erro
 
@@ -3026,7 +3028,7 @@ def historico_atualizacoes_consumo():
 
 @app.route('/api/integralizacao', methods=['GET'])
 def get_integralizacao():
-    usuario, erro = require_roles(OWNER_ADMIN_ROLE, 'admin', 'monitor', 'psicologa', GESTOR_TK_ROLE, PREFEITURA_ITABIRA_ROLE, PREFEITURA_BOM_DESPACHO_ROLE)
+    usuario, erro = require_roles(OWNER_ADMIN_ROLE, 'admin', 'monitor', 'psicologa', GESTOR_TK_ROLE, ED_VIEWER_ROLE, PREFEITURA_ITABIRA_ROLE, PREFEITURA_BOM_DESPACHO_ROLE)
     if erro:
         return erro
 
@@ -3108,7 +3110,7 @@ def get_integralizacao():
 
 @app.route('/api/alunos/<matricula>/integralizacao', methods=['GET'])
 def get_integralizacao_aluno(matricula):
-    usuario, erro = require_roles(OWNER_ADMIN_ROLE, 'admin', 'monitor', 'psicologa', GESTOR_TK_ROLE, PREFEITURA_ITABIRA_ROLE, PREFEITURA_BOM_DESPACHO_ROLE)
+    usuario, erro = require_roles(OWNER_ADMIN_ROLE, 'admin', 'monitor', 'psicologa', GESTOR_TK_ROLE, ED_VIEWER_ROLE, PREFEITURA_ITABIRA_ROLE, PREFEITURA_BOM_DESPACHO_ROLE)
     if erro:
         return erro
 
@@ -3170,7 +3172,7 @@ def get_historico_aluno(matricula):
     usuario, erro = require_auth()
     if erro:
         return erro
-    if usuario_eh_prefeitura_municipal(usuario):
+    if usuario_eh_prefeitura_municipal(usuario) or usuario.get('role') == ED_VIEWER_ROLE:
         return jsonify({'erro': 'Você não tem permissão para ver o histórico deste aluno.'}), 403
     if not usuario_pode_ver_matricula(usuario, matricula):
         return jsonify({'erro': 'Você não tem permissão para ver este aluno.'}), 403
@@ -3199,7 +3201,7 @@ def get_relatorios_monitoria_aluno(matricula):
     usuario, erro = require_auth()
     if erro:
         return erro
-    if usuario_eh_prefeitura_municipal(usuario):
+    if usuario_eh_prefeitura_municipal(usuario) or usuario.get('role') == ED_VIEWER_ROLE:
         return jsonify({'erro': 'Você não tem permissão para ver os relatórios de monitoria deste aluno.'}), 403
     if not usuario_pode_ver_matricula(usuario, matricula):
         return jsonify({'erro': 'Você não tem permissão para ver este aluno.'}), 403
@@ -3236,7 +3238,7 @@ def refresh_relatorios_monitoria():
 
 @app.route('/api/sync/refresh', methods=['POST'])
 def sync_refresh():
-    _, erro = require_roles(OWNER_ADMIN_ROLE, 'admin', 'monitor', 'psicologa', GESTOR_TK_ROLE)
+    _, erro = require_roles(OWNER_ADMIN_ROLE, 'admin', 'monitor', 'psicologa')
     if erro:
         return erro
     limpar_cache_relatorios()
@@ -3429,7 +3431,7 @@ def get_resumo_monitoria_monitores():
     usuario, erro = require_auth()
     if erro:
         return erro
-    if usuario_eh_prefeitura_municipal(usuario):
+    if usuario_eh_prefeitura_municipal(usuario) or usuario.get('role') == ED_VIEWER_ROLE:
         return jsonify({'erro': 'Você não tem permissão para acessar o painel de monitores.'}), 403
     try:
         ano, mes, mes_param = parse_mes_monitoria(request.args.get('mes'))

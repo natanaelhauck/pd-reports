@@ -88,7 +88,7 @@ def apply_student_scope_filter(user, items, get_student_matricula=None):
 
 def can_access_student(user, student, monitor_name_resolver=None, enforce_monitor_scope=False):
     role = (user or {}).get('role')
-    if role in {'owner_admin', 'admin', 'psicologa', 'gestor_tk'}:
+    if role in {'owner_admin', 'admin', 'psicologa', 'gestor_tk', 'ed_viewer'}:
         return True
 
     scope = get_user_city_scope(user)

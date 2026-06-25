@@ -45,6 +45,14 @@ GESTOR_TK = {
     'ativo': True,
 }
 
+ED_VIEWER = {
+    'id': 7,
+    'nome': 'ED',
+    'email': 'ed@example.com',
+    'role': 'ed_viewer',
+    'ativo': True,
+}
+
 MONITOR = {
     'id': 3,
     'nome': 'Natanael',
@@ -164,6 +172,8 @@ def testar_acesso_individual():
     assert_true('psicologa acessa PDBD', can_access_student(PSICOLOGA, ALUNO_PDBD))
     assert_true('gestor tk acessa PDITA', can_access_student(GESTOR_TK, ALUNO_PDITA))
     assert_true('gestor tk acessa PDBD', can_access_student(GESTOR_TK, ALUNO_PDBD))
+    assert_true('ed viewer acessa PDITA', can_access_student(ED_VIEWER, ALUNO_PDITA))
+    assert_true('ed viewer acessa PDBD', can_access_student(ED_VIEWER, ALUNO_PDBD))
     assert_true('prefeitura itabira acessa PDITA', can_access_student(PREFEITURA_ITABIRA, ALUNO_PDITA))
     assert_false('prefeitura itabira nao acessa PDBD', can_access_student(PREFEITURA_ITABIRA, ALUNO_PDBD))
     assert_true('futura prefeitura bd acessa PDBD', can_access_student(PREFEITURA_BD, ALUNO_PDBD))
@@ -187,6 +197,7 @@ def testar_filtros_de_lista():
     assert_equal('futura prefeitura bd lista geral retorna apenas PDBD', [item['matricula'] for item in apply_student_scope_filter(PREFEITURA_BD, alunos)], ['PDBD001'])
     assert_equal('admin lista geral retorna tudo', [item['matricula'] for item in apply_student_scope_filter(ADMIN, alunos)], ['PDITA001', 'PDBD001'])
     assert_equal('gestor tk lista geral retorna tudo', [item['matricula'] for item in apply_student_scope_filter(GESTOR_TK, alunos)], ['PDITA001', 'PDBD001'])
+    assert_equal('ed viewer lista geral retorna tudo', [item['matricula'] for item in apply_student_scope_filter(ED_VIEWER, alunos)], ['PDITA001', 'PDBD001'])
     assert_equal('monitor lista geral continua sem restricao de cidade', [item['matricula'] for item in app_module.filtrar_alunos_por_usuario(alunos, MONITOR)], ['PDITA001', 'PDBD001'])
 
     consumo = [CONS_ITA, CONS_BD, CONS_SEM_VINCULO]
@@ -208,6 +219,11 @@ def testar_filtros_de_lista():
     assert_equal(
         'gestor tk consumo geral retorna tudo',
         [item['matricula'] for item in app_module.filtrar_integralizacao_por_usuario(consumo, GESTOR_TK)],
+        ['PDITA001', 'PDBD001', ''],
+    )
+    assert_equal(
+        'ed viewer consumo geral retorna tudo',
+        [item['matricula'] for item in app_module.filtrar_integralizacao_por_usuario(consumo, ED_VIEWER)],
         ['PDITA001', 'PDBD001', ''],
     )
     assert_equal(
@@ -234,13 +250,13 @@ def testar_gates_de_edicao():
         with patched(app_module, require_auth=lambda: (GESTOR_TK, None)):
             assert_status('gestor tk nao gerencia usuarios', app_module.require_user_management, 403)
         with patched(app_module, require_auth=lambda: (GESTOR_TK, None)):
-            usuario, erro = app_module.require_student_create_permission()
-            assert_equal('gestor tk cadastra aluno', erro, None)
-            assert_equal('gestor tk cadastro aluno usuario retornado', usuario['role'], 'gestor_tk')
+            assert_status('gestor tk nao cadastra aluno', app_module.require_student_create_permission, 403)
         with patched(app_module, require_auth=lambda: (GESTOR_TK, None)):
-            usuario, erro = app_module.require_student_edit_permission()
-            assert_equal('gestor tk edita aluno', erro, None)
-            assert_equal('gestor tk edicao aluno usuario retornado', usuario['role'], 'gestor_tk')
+            assert_status('gestor tk nao edita aluno', app_module.require_student_edit_permission, 403)
+        with patched(app_module, require_auth=lambda: (ED_VIEWER, None)):
+            assert_status('ed viewer nao cadastra aluno', app_module.require_student_create_permission, 403)
+        with patched(app_module, require_auth=lambda: (ED_VIEWER, None)):
+            assert_status('ed viewer nao edita aluno', app_module.require_student_edit_permission, 403)
         with patched(app_module, require_auth=lambda: (MONITOR, None)):
             usuario, erro = app_module.require_student_edit_permission()
             assert_equal('monitor continua podendo editar', erro, None)
@@ -293,6 +309,8 @@ def testar_endpoints_bloqueados_gestor_tk():
         ('POST', '/api/usuarios/create', 'nao cria usuario'),
         ('POST', '/api/usuarios/update-password', 'nao altera senha de terceiro'),
         ('POST', '/api/usuarios/me/password', 'nao altera propria senha'),
+        ('POST', '/api/alunos/update', 'nao edita aluno'),
+        ('POST', '/api/alunos/create', 'nao cria aluno'),
     ]
     with app_module.app.test_client() as client:
         with patched(app_module, get_current_user=lambda: GESTOR_TK):
@@ -303,6 +321,33 @@ def testar_endpoints_bloqueados_gestor_tk():
                 assert_endpoint_status(
                     client,
                     f"gestor_tk {descricao}",
+                    method,
+                    path,
+                    403,
+                    **kwargs,
+                )
+
+
+def testar_endpoints_bloqueados_ed_viewer():
+    bloqueios = [
+        ('GET', '/api/alunos/historico/PDITA001', 'nao ve historico'),
+        ('GET', '/api/alunos/PDITA001/relatorios-monitoria', 'nao ve relatorios monitoria do aluno'),
+        ('GET', '/api/relatorios-monitoria/resumo-monitores', 'nao ve painel de monitores'),
+        ('POST', '/api/admin/consumo/atualizar', 'nao atualiza consumo'),
+        ('POST', '/api/alunos/update', 'nao edita aluno'),
+        ('POST', '/api/alunos/create', 'nao cria aluno'),
+        ('GET', '/api/usuarios', 'nao lista usuarios'),
+        ('POST', '/api/usuarios/me/password', 'nao altera propria senha'),
+    ]
+    with app_module.app.test_client() as client:
+        with patched(app_module, get_current_user=lambda: ED_VIEWER):
+            for method, path, descricao in bloqueios:
+                kwargs = {}
+                if method == 'POST':
+                    kwargs['json'] = {}
+                assert_endpoint_status(
+                    client,
+                    f"ed_viewer {descricao}",
                     method,
                     path,
                     403,
@@ -339,6 +384,7 @@ def main():
     testar_gates_de_edicao()
     testar_endpoints_bloqueados_prefeitura()
     testar_endpoints_bloqueados_gestor_tk()
+    testar_endpoints_bloqueados_ed_viewer()
     testar_endpoints_bloqueados_admin_comum()
     print('Todos os testes de permissao por cidade passaram.')
 

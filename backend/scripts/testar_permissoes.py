@@ -382,6 +382,18 @@ def assert_gestor_tk_nao_altera_senhas(client):
     print(f'OK - gestor_tk nao altera senha de terceiro: {response.status_code}')
 
 
+def assert_ed_viewer_nao_altera_senha(client):
+    response = client.post('/api/usuarios/me/password', json={
+        'senha_atual': 'senha123',
+        'nova_senha': 'nova123',
+        'confirmacao_nova_senha': 'nova123',
+    })
+    assert response.status_code == 403, (
+        f'ed_viewer alterando propria senha: esperado 403, recebido {response.status_code} - {response.get_json()}'
+    )
+    print(f'OK - ed_viewer nao altera propria senha: {response.status_code}')
+
+
 def assert_admin_nao_gerencia_usuarios(client):
     response = client.post('/api/usuarios/create', json={
         'nome': 'Usuario Indevido',
@@ -454,6 +466,10 @@ def main():
         assert_gestor_tk_nao_cria_usuario(client)
         assert_gestor_tk_nao_altera_senhas(client)
 
+        instalar_usuario({'id': 13, 'nome': 'ED', 'email': 'ed@example.com', 'role': 'ed_viewer'})
+        assert_status(client, 'ed_viewer tentando editar usuario recebe 403', 403)
+        assert_ed_viewer_nao_altera_senha(client)
+
         instalar_usuario({'id': 1, 'nome': 'Admin', 'email': 'admin@example.com', 'role': 'admin'})
         assert_status(client, 'admin comum tentando editar usuario recebe 403', 403)
         assert_admin_nao_gerencia_usuarios(client)
@@ -463,6 +479,7 @@ def main():
         assert_status(client, 'role invalido recebe 400', 400, json_extra={'role': 'superadmin'})
         assert_status(client, 'owner editando role permitido recebe 200', 200)
         assert_status(client, 'owner atribui role gestor_tk recebe 200', 200, json_extra={'role': 'gestor_tk'})
+        assert_status(client, 'owner atribui role ed_viewer recebe 200', 200, json_extra={'role': 'ed_viewer'})
         assert_status(client, 'owner atribui role owner_admin recebe 200', 200, json_extra={'role': 'owner_admin'})
         assert_admin_altera_senha_usuario(client)
         assert_owner_desativa_usuario(client)
