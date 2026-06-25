@@ -2282,6 +2282,36 @@ def colunas_detalhe_aluno(cursor):
     opcionais = colunas_alunos_existentes(cursor, ALUNO_DETALHE_COLUNAS_OPCIONAIS)
     return [*ALUNO_DETALHE_COLUNAS_BASE, *[coluna for coluna in ALUNO_DETALHE_COLUNAS_OPCIONAIS if coluna in opcionais]]
 
+def buscar_ingresso_consumo_aluno(cursor, aluno):
+    email = normalizar_email_integralizacao(aluno.get('email'))
+    matricula = normalizar_matricula(aluno.get('matricula'))
+    if not email and not matricula:
+        return ''
+
+    cursor.execute(
+        '''
+        WITH ultima_run AS (
+            SELECT id
+            FROM course_consumption_runs
+            WHERE status = 'success'
+            ORDER BY finished_at DESC NULLS LAST, id DESC
+            LIMIT 1
+        )
+        SELECT s.ingresso
+        FROM course_consumption_students s
+        JOIN ultima_run r ON r.id = s.run_id
+        WHERE (%s <> '' AND lower(trim(s.student_email)) = %s)
+           OR (%s <> '' AND upper(regexp_replace(coalesce(s.matricula_pd, ''), '[^A-Z0-9]', '', 'g')) = %s)
+        ORDER BY
+            CASE WHEN %s <> '' AND lower(trim(s.student_email)) = %s THEN 0 ELSE 1 END,
+            s.id DESC
+        LIMIT 1
+        ''',
+        (email, email, matricula, matricula, email, email),
+    )
+    row = row_to_dict(cursor.fetchone())
+    return (row or {}).get('ingresso') or ''
+
 def garantir_coluna(cursor, tabela, coluna, tipo):
     cursor.execute('''
         SELECT 1
@@ -2716,6 +2746,16 @@ def get_aluno_por_matricula(matricula):
         if not permitido:
             status_final = 403
             return jsonify({'erro': 'Você não tem permissão para ver este aluno.'}), 403
+
+        if not normalizar_ingresso(aluno.get('ingresso')):
+            try:
+                aluno['ingresso'] = buscar_ingresso_consumo_aluno(cursor, aluno)
+            except psycopg2.Error as exc:
+                conn.rollback()
+                app.logger.warning(
+                    'Ingresso do consumo indisponivel para /api/alunos/<matricula>: %s',
+                    exc.__class__.__name__,
+                )
 
         status_final = 200
         return jsonify(formatar_aluno(aluno))
